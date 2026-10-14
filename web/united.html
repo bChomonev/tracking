@@ -112,6 +112,32 @@ th button { all: unset; cursor: pointer; }
 th button:focus-visible { outline: 2px solid var(--red); }
 th[aria-sort] button::after { content: " ▾"; }
 .pos { font: 600 .72rem/1 var(--body); color: var(--muted); letter-spacing: .06em; }
+/* Analyst */
+.analyst { display: grid; gap: 18px; max-width: 80ch; }
+.analyst .lede { font: 600 clamp(1.35rem, 3vw, 1.7rem)/1.25 var(--display); margin: 0; text-wrap: balance; }
+.analyst .summary { margin: 0; font-size: 1.05rem; }
+.findings { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.finding { display: grid; grid-template-columns: 6px minmax(0, 1fr); gap: 4px 14px; }
+.finding::before { content: ""; grid-row: 1 / span 4; border-radius: 3px; background: var(--muted); }
+.finding.problem::before { background: var(--bad); }
+.finding.strength::before { background: var(--good); }
+.finding.watch::before { background: var(--mid); }
+.finding h3 { font-size: 1.2rem; text-transform: uppercase; letter-spacing: .02em; }
+.finding h3 small { font: 600 .7rem/1 var(--body); letter-spacing: .1em; color: var(--muted); margin-left: 8px; vertical-align: middle; }
+.finding p { margin: 0; }
+.finding .why { color: var(--muted); font-style: italic; }
+.finding .why b { font-style: normal; font-weight: 600; font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; margin-right: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: 600 .75rem/1 var(--body); padding: 5px 8px; border-radius: 3px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); cursor: pointer; }
+.chip:hover { border-color: var(--red); }
+.chip:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; }
+.byline { font-size: .8rem; color: var(--muted); margin: 0; }
+.player-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; margin: 0 0 16px; padding: 0; list-style: none; }
+.player-notes li { background: var(--panel); border: 1px solid var(--rule); border-left: 4px solid var(--muted); border-radius: 4px; padding: 10px 12px; font-size: .94rem; min-width: 0; }
+.player-notes li.positive { border-left-color: var(--good); }
+.player-notes li.concern { border-left-color: var(--bad); }
+.player-notes b { display: block; font: 700 1.05rem/1.2 var(--display); text-transform: uppercase; letter-spacing: .02em; }
+.metric:target, .metric.flash { outline: 2px solid var(--red); outline-offset: 4px; border-radius: 2px; }
 .notes { color: var(--muted); font-size: .88rem; display: grid; gap: 6px; max-width: 80ch; }
 .notes p { margin: 0; }
 
@@ -127,6 +153,7 @@ th[aria-sort] button::after { content: " ▾"; }
     <p class="eyebrow" id="season-label">Premier League</p>
     <h1 id="title">Why are United <span>struggling?</span></h1>
     <div class="record" id="record"></div>
+    <div class="analyst" id="analyst" hidden></div>
     <ul class="verdict" id="verdict"></ul>
   </section>
 
@@ -151,6 +178,7 @@ th[aria-sort] button::after { content: " ▾"; }
       <h2 id="players-title">Who's doing the work</h2>
       <p>Per 90 minutes, shaded by percentile against Premier League players in the same role (min. 90 minutes). Roles: CB centre-back, FB full/wing-back, CM central mid, AM attacking mid, W winger, ST striker. Click a column to sort.</p>
     </div>
+    <ul class="player-notes" id="player-notes" hidden></ul>
     <div class="table-wrap"><table id="players"></table></div>
   </section>
 
@@ -158,6 +186,7 @@ th[aria-sort] button::after { content: " ▾"; }
 </main>
 
 <script type="application/json" id="profile-data">/*__PROFILE__*/null</script>
+<script type="application/json" id="analysis-data">/*__ANALYSIS__*/null</script>
 <script>
 (() => {
   const P = JSON.parse(document.getElementById("profile-data").textContent.replace("/*__PROFILE__*/", ""));
@@ -184,6 +213,27 @@ th[aria-sort] button::after { content: " ▾"; }
     [`${gf}–${ga}`, "goals"],
     [`${xgf.toFixed(1)}–${xga.toFixed(1)}`, "xG for–against"],
   ].map(([b, s]) => `<div><b class="num">${esc(b)}</b><small>${esc(s)}</small></div>`).join("");
+
+  // Analyst's read (LLM-written, number-checked at build time). Falls back to the rule-based verdict.
+  const A = JSON.parse(document.getElementById("analysis-data").textContent.replace("/*__ANALYSIS__*/", ""));
+  const kindLabel = { problem: "Problem", strength: "Strength", watch: "Watch" };
+  if (A) {
+    $("analyst").innerHTML = `<p class="lede">${esc(A.headline)}</p><p class="summary">${esc(A.summary)}</p>
+      <ul class="findings">${A.findings.map((f) => `<li class="finding ${esc(f.kind)}">
+        <h3>${esc(f.title)}<small>${esc(kindLabel[f.kind] || f.kind)}</small></h3>
+        <p>${esc(f.text)}</p>
+        ${f.interpretation ? `<p class="why"><b>Reading</b>${esc(f.interpretation)}</p>` : ""}
+        <div class="chips">${(f.evidence || []).filter((k) => metricBy[k]).map((k) =>
+          `<button class="chip" type="button" data-metric="${esc(k)}">${esc(metricBy[k].label)}</button>`).join("")}</div>
+      </li>`).join("")}</ul>
+      <p class="byline">Written by an AI analyst (${esc(A.meta?.model || "LLM")}) from the numbers on this page. Every number it quotes is checked against the data before publishing; the italic "Reading" lines are its interpretation, not data.</p>`;
+    $("analyst").hidden = false;
+    $("verdict").hidden = true;
+    if (A.players?.length) {
+      $("player-notes").innerHTML = A.players.map((p) => `<li class="${esc(p.kind)}"><b>${esc(p.name)}</b>${esc(p.text)}</li>`).join("");
+      $("player-notes").hidden = false;
+    }
+  }
 
   // Verdict: strongest strengths and weaknesses, phrased from the data.
   const ranked = P.metrics.filter((m) => m.percentile != null);
@@ -218,7 +268,7 @@ th[aria-sort] button::after { content: " ▾"; }
     const ms = P.metrics.filter((m) => m.stack === s.id);
     return `<article class="stack" aria-label="${esc(s.name)}">
       <header><h3>${esc(s.name)}</h3><span class="score num tier-${tier(s.score)}" title="Average percentile">${s.score ?? "—"}</span></header>
-      ${ms.map((m) => `<details class="metric">
+      ${ms.map((m) => `<details class="metric" id="m-${m.key}">
         <summary>
           <span class="m-label">${esc(m.label)}</span>
           <span class="m-value"><span class="num">${esc(showVal(m, m.value))}</span><span class="rank">${ord(m.rank)}/${m.of}</span></span>
@@ -233,6 +283,17 @@ th[aria-sort] button::after { content: " ▾"; }
       </details>`).join("")}
     </article>`;
   }).join("");
+
+  document.addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip[data-metric]");
+    if (!chip) return;
+    const el = document.getElementById("m-" + chip.dataset.metric);
+    if (!el) return;
+    el.open = true;
+    el.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+    el.classList.add("flash");
+    setTimeout(() => el.classList.remove("flash"), 1600);
+  });
 
   // ---- Matches table
   const matchCols = ["distance_gap_km", "sprints", "ppda", "territory_pct", "box_touches", "npxg", "npxg_per_shot", "npxg_conceded", "npxg_per_shot_conceded"];

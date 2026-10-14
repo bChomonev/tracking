@@ -6,5 +6,10 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://corridor:corridor@localhost:5433/corridor"
 
+    # OpenAI-compatible endpoint for the written analysis (see corridor.analyst).
+    llm_base_url: str | None = None
+    llm_api_key: str | None = None
+    llm_model: str = "discretestack-max"
+
 
 settings = Settings()

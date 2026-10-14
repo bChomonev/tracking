@@ -2,7 +2,8 @@
 
     uv run python -m corridor.scripts.build_site [--season 2026]
 
-Reads data/site/{season}/profile.json, writes data/site/{season}/index.html (gitignored).
+Reads data/site/{season}/profile.json (+ analysis.json if present) and writes
+data/site/{season}/index.html (gitignored).
 """
 
 import argparse
@@ -22,8 +23,17 @@ def main() -> None:
     out = DATA_DIR / "site" / str(args.season)
     profile = json.loads((out / "profile.json").read_text())
     profile["generated_at"] = datetime.now(UTC).isoformat()
-    payload = json.dumps(profile, separators=(",", ":")).replace("</", "<\\/")
-    html = TEMPLATE.read_text().replace("/*__PROFILE__*/null", payload)
+    analysis_path = out / "analysis.json"
+    analysis = json.loads(analysis_path.read_text()) if analysis_path.exists() else None
+
+    def embed(obj: object) -> str:
+        return json.dumps(obj, separators=(",", ":"), ensure_ascii=False).replace("</", "<\\/")
+
+    html = (
+        TEMPLATE.read_text()
+        .replace("/*__PROFILE__*/null", embed(profile))
+        .replace("/*__ANALYSIS__*/null", embed(analysis))
+    )
     (out / "index.html").write_text(html)
     print(f"wrote {out / 'index.html'} ({len(html) // 1024} KB)")
 

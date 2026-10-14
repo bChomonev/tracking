@@ -8,6 +8,23 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-014 — AI analyst: code computes, LLM writes, code checks · 2026-10-14 · accepted
+The written season read is generated at build time (once per update, not per visitor) by an
+OpenAI-compatible LLM (user's own DiscreteStack endpoint, `discretestack-max`; configured in
+gitignored `backend/.env`). `analyst/facts.py` builds a fact sheet with every quotable number
+pre-computed and pre-rounded (incl. comparisons like "out-run in 5 of 6"); the model may not
+do arithmetic. `analyst/validate.py` rejects output containing any number not in the fact
+sheet (at the quoted precision), unknown metric keys or players; the writer retries with the
+problems as feedback (max 3). Facts and interpretation are separate fields and the page labels
+interpretation as "Reading". An interactive "ask the analyst" box is deferred: it needs a
+server so the key never reaches the browser.
+
+## D-013 — Stage 1 is a United-only static page from FotMob + Understat · 2026-10-14 · accepted
+After a scope reset with the user: the goal is answering "why are United bad?", not a SaaS.
+Season profile ranks United against all 20 PL teams per metric; players are compared within
+their real role (CB/FB/CM/AM/W/ST from FotMob's line-up grid). Scraped data never enters git
+(public repo). The pgvector corridor engine (D-001–D-011) is kept for the later "proof" stage.
+
 ## D-012 — Synthetic-first data strategy · 2026-10-14 · accepted
 Free sources can't supply most of the 12 dimensions (physical tracking, line breaks, xGOT,
 PSxG, box touches). The whole engine is built and tested on a seeded synthetic generator

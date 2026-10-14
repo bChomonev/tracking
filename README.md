@@ -15,6 +15,7 @@ and publishes an immutable static JSON audit to the edge.
 cd backend
 uv run python -m corridor.scripts.build_season    # fetch PL 2026-27 from FotMob + Understat (cached in data/raw)
 uv run python -m corridor.scripts.united_profile  # rank United vs the league, print summary
+uv run python -m corridor.scripts.analyse         # LLM analyst writes the season read (needs backend/.env)
 uv run python -m corridor.scripts.build_site      # render data/site/2026/index.html from web/united.html
 ```
 
