@@ -149,7 +149,7 @@ th[aria-sort] button::after { content: " ▾"; }
   <section aria-labelledby="players-title">
     <div class="section-head">
       <h2 id="players-title">Who's doing the work</h2>
-      <p>Per 90 minutes, shaded by percentile against Premier League players in the same position group (min. 90 minutes). Click a column to sort.</p>
+      <p>Per 90 minutes, shaded by percentile against Premier League players in the same role (min. 90 minutes). Roles: CB centre-back, FB full/wing-back, CM central mid, AM attacking mid, W winger, ST striker. Click a column to sort.</p>
     </div>
     <div class="table-wrap"><table id="players"></table></div>
   </section>
@@ -252,7 +252,7 @@ th[aria-sort] button::after { content: " ▾"; }
     $("players").innerHTML = `<thead><tr><th class="l">Player</th><th${sortKey === "minutes" ? ' aria-sort="descending"' : ""}><button data-k="minutes">Mins</button></th>${pCols.map(([k, l]) =>
       `<th${sortKey === k ? ' aria-sort="descending"' : ""}><button data-k="${k}">${l}</button></th>`).join("")}<th>Top speed</th></tr></thead><tbody>` +
       rows.map((p) => `<tr><td class="l">${esc(p.name)} <span class="pos">${p.position}</span></td><td class="cell">${p.minutes}</td>
-        ${pCols.map(([k]) => { const c = cellOf(p, k); return `<td class="cell h-${tier(c.percentile)}" title="${c.percentile ?? "—"}th percentile vs ${p.peers} ${p.position}s">${fmt(c.value, c.decimals)}</td>`; }).join("")}
+        ${pCols.map(([k]) => { const c = cellOf(p, k); return `<td class="cell h-${tier(c.percentile)}" title="${c.percentile ?? "—"}th percentile vs ${p.peers} PL ${p.position}s">${fmt(c.value, c.decimals)}</td>`; }).join("")}
         <td class="cell">${p.top_speed_kmh ? p.top_speed_kmh.toFixed(1) : "—"}</td></tr>`).join("") + "</tbody>";
     $("players").querySelectorAll("th button").forEach((b) => b.addEventListener("click", () => { sortKey = b.dataset.k; renderPlayers(); }));
   };
@@ -262,7 +262,7 @@ th[aria-sort] button::after { content: " ▾"; }
   $("notes").innerHTML = [
     `Data: match stats, running data and player stats from FotMob; PPDA and deep completions from Understat. Each metric uses one provider, so comparisons are like-for-like.`,
     `Small sample: ${P.record.played} matches, including Manchester City and Tottenham. Expect these ranks to move.`,
-    `Position groups are broad: DEF mixes centre-backs with full-backs, so centre-backs look low on running.`,
+    `A player's role is the position they started in most often this season, taken from FotMob's line-ups.`,
     `Generated ${new Date(P.generated_at).toUTCString().slice(5, 22)} UTC.`,
   ].map((t) => `<p>${esc(t)}</p>`).join("");
 })();

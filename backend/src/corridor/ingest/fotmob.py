@@ -13,6 +13,30 @@ BASE = "https://www.fotmob.com/api/data"
 PREMIER_LEAGUE = 47
 MAN_UTD = 10260
 POSITION_GROUPS = {0: "GK", 1: "DEF", 2: "MID", 3: "FWD"}
+ROLES = ("GK", "CB", "FB", "CM", "AM", "W", "ST")
+
+
+def role_from_position_id(pos_id: int | None, usual: int | None = None) -> str | None:
+    """FotMob lineup ``positionId`` is a formation-grid cell: tens digit(s) = line from own
+    goal (1 GK, 3 back line, 5-7 midfield, 8 attacking midfield, 10-11 attack), last digit =
+    lane (2 right … 5 centre … 8 left; 1/9 touchline). ``usual`` is FotMob's coarse usual
+    position (1 DEF) and splits wing-backs from wingers on the wide midfield lanes."""
+    if pos_id is None:
+        return None
+    line, lane = divmod(pos_id, 10)
+    wide = lane in (1, 2, 8, 9)
+    if line == 1:
+        return "GK"
+    if line <= 4:
+        return "FB" if wide else "CB"
+    if line <= 7:
+        if wide:
+            return "FB" if usual == 1 else "W"
+        return "CM"
+    if line == 8:
+        return "W" if wide or lane in (3, 7) else "AM"
+    return "W" if lane in (3, 7) or wide else "ST"
+
 
 # FotMob team-stat key → our field name. Values come as [home, away].
 TEAM_STATS = {
@@ -119,8 +143,14 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
             if field and field not in team_vals[0] and s.get("type") != "title":
                 team_vals[0][field], team_vals[1][field] = _num(vals[0]), _num(vals[1])
 
+    lineup_pos: dict[int, tuple[int | None, int | None]] = {}
+    for side in ("homeTeam", "awayTeam"):
+        for lp in ((d["content"].get("lineup") or {}).get(side) or {}).get("starters", []):
+            lineup_pos[lp["id"]] = (lp.get("positionId"), lp.get("usualPlayingPositionId"))
+
     players = []
     for p in (d["content"].get("playerStats") or {}).values():
+        pos_id, usual = lineup_pos.get(p["id"], (None, p.get("usualPosition")))
         rec: dict[str, Any] = {
             "match_id": int(g["matchId"]),
             "player_id": p["id"],
@@ -128,6 +158,9 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
             "team_id": p["teamId"],
             "team": p["teamName"],
             "position": POSITION_GROUPS.get(p.get("usualPosition"), "UNK"),
+            "started": p["id"] in lineup_pos,
+            "position_id": pos_id,
+            "role": role_from_position_id(pos_id, usual),
         }
         for block in p.get("stats", []):
             for s in block["stats"].values():

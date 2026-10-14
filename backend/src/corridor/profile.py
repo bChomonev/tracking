@@ -314,10 +314,15 @@ PLAYER_METRICS = (
 )
 
 
+_FALLBACK_ROLE = {"GK": "GK", "DEF": "CB", "MID": "CM", "FWD": "ST"}
+
+
 def player_profiles(players: list[dict], team: str, min_minutes: int = 90) -> list[dict]:
-    """Per-90 rates for a team's players, percentile-ranked within their position group
-    across every league player with at least ``min_minutes``."""
+    """Per-90 rates for a team's players, percentile-ranked within their role (CB, FB, CM,
+    AM, W, ST — the one they played most minutes in) across every league player with at
+    least ``min_minutes``."""
     totals: dict[int, dict] = {}
+    role_minutes: dict[int, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     for p in players:
         t = totals.setdefault(
             p["player_id"],
@@ -334,6 +339,10 @@ def player_profiles(players: list[dict], team: str, min_minutes: int = 90) -> li
             },
         )
         mins = p.get("minutes") or 0
+        role = p.get("role") or _FALLBACK_ROLE.get(p["position"])
+        if role:
+            # Starts decide the role; sub minutes only count when a player never started.
+            role_minutes[p["player_id"]][role] += mins if p.get("started") else mins / 1000
         t["apps"] += 1
         t["minutes"] += mins
         for k, *_ in PLAYER_METRICS:
@@ -349,6 +358,9 @@ def player_profiles(players: list[dict], team: str, min_minutes: int = 90) -> li
         if p.get("top_speed_kmh"):
             t["top_speed_kmh"] = max(t["top_speed_kmh"] or 0, p["top_speed_kmh"])
 
+    for pid, t in totals.items():
+        roles = role_minutes.get(pid)
+        t["position"] = max(roles.items(), key=lambda kv: kv[1])[0] if roles else "UNK"
     pool = [t for t in totals.values() if t["minutes"] >= min_minutes and t["position"] != "GK"]
     for t in pool:
         for k, *_ in PLAYER_METRICS:
