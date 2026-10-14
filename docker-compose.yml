@@ -1,0 +1,20 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: corridor-db
+    environment:
+      POSTGRES_USER: corridor
+      POSTGRES_PASSWORD: corridor
+      POSTGRES_DB: corridor
+    ports:
+      - "5433:5432"
+    volumes:
+      - corridor-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U corridor -d corridor"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  corridor-pgdata:
