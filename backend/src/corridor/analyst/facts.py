@@ -65,8 +65,14 @@ def build_facts(profile: dict) -> dict[str, Any]:
             }
         )
 
-    gap = next(m for m in profile["metrics"] if m["key"] == "distance_gap_km")
-    outrun = sum(1 for x in gap["matches"] if x["value"] is not None and x["value"] < 0)
+    def behind(key: str) -> tuple[int, int]:
+        """(matches where the opponent did more, matches with data)."""
+        vals = [x["value"] for x in by_key[key]["matches"] if x["value"] is not None]
+        return sum(v < 0 for v in vals), len(vals)
+
+    by_key = {m["key"]: m for m in profile["metrics"]}
+    outrun, n_dist = behind("distance_gap_km")
+    outsprinted, n_spr = behind("sprints_gap")
 
     players = []
     for p in profile["players"]:
@@ -106,7 +112,9 @@ def build_facts(profile: dict) -> dict[str, Any]:
             "xg_for": round(sum(m["xg"] for m in matches), 2),
             "xg_against": round(sum(m["xg_conceded"] for m in matches), 2),
             "matches_outrun_by_opponent": outrun,
-            "matches_outran_opponent": len(gap["matches"]) - outrun,
+            "matches_outran_opponent": n_dist - outrun,
+            "matches_outsprinted_by_opponent": outsprinted,
+            "matches_outsprinted_opponent": n_spr - outsprinted,
         },
         "matches": [
             {
@@ -114,7 +122,9 @@ def build_facts(profile: dict) -> dict[str, Any]:
                 "date": m["kickoff_utc"][:10],
                 "score": f"{m['goals_for']}-{m['goals_against']}",
                 "result": m["result"],
+                "opponent_league_position": m.get("opponent_league_position"),
                 "possession_pct": m["possession_pct"],
+                "ppda": _r(m.get("ppda"), 1),
                 "xg": m["xg"],
                 "xg_conceded": m["xg_conceded"],
             }
@@ -125,6 +135,7 @@ def build_facts(profile: dict) -> dict[str, Any]:
             for s in profile["stacks"]
         ],
         "metrics": metrics,
+        "context": profile.get("context"),
         "players": players,
         "notes": [
             "All metric values are per-match averages unless labelled per_match.",
@@ -133,5 +144,23 @@ def build_facts(profile: dict) -> dict[str, Any]:
             "Player percentiles compare against Premier League players in the same role "
             "(CB, FB, CM, AM, W, ST) with at least 90 minutes.",
             f"Small sample: {len(matches)} matches so far.",
+            "Shot-map metrics (shot distance, outside-box share, blocked share, set-piece and "
+            "counter-attack npxG) exclude penalties and own goals. In goals_by_type, "
+            "of_which_from_outside_box is a subset of the other categories.",
         ],
+        "not_measured": NOT_MEASURED,
     }
+
+
+# Things fans (and models) like to explain results with that our data cannot see. The
+# analyst must not state or imply them as facts.
+NOT_MEASURED = [
+    "defensive line height and team shape / compactness",
+    "where on the pitch the press happens or what triggers it",
+    "off-the-ball movement, runs into space, and player positioning",
+    "passing tempo or speed of ball circulation",
+    "crosses, cut-backs or how a specific chance was created",
+    "individual errors leading to goals",
+    "tactical instructions, fitness, injuries, morale or confidence",
+    "player-level shooting (shots, shot quality) — only team-level shot data is in this sheet",
+]

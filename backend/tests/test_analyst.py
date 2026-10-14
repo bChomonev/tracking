@@ -72,3 +72,9 @@ def test_bad_evidence_kind_and_player_are_rejected():
     a["players"][0]["name"] = "Some Player"
     problems = " | ".join(check(a, FACTS))
     assert "kind" in problems and "made_up_metric" in problems and "Some Player" in problems
+
+
+def test_ellipsis_artifact_is_rejected():
+    a = good()
+    a["players"][0]["text"] = "His 10.1... his recoveries are strong."
+    assert any("ellipsis" in p for p in check(a, FACTS))

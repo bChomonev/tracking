@@ -56,6 +56,7 @@ StatsBomb open data: full event data but no current PL season.
 | | progressive carries | ❌ |
 | Attack | xG, npxG, xG/shot, big chances | Understat / FotMob |
 | | xGOT (finishing) | FotMob |
+| | shot distance, outside-box / blocked share, set-piece & counter npxG | FotMob `matchDetails.content.shotmap` (x/y in metres, 105 x 68, all shots toward x = 105) |
 | Defence | xGA, xGA/shot | Understat / FotMob |
 | | GK goals prevented | FotMob |
 

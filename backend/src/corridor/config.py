@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     llm_base_url: str | None = None
     llm_api_key: str | None = None
     llm_model: str = "discretestack-max"
+    llm_critic_model: str | None = None  # claim checker; defaults to llm_model
 
 
 settings = Settings()

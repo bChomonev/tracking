@@ -18,17 +18,22 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2026)
     ap.add_argument("--model", default=None)
+    ap.add_argument("--critic-model", default=None, help="defaults to --model")
+    ap.add_argument("--no-critic", action="store_true", help="skip the claim-checking pass")
     args = ap.parse_args()
 
     out = DATA_DIR / "site" / str(args.season)
     facts = build_facts(json.loads((out / "profile.json").read_text()))
     (out / "facts.json").write_text(json.dumps(facts, indent=1, ensure_ascii=False))
 
-    res = write_analysis(facts, model=args.model)
+    res = write_analysis(
+        facts, model=args.model, critic_model=args.critic_model, use_critic=not args.no_critic
+    )
     res.analysis["meta"] = {
         "model": res.model,
         "attempts": res.attempts,
         "rejected": res.rejected,
+        "dropped_interpretations": res.dropped,
         "seconds": round(res.seconds, 1),
         "generated_at": datetime.now(UTC).isoformat(),
         "matches": facts["record"]["played"],
@@ -38,6 +43,8 @@ def main() -> None:
     print(f"{res.model}: {res.attempts} attempt(s), {res.seconds:.1f}s, {tokens} tokens")
     for i, problems in enumerate(res.rejected, 1):
         print(f"  attempt {i} rejected: {'; '.join(problems)}")
+    for f in res.dropped:
+        print(f"  dropped {f['location']}: {f['claim']}")
     print(f"\n{res.analysis['headline']}\n\n{res.analysis['summary']}\n")
     for f in res.analysis["findings"]:
         print(f"[{f['kind']}] {f['title']}\n  {f['text']}")

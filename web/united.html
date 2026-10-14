@@ -51,6 +51,8 @@ h2 { font-size: 1.9rem; text-transform: uppercase; letter-spacing: .02em; }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; margin-bottom: 16px; }
 .section-head p { margin: 0; color: var(--muted); max-width: 60ch; }
+.goal-types { margin: 12px 0 0; color: var(--muted); font-size: .9rem; }
+.goal-types b { color: var(--ink); }
 
 /* Hero */
 .hero { display: grid; gap: 20px; border-bottom: 3px solid var(--red); padding-bottom: 28px; }
@@ -171,6 +173,7 @@ th[aria-sort] button::after { content: " ▾"; }
       <p>Cell colour = how that single performance ranks against every team-match this season (green top third, red bottom third).</p>
     </div>
     <div class="table-wrap"><table id="matches"></table></div>
+    <p class="goal-types" id="goal-types" hidden></p>
   </section>
 
   <section aria-labelledby="players-title">
@@ -199,7 +202,8 @@ th[aria-sort] button::after { content: " ▾"; }
   const ord = (n) => n + (["th", "st", "nd", "rd"][(n % 100 > 10 && n % 100 < 14) ? 0 : (n % 10 < 4 ? n % 10 : 0)] || "th");
   const short = (t) => t.replace("Hotspur", "").replace("& Hove Albion", "").replace("Wolverhampton Wanderers", "Wolves").trim();
   const metricBy = Object.fromEntries(P.metrics.map((m) => [m.key, m]));
-  const showVal = (m, v) => (m.key === "distance_gap_km" || m.key === "finishing_delta" ? signed(v, m.decimals) : fmt(v, m.decimals)) + (m.unit && v != null ? " " + m.unit : "");
+  const SIGNED = new Set(["distance_gap_km", "sprints_gap", "finishing_delta"]);
+  const showVal = (m, v) => (SIGNED.has(m.key) ? signed(v, m.decimals) : fmt(v, m.decimals)) + (m.unit && v != null ? " " + m.unit : "");
 
   // ---- Hero
   $("season-label").textContent = `Premier League ${P.season} · after ${P.record.played} matches`;
@@ -296,13 +300,22 @@ th[aria-sort] button::after { content: " ▾"; }
   });
 
   // ---- Matches table
-  const matchCols = ["distance_gap_km", "sprints", "ppda", "territory_pct", "box_touches", "npxg", "npxg_per_shot", "npxg_conceded", "npxg_per_shot_conceded"];
-  const colLabel = { distance_gap_km: "Run vs opp (km)", sprints: "Sprints", ppda: "PPDA", territory_pct: "Territory %", box_touches: "Box touches", npxg: "npxG", npxg_per_shot: "npxG / shot", npxg_conceded: "npxGA", npxg_per_shot_conceded: "npxGA / shot" };
+  const matchCols = ["distance_gap_km", "sprints_gap", "ppda", "territory_pct", "box_touches", "npxg", "npxg_per_shot", "outside_box_shot_pct", "npxg_conceded", "npxg_per_shot_conceded"];
+  const colLabel = { distance_gap_km: "Run vs opp (km)", sprints_gap: "Sprints vs opp", outside_box_shot_pct: "Shots outside box %", ppda: "PPDA", territory_pct: "Territory %", box_touches: "Box touches", npxg: "npxG", npxg_per_shot: "npxG / shot", npxg_conceded: "npxGA", npxg_per_shot_conceded: "npxGA / shot" };
   $("matches").innerHTML = `<thead><tr><th class="l">Match</th><th>Score</th>${matchCols.map((k) => `<th>${colLabel[k]}</th>`).join("")}</tr></thead><tbody>` +
     P.matches.map((mt, i) => `<tr><td class="l"><span class="pos">${mt.kickoff_utc.slice(5, 10).split("-").reverse().join("/")} ${mt.is_home ? "H" : "A"}</span> ${esc(short(mt.opponent))}</td>
       <td><span class="res ${mt.result}">${mt.result}</span> <span class="num">${mt.goals_for}–${mt.goals_against}</span></td>
-      ${matchCols.map((k) => { const m = metricBy[k], c = m.matches[i]; const v = k === "distance_gap_km" ? signed(c.value, 1) : fmt(c.value, m.decimals);
+      ${matchCols.map((k) => { const m = metricBy[k], c = m.matches[i]; const v = SIGNED.has(k) ? signed(c.value, m.decimals) : fmt(c.value, m.decimals);
         return `<td class="cell h-${tier(c.percentile)}" title="${c.percentile ?? "—"}th percentile">${v}</td>`; }).join("")}</tr>`).join("") + "</tbody>";
+
+  // ---- How the goals came (shot map)
+  const gt = P.context && P.context.goals_by_type;
+  if (gt) {
+    const part = (g) => [["open_play", "open play"], ["fast_break", "counter-attack"], ["set_piece", "set piece"], ["penalty", "penalty"], ["own_goals", "own goal"]]
+      .filter(([k]) => g[k]).map(([k, l]) => `${g[k]} ${l}`).join(", ") + (g.of_which_from_outside_box ? ` · ${g.of_which_from_outside_box} from outside the box` : "");
+    $("goal-types").innerHTML = `<b>How the goals came.</b> Scored ${gt.scored.total}: ${esc(part(gt.scored))}. Conceded ${gt.conceded.total}: ${esc(part(gt.conceded))}.`;
+    $("goal-types").hidden = false;
+  }
 
   // ---- Players table (sortable)
   const pCols = [["effort", "Effort pct"], ["distance_m", "Km"], ["sprints", "Sprints"], ["recoveries", "Recov."], ["duels_won", "Duels won"], ["line_breaking_passes", "Line-break"], ["box_touches", "Box touches"], ["xg_xa", "xG+xA"]];

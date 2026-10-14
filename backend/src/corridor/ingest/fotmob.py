@@ -4,6 +4,7 @@ FotMob's xG model and physical provider differ from other sources; never mix its
 with Understat's or UEFA's inside one comparison (see docs/DATA_SOURCES.md).
 """
 
+import math
 import re
 from typing import Any
 
@@ -170,6 +171,7 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
         if rec.get("minutes"):
             players.append(rec)
 
+    shots = (d["content"].get("shotmap") or {}).get("shots") or []
     records = []
     for i, side in enumerate(sides):
         own, opp = team_vals[i], team_vals[1 - i]
@@ -192,12 +194,48 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
             "opp_distance_m": opp.get("distance_m"),
             "opp_sprints": opp.get("sprints"),
         }
+        own_shots = shot_profile(shots, side["id"])
+        opp_shots = shot_profile(shots, sides[1 - i]["id"])
+        rec |= own_shots | {f"{k}_conceded": v for k, v in opp_shots.items()}
         team_players = [pl for pl in players if pl["team_id"] == side["id"]]
         for k in PLAYER_SUMS:
             vals = [pl[k] for pl in team_players if pl.get(k) is not None]
             rec[k] = float(sum(vals)) if vals else None
         records.append(rec)
     return records, players
+
+
+SET_PIECES = {"FromCorner", "SetPiece", "ThrowInSetPiece", "FreeKick"}
+
+
+def shot_profile(shots: list[dict], team_id: int) -> dict[str, float | int]:
+    """Summarise one team's shot map (penalties and own goals excluded). Coordinates are
+    metres on a 105 x 68 pitch with every shot attacking the goal at x = 105."""
+    own = [s for s in shots if s["teamId"] == team_id and not s.get("isOwnGoal")]
+    np_ = [s for s in own if s.get("situation") != "Penalty"]
+    goals = [s for s in own if s.get("eventType") == "Goal"]
+
+    def xg(ss: list[dict]) -> float:
+        return float(sum(s.get("expectedGoals") or 0 for s in ss))
+
+    n = len(np_)
+    return {
+        "np_shots": n,
+        "shots_outside_box": sum(not s.get("isFromInsideBox") for s in np_),
+        "shots_blocked": sum(bool(s.get("isBlocked")) for s in np_),
+        "shots_headed": sum(s.get("shotType") == "Header" for s in np_),
+        "shot_distance_sum_m": float(sum(math.hypot(105 - s["x"], 34 - s["y"]) for s in np_)),
+        "npxg_set_piece": xg([s for s in np_ if s.get("situation") in SET_PIECES]),
+        "npxg_fast_break": xg([s for s in np_ if s.get("situation") == "FastBreak"]),
+        "shots_fast_break": sum(s.get("situation") == "FastBreak" for s in np_),
+        "goals_open_play": sum(
+            s.get("situation") not in SET_PIECES | {"Penalty", "FastBreak"} for s in goals
+        ),
+        "goals_set_piece": sum(s.get("situation") in SET_PIECES for s in goals),
+        "goals_fast_break": sum(s.get("situation") == "FastBreak" for s in goals),
+        "goals_penalty": sum(s.get("situation") == "Penalty" for s in goals),
+        "goals_outside_box": sum(not s.get("isFromInsideBox") for s in goals),
+    }
 
 
 _CONCEDED = {

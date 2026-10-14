@@ -56,6 +56,9 @@ def check(analysis: Any, facts: dict) -> list[str]:
         if p.get("name") not in player_names:
             problems.append(f"unknown player: {p.get('name')!r}")
 
+    if any("..." in t or "…" in t for t in _texts(analysis)):
+        problems.append("text contains an ellipsis or an unfinished sentence; write it in full")
+
     allowed = allowed_numbers(facts)
     unsupported = sorted(
         {t for text in _texts(analysis) for t in numbers_in(text) if not is_supported(t, allowed)}

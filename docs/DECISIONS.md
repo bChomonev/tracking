@@ -8,6 +8,25 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-015 — Close the analyst's guessing gaps: shot map, context facts, claim critic · 2026-10-14 · accepted
+The number check (D-014) let qualitative guesses through ("shots from distance", "possession
+teams run less", "presses only the big sides"). Three fixes:
+1. **More data.** FotMob's `shotmap` is parsed per team (penalties and own goals excluded,
+   105 x 68 m pitch): shot distance, outside-box share, blocked share, set-piece and
+   fast-break npxG, goals by type. Plus big chances missed, shots conceded and sprints vs
+   opponent. 9 new ranked metrics (28 in total).
+2. **Context facts** pre-computed in `profile._context`: goals by type, possession vs
+   distance correlation across all team-matches (and distance among ≥55% possession
+   teams), PPDA vs top-half / bottom-half opponents, opponent league position per match.
+   A `not_measured` list (shape, line height, press triggers, off-ball runs, chance
+   creation, errors, morale, player shooting) tells the model what it must not assert.
+3. **Critic pass.** After the number check passes, a second LLM call lists claims the fact
+   sheet does not support; they go back to the writer as problems. On the last attempt,
+   flagged interpretations / player notes are dropped (logged in `meta`) rather than
+   failing; flags in facts, headline or summary still fail the run.
+Cost: the critic roughly triples a run (~4 min, ~170k tokens with `discretestack-max`).
+`--critic-model discretestack-fast` is ~10 s per check but missed some claims in testing.
+
 ## D-014 — AI analyst: code computes, LLM writes, code checks · 2026-10-14 · accepted
 The written season read is generated at build time (once per update, not per visitor) by an
 OpenAI-compatible LLM (user's own DiscreteStack endpoint, `discretestack-max`; configured in
