@@ -12,6 +12,8 @@ entry whenever you make a design call.**
 - `uv run alembic upgrade head` · `uv run alembic check` (must report no drift)
 - `uv run python -m corridor.scripts.seed_synthetic` — seed synthetic history + calibrate
 
+- United page: `build_season` → `united_profile` → `build_site` (see README). Never commit `data/`.
+
 ## Rules
 1. Vectors are `halfvec(12)` in SQL and `np.float16` in Python. Dimension order, weights and
    directions are defined only in `corridor/engine/metrics.py`; changing them requires recalibration.

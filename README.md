@@ -9,7 +9,19 @@ and publishes an immutable static JSON audit to the edge.
 - Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Decisions log: [`docs/DECISIONS.md`](docs/DECISIONS.md)
 
-## Quickstart
+## United season page (stage 1)
+
+```bash
+cd backend
+uv run python -m corridor.scripts.build_season    # fetch PL 2026-27 from FotMob + Understat (cached in data/raw)
+uv run python -m corridor.scripts.united_profile  # rank United vs the league, print summary
+uv run python -m corridor.scripts.build_site      # render data/site/2026/index.html from web/united.html
+```
+
+`data/` is gitignored: this repo is public and the sources' terms forbid republishing
+their data. See [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md).
+
+## Engine quickstart (later stages)
 
 ```bash
 docker compose up -d                 # Postgres 16 + pgvector on :5433

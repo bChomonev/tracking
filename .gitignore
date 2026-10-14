@@ -8,3 +8,6 @@ __pycache__/
 node_modules/
 .next/
 out/
+
+# scraped data: never commit (public repo, third-party ToS)
+data/

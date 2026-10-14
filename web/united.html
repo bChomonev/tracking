@@ -1,0 +1,269 @@
+<title>United Explained</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: matchday programme — verdict up top, four stack "dossiers" in a 2×2 grid,
+   then the match log and the squad sheet as dense, shaded tables. */
+:root {
+  --bg: #f6f4f3;         /* warm off-white, biased toward the red */
+  --panel: #ffffff;
+  --ink: #1d1718;
+  --muted: #6d6264;
+  --rule: #e4dcdc;
+  --red: #c4121a;        /* United red, the only accent */
+  --good: #1f7a4d;
+  --mid: #b07a12;
+  --bad: #c4121a;
+  --good-bg: #dcefe4;
+  --mid-bg: #f6ead0;
+  --bad-bg: #f8dcdc;
+  --track: #ece6e6;
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --body: "Source Sans 3", "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #151112; --panel: #1e1819; --ink: #f1eaea; --muted: #a8999b; --rule: #352b2d;
+  --red: #ff4b4f; --good: #5fcf94; --mid: #e3b04f; --bad: #ff6b6e;
+  --good-bg: #173426; --mid-bg: #3a2e14; --bad-bg: #44191b; --track: #2e2527;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #151112; --panel: #1e1819; --ink: #f1eaea; --muted: #a8999b; --rule: #352b2d;
+  --red: #ff4b4f; --good: #5fcf94; --mid: #e3b04f; --bad: #ff6b6e;
+  --good-bg: #173426; --mid-bg: #3a2e14; --bad-bg: #44191b; --track: #2e2527;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font: 16px/1.5 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 48px;
+}
+main { max-width: 1120px; margin: 0 auto; display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.05; margin: 0; text-wrap: balance; }
+h2 { font-size: 1.9rem; text-transform: uppercase; letter-spacing: .02em; }
+.eyebrow { font: 600 .78rem/1 var(--body); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; margin-bottom: 16px; }
+.section-head p { margin: 0; color: var(--muted); max-width: 60ch; }
+
+/* Hero */
+.hero { display: grid; gap: 20px; border-bottom: 3px solid var(--red); padding-bottom: 28px; }
+.hero h1 { font-size: clamp(2.6rem, 7vw, 4.6rem); text-transform: uppercase; }
+.hero h1 span { color: var(--red); }
+.record { display: flex; flex-wrap: wrap; gap: 8px 28px; }
+.record div { display: grid; }
+.record b { font: 600 2rem/1 var(--display); }
+.record small { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
+.verdict { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; max-width: 75ch; font-size: 1.08rem; }
+.verdict li { display: grid; grid-template-columns: 14px 1fr; gap: 10px; align-items: baseline; }
+.verdict li::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--muted); transform: translateY(1px); }
+.verdict li.bad::before { background: var(--bad); }
+.verdict li.good::before { background: var(--good); }
+
+/* Stack dossiers */
+.stacks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr)); gap: 20px; }
+.stack { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 18px 8px; min-width: 0; }
+.stack header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.stack h3 { font-size: 1.45rem; text-transform: uppercase; letter-spacing: .02em; }
+.score { font: 700 1.6rem/1 var(--display); padding: 4px 10px; border-radius: 4px; min-width: 3.2ch; text-align: center; }
+.tier-good { background: var(--good-bg); color: var(--good); }
+.tier-mid { background: var(--mid-bg); color: var(--mid); }
+.tier-bad { background: var(--bad-bg); color: var(--bad); }
+.metric { border-top: 1px solid var(--rule); }
+.metric summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 0; }
+.metric summary::-webkit-details-marker { display: none; }
+.metric summary:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.m-label { font-weight: 600; }
+.m-label::after { content: " +"; color: var(--muted); font-weight: 400; }
+.metric[open] .m-label::after { content: " −"; }
+.m-value { text-align: right; }
+.m-value .num { font-size: 1.05rem; }
+.rank { font: 600 .78rem/1 var(--body); color: var(--muted); margin-left: 6px; }
+.bar { grid-column: 1 / -1; position: relative; height: 8px; background: var(--track); border-radius: 4px; }
+.bar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; }
+.bar i.tier-good { background: var(--good); } .bar i.tier-mid { background: var(--mid); } .bar i.tier-bad { background: var(--bad); }
+.bar::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--muted); opacity: .6; }
+.m-detail { padding: 0 0 14px; display: grid; gap: 10px; color: var(--muted); font-size: .92rem; }
+.m-detail p { margin: 0; }
+.spark { width: 100%; height: 70px; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .8rem; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+th, td { padding: 9px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--rule); }
+th { font: 600 .74rem/1.2 var(--body); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); vertical-align: bottom; }
+th:first-child, td:first-child, th.l, td.l { text-align: left; }
+tbody tr:last-child td { border-bottom: 0; }
+td.cell { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+td.h-good { background: var(--good-bg); color: var(--good); }
+td.h-mid { background: var(--mid-bg); color: var(--mid); }
+td.h-bad { background: var(--bad-bg); color: var(--bad); }
+.res { display: inline-block; font: 700 .8rem/1 var(--body); width: 1.6em; padding: 4px 0; text-align: center; border-radius: 3px; color: #fff; }
+.res.W { background: var(--good); } .res.D { background: var(--mid); } .res.L { background: var(--bad); }
+:root:not([data-theme="light"]) .res { color: var(--bg); }
+th button { all: unset; cursor: pointer; }
+th button:focus-visible { outline: 2px solid var(--red); }
+th[aria-sort] button::after { content: " ▾"; }
+.pos { font: 600 .72rem/1 var(--body); color: var(--muted); letter-spacing: .06em; }
+.notes { color: var(--muted); font-size: .88rem; display: grid; gap: 6px; max-width: 80ch; }
+.notes p { margin: 0; }
+
+@media (max-width: 520px) {
+  .record b { font-size: 1.6rem; }
+  .stack { padding: 14px 14px 6px; }
+}
+@media (prefers-reduced-motion: no-preference) { .bar i { transition: width .4s ease-out; } }
+</style>
+
+<main>
+  <section class="hero" aria-labelledby="title">
+    <p class="eyebrow" id="season-label">Premier League</p>
+    <h1 id="title">Why are United <span>struggling?</span></h1>
+    <div class="record" id="record"></div>
+    <ul class="verdict" id="verdict"></ul>
+  </section>
+
+  <section aria-labelledby="stacks-title">
+    <div class="section-head">
+      <h2 id="stacks-title">The four stacks</h2>
+      <p>Each bar is United's percentile among all 20 Premier League teams this season. 100 = best in the league, the tick marks the middle of the pack. Tap a metric for match-by-match detail.</p>
+    </div>
+    <div class="stacks" id="stacks"></div>
+  </section>
+
+  <section aria-labelledby="matches-title">
+    <div class="section-head">
+      <h2 id="matches-title">Match by match</h2>
+      <p>Cell colour = how that single performance ranks against every team-match this season (green top third, red bottom third).</p>
+    </div>
+    <div class="table-wrap"><table id="matches"></table></div>
+  </section>
+
+  <section aria-labelledby="players-title">
+    <div class="section-head">
+      <h2 id="players-title">Who's doing the work</h2>
+      <p>Per 90 minutes, shaded by percentile against Premier League players in the same position group (min. 90 minutes). Click a column to sort.</p>
+    </div>
+    <div class="table-wrap"><table id="players"></table></div>
+  </section>
+
+  <footer class="notes" id="notes"></footer>
+</main>
+
+<script type="application/json" id="profile-data">/*__PROFILE__*/null</script>
+<script>
+(() => {
+  const P = JSON.parse(document.getElementById("profile-data").textContent.replace("/*__PROFILE__*/", ""));
+  if (!P) return;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const fmt = (v, d) => (v == null ? "—" : (d === 0 ? Math.round(v).toString() : v.toFixed(d)));
+  const signed = (v, d) => (v == null ? "—" : (v > 0 ? "+" : "") + v.toFixed(d));
+  const tier = (p) => (p == null ? "" : p >= 67 ? "good" : p >= 34 ? "mid" : "bad");
+  const ord = (n) => n + (["th", "st", "nd", "rd"][(n % 100 > 10 && n % 100 < 14) ? 0 : (n % 10 < 4 ? n % 10 : 0)] || "th");
+  const short = (t) => t.replace("Hotspur", "").replace("& Hove Albion", "").replace("Wolverhampton Wanderers", "Wolves").trim();
+  const metricBy = Object.fromEntries(P.metrics.map((m) => [m.key, m]));
+  const showVal = (m, v) => (m.key === "distance_gap_km" || m.key === "finishing_delta" ? signed(v, m.decimals) : fmt(v, m.decimals)) + (m.unit && v != null ? " " + m.unit : "");
+
+  // ---- Hero
+  $("season-label").textContent = `Premier League ${P.season} · after ${P.record.played} matches`;
+  const w = P.matches.filter((m) => m.result === "W").length, d = P.matches.filter((m) => m.result === "D").length;
+  const gf = P.matches.reduce((a, m) => a + m.goals_for, 0), ga = P.matches.reduce((a, m) => a + m.goals_against, 0);
+  const xgf = P.matches.reduce((a, m) => a + m.xg, 0), xga = P.matches.reduce((a, m) => a + m.xg_conceded, 0);
+  $("record").innerHTML = [
+    [ord(P.record.league_position), "in the table"],
+    [P.record.points, "points"],
+    [`${w}-${d}-${P.record.played - w - d}`, "W-D-L"],
+    [`${gf}–${ga}`, "goals"],
+    [`${xgf.toFixed(1)}–${xga.toFixed(1)}`, "xG for–against"],
+  ].map(([b, s]) => `<div><b class="num">${esc(b)}</b><small>${esc(s)}</small></div>`).join("");
+
+  // Verdict: strongest strengths and weaknesses, phrased from the data.
+  const ranked = P.metrics.filter((m) => m.percentile != null);
+  const worst = [...ranked].sort((a, b) => a.percentile - b.percentile).slice(0, 4);
+  const best = [...ranked].sort((a, b) => b.percentile - a.percentile).slice(0, 2);
+  const line = (m) => `<b>${esc(m.label)}</b>: ${esc(showVal(m, m.value))} per match, ${ord(m.rank)} of ${m.of} (league average ${esc(showVal(m, m.league_avg))}).`;
+  $("verdict").innerHTML =
+    best.map((m) => `<li class="good">Strength. ${line(m)}</li>`).join("") +
+    worst.map((m) => `<li class="bad">Problem. ${line(m)}</li>`).join("");
+
+  // ---- Stacks
+  const spark = (m) => {
+    const vals = m.matches.map((x) => x.value).filter((v) => v != null);
+    if (!vals.length) return "";
+    const W = 320, H = 70, padX = 6, padY = 10;
+    const all = [...vals, m.league_avg];
+    let lo = Math.min(...all), hi = Math.max(...all);
+    if (hi === lo) { hi += 1; lo -= 1; }
+    const x = (i) => padX + (i * (W - 2 * padX)) / Math.max(1, m.matches.length - 1);
+    const y = (v) => padY + (H - 2 * padY) * (1 - (v - lo) / (hi - lo));
+    const pts = m.matches.map((p, i) => (p.value == null ? null : [x(i), y(p.value), p]));
+    const path = pts.filter(Boolean).map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+    const dots = pts.filter(Boolean).map(([px, py, p]) =>
+      `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="4" fill="var(--${tier(p.percentile) || "muted"})"></circle>`).join("");
+    const avgY = y(m.league_avg).toFixed(1);
+    return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(m.label)} per match">
+      <line x1="0" x2="${W}" y1="${avgY}" y2="${avgY}" stroke="var(--muted)" stroke-dasharray="4 4" stroke-width="1"></line>
+      <path d="${path}" fill="none" stroke="var(--ink)" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>${dots}</svg>`;
+  };
+  const opps = P.matches.map((m) => short(m.opponent));
+  $("stacks").innerHTML = P.stacks.map((s) => {
+    const ms = P.metrics.filter((m) => m.stack === s.id);
+    return `<article class="stack" aria-label="${esc(s.name)}">
+      <header><h3>${esc(s.name)}</h3><span class="score num tier-${tier(s.score)}" title="Average percentile">${s.score ?? "—"}</span></header>
+      ${ms.map((m) => `<details class="metric">
+        <summary>
+          <span class="m-label">${esc(m.label)}</span>
+          <span class="m-value"><span class="num">${esc(showVal(m, m.value))}</span><span class="rank">${ord(m.rank)}/${m.of}</span></span>
+          <span class="bar" aria-hidden="true"><i class="tier-${tier(m.percentile)}" style="width:${Math.max(2, m.percentile ?? 0)}%"></i></span>
+        </summary>
+        <div class="m-detail">
+          <p>${esc(m.explain)}${m.direction < 0 ? " Lower is better." : ""}</p>
+          <p>League average <span class="num">${esc(showVal(m, m.league_avg))}</span> · best ${esc(short(m.league_best.team))} <span class="num">${esc(showVal(m, m.league_best.value))}</span> · worst ${esc(short(m.league_worst.team))} <span class="num">${esc(showVal(m, m.league_worst.value))}</span></p>
+          ${spark(m)}
+          <div class="legend">${m.matches.map((x, i) => `<span>${esc(opps[i])} <span class="num">${esc(showVal(m, x.value))}</span></span>`).join("")}<span>- - league avg</span></div>
+        </div>
+      </details>`).join("")}
+    </article>`;
+  }).join("");
+
+  // ---- Matches table
+  const matchCols = ["distance_gap_km", "sprints", "ppda", "territory_pct", "box_touches", "npxg", "npxg_per_shot", "npxg_conceded", "npxg_per_shot_conceded"];
+  const colLabel = { distance_gap_km: "Run vs opp (km)", sprints: "Sprints", ppda: "PPDA", territory_pct: "Territory %", box_touches: "Box touches", npxg: "npxG", npxg_per_shot: "npxG / shot", npxg_conceded: "npxGA", npxg_per_shot_conceded: "npxGA / shot" };
+  $("matches").innerHTML = `<thead><tr><th class="l">Match</th><th>Score</th>${matchCols.map((k) => `<th>${colLabel[k]}</th>`).join("")}</tr></thead><tbody>` +
+    P.matches.map((mt, i) => `<tr><td class="l"><span class="pos">${mt.kickoff_utc.slice(5, 10).split("-").reverse().join("/")} ${mt.is_home ? "H" : "A"}</span> ${esc(short(mt.opponent))}</td>
+      <td><span class="res ${mt.result}">${mt.result}</span> <span class="num">${mt.goals_for}–${mt.goals_against}</span></td>
+      ${matchCols.map((k) => { const m = metricBy[k], c = m.matches[i]; const v = k === "distance_gap_km" ? signed(c.value, 1) : fmt(c.value, m.decimals);
+        return `<td class="cell h-${tier(c.percentile)}" title="${c.percentile ?? "—"}th percentile">${v}</td>`; }).join("")}</tr>`).join("") + "</tbody>";
+
+  // ---- Players table (sortable)
+  const pCols = [["effort", "Effort pct"], ["distance_m", "Km"], ["sprints", "Sprints"], ["recoveries", "Recov."], ["duels_won", "Duels won"], ["line_breaking_passes", "Line-break"], ["box_touches", "Box touches"], ["xg_xa", "xG+xA"]];
+  let sortKey = "minutes";
+  const cellOf = (p, k) => (k === "effort" ? { value: p.effort_percentile, percentile: p.effort_percentile, decimals: 0 } : p.metrics[k]);
+  const renderPlayers = () => {
+    const rows = [...P.players].sort((a, b) => sortKey === "minutes" ? b.minutes - a.minutes : (cellOf(b, sortKey).value ?? -1) - (cellOf(a, sortKey).value ?? -1));
+    $("players").innerHTML = `<thead><tr><th class="l">Player</th><th${sortKey === "minutes" ? ' aria-sort="descending"' : ""}><button data-k="minutes">Mins</button></th>${pCols.map(([k, l]) =>
+      `<th${sortKey === k ? ' aria-sort="descending"' : ""}><button data-k="${k}">${l}</button></th>`).join("")}<th>Top speed</th></tr></thead><tbody>` +
+      rows.map((p) => `<tr><td class="l">${esc(p.name)} <span class="pos">${p.position}</span></td><td class="cell">${p.minutes}</td>
+        ${pCols.map(([k]) => { const c = cellOf(p, k); return `<td class="cell h-${tier(c.percentile)}" title="${c.percentile ?? "—"}th percentile vs ${p.peers} ${p.position}s">${fmt(c.value, c.decimals)}</td>`; }).join("")}
+        <td class="cell">${p.top_speed_kmh ? p.top_speed_kmh.toFixed(1) : "—"}</td></tr>`).join("") + "</tbody>";
+    $("players").querySelectorAll("th button").forEach((b) => b.addEventListener("click", () => { sortKey = b.dataset.k; renderPlayers(); }));
+  };
+  renderPlayers();
+
+  // ---- Notes
+  $("notes").innerHTML = [
+    `Data: match stats, running data and player stats from FotMob; PPDA and deep completions from Understat. Each metric uses one provider, so comparisons are like-for-like.`,
+    `Small sample: ${P.record.played} matches, including Manchester City and Tottenham. Expect these ranks to move.`,
+    `Position groups are broad: DEF mixes centre-backs with full-backs, so centre-backs look low on running.`,
+    `Generated ${new Date(P.generated_at).toUTCString().slice(5, 22)} UTC.`,
+  ].map((t) => `<p>${esc(t)}</p>`).join("");
+})();
+</script>
