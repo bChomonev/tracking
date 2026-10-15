@@ -8,6 +8,7 @@ Writes data/site/{season}/profile.json (gitignored).
 import argparse
 import json
 
+from corridor.best_line import build_line, compare
 from corridor.ingest.http import DATA_DIR
 from corridor.profile import player_profiles, team_profile
 
@@ -29,6 +30,13 @@ def main() -> None:
     prof["players"] = player_profiles(players, args.team)
     prof["season"] = f"{args.season}-{(args.season + 1) % 100:02d}"
     prof["competition"] = "Premier League"
+    prev = DATA_DIR / "processed" / str(args.season - 1) / "team_matches.json"
+    if prev.exists():
+        # Stage 2: last season's elite wins define this season's best line (PL only).
+        line = build_line(
+            json.loads(prev.read_text()), f"{args.season - 1}-{args.season % 100:02d}", teams
+        )
+        compare(prof, line)
     ucl_src = src / "ucl" / "team_matches.json"
     if ucl_src.exists():
         # Separate pool, separate providers: ranked only against other UCL team-matches.
@@ -59,6 +67,26 @@ def main() -> None:
                 f"(PL avg {_fmt(m['league_avg'], m['decimals'])}, best "
                 f"{m['league_best']['team']} {_fmt(m['league_best']['value'], m['decimals'])})"
             )
+    if "best_line" in prof:
+        bl = prof["best_line"]
+        print(
+            f"\nBEST LINE — {bl['season']} top {len(bl['elite'])} ({', '.join(bl['elite'])}): "
+            f"{bl['wins']} wins, {len(bl['excluded'])} excluded (red cards); "
+            f"not comparable across seasons: {bl['not_comparable'] or 'none'}"
+        )
+        print(
+            f"  typical match at/above the line on {bl['typical_at_or_above_line']} of "
+            f"{bl['metrics_compared']} metrics"
+        )
+        for m in prof["metrics"]:
+            if b := m.get("best_line"):
+                print(
+                    f"  {m['label']:<34} {_fmt(m['value'], m['decimals']):>7} vs line "
+                    f"{_fmt(b['value'], m['decimals']):>7} ({_fmt(b['p25'], m['decimals'])}–"
+                    f"{_fmt(b['p75'], m['decimals'])}, n={b['n']})  "
+                    f"{'✓' if b['typical_reaches'] else '·'} reached in "
+                    f"{b['matches_reached']}/{b['matches_counted']}"
+                )
     if "ucl" in prof:
         u = prof["ucl"]
         print(

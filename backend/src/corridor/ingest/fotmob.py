@@ -173,6 +173,7 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
             players.append(rec)
 
     shots = (d["content"].get("shotmap") or {}).get("shots") or []
+    reds = red_card_minutes(d)
     records = []
     for i, side in enumerate(sides):
         own, opp = team_vals[i], team_vals[1 - i]
@@ -192,6 +193,8 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
             "result": "W" if gf > ga else "D" if gf == ga else "L",
             **own,
             **{f"{k}_conceded": v for k, v in opp.items() if k in _CONCEDED},
+            "red_card_min": reds[i],
+            "opp_red_card_min": reds[1 - i],
             "opp_distance_m": opp.get("distance_m"),
             "opp_sprints": opp.get("sprints"),
         }
@@ -204,6 +207,19 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
             rec[k] = float(sum(vals)) if vals else None
         records.append(rec)
     return records, players
+
+
+def red_card_minutes(d: dict) -> tuple[int | None, int | None]:
+    """Minute of the first red card (straight or second yellow) for (home, away)."""
+    first: list[int | None] = [None, None]
+    events = ((d["content"].get("matchFacts") or {}).get("events") or {}).get("events") or []
+    for e in events:
+        if e.get("type") == "Card" and e.get("card") in ("Red", "YellowRed"):
+            side = 0 if e.get("isHome") else 1
+            minute = int(e.get("time") or 0)
+            if first[side] is None or minute < first[side]:
+                first[side] = minute
+    return first[0], first[1]
 
 
 SET_PIECES = {"FromCorner", "SetPiece", "ThrowInSetPiece", "FreeKick"}

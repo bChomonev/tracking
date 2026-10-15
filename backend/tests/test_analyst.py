@@ -78,3 +78,10 @@ def test_ellipsis_artifact_is_rejected():
     a = good()
     a["players"][0]["text"] = "His 10.1... his recoveries are strong."
     assert any("ellipsis" in p for p in check(a, FACTS))
+
+
+def test_fact_rounding_matches_the_page():
+    from corridor.analyst.facts import _r
+
+    assert _r(98.5, 0) == 99 and _r(0.0745, 3) == 0.075 and _r(-2.25, 1) == -2.3
+    assert _r(None, 1) is None

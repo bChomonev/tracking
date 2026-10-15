@@ -28,6 +28,9 @@ own. If a comparison is not pre-computed, describe it in words without a number.
 league_percentile and league_average for context. Higher percentile is always better. When \
 a metric has one_match_effect, say which match distorts the average instead of quoting \
 the average as if it were typical.
+- Use the best line (each metric's elite_line, and best_line) to say how far United are \
+from what last season's top four looked like when winning, and which gaps are biggest. \
+Note that United were one of those four, so the line includes their own 2025-26 wins.
 - Look for the story *across* metrics, e.g. a team that dominates territory but takes poor \
 shots, or concedes few shots but very good ones. Explain what the combination means.
 - Keep facts and interpretation apart: "text" contains only what the data shows; \
@@ -107,9 +110,15 @@ def _parse_json(text: str) -> Any:
 
 
 def _complete(
-    client: OpenAI, model: str, messages: list[dict], max_tokens: int = 16000
+    client: OpenAI,
+    model: str,
+    messages: list[dict],
+    max_tokens: int = 16000,
+    reasoning_effort: str | None = None,
 ) -> tuple[str, dict]:
     kwargs: dict[str, Any] = {"model": model, "messages": messages, "max_tokens": max_tokens}
+    if reasoning_effort:
+        kwargs["reasoning_effort"] = reasoning_effort
     try:
         resp = client.chat.completions.create(**kwargs, response_format={"type": "json_object"})
     except BadRequestError:  # endpoint without JSON mode: rely on the prompt
@@ -136,11 +145,12 @@ def critique(client: OpenAI, model: str, facts: dict, analysis: dict) -> tuple[l
             + json.dumps(body, ensure_ascii=False),
         },
     ]
-    # Reasoning models think at length when checking every claim; one retry if cut off.
+    # Reasoning models can think past the output limit when checking every claim against a
+    # large fact sheet: cap the effort, and drop it further if a run still gets cut off.
     try:
-        text, usage = _complete(client, model, messages, max_tokens=32000)
+        text, usage = _complete(client, model, messages, 32000, reasoning_effort="medium")
     except TruncatedError:
-        text, usage = _complete(client, model, messages, max_tokens=32000)
+        text, usage = _complete(client, model, messages, 32000, reasoning_effort="low")
     flags = _parse_json(text).get("unsupported") or []
     return [f for f in flags if isinstance(f, dict) and f.get("claim")], usage
 

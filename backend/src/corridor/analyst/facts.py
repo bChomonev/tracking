@@ -5,13 +5,17 @@ be quoted at. The LLM does no arithmetic: if a comparison is worth making ("out-
 of 6 matches"), it is pre-computed as a fact.
 """
 
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 
 def _r(v: float | None, d: int) -> float | int | None:
+    """Round half away from zero, like the page's JavaScript (Python's round() would turn
+    98.5 into 98 while the page shows 99)."""
     if v is None:
         return None
-    return round(v) if d == 0 else round(v, d)
+    q = Decimal(str(v)).quantize(Decimal(1).scaleb(-d), rounding=ROUND_HALF_UP)
+    return int(q) if d == 0 else float(q)
 
 
 def _skew_fact(m: dict, labels_by_id: dict, dec: int) -> dict | None:
@@ -23,6 +27,21 @@ def _skew_fact(m: dict, labels_by_id: dict, dec: int) -> dict | None:
         "value_in_that_match": _r(s["match_value"], dec),
         "season_average_without_it": _r(s["average_without"], dec),
         "league_rank_by_average_without_it": s["rank_without"],
+    }
+
+
+def _line_fact(m: dict, dec: int) -> dict | None:
+    b = m.get("best_line")
+    if not b:
+        return None
+    weak, strong = (b["p25"], b["p75"]) if m["direction"] > 0 else (b["p75"], b["p25"])
+    return {
+        "value": _r(b["value"], dec),
+        "elite_range": [_r(weak, dec), _r(strong, dec)],
+        "typical_match_reaches_line": b["typical_reaches"],
+        "typical_match_within_elite_range": b["typical_in_range"],
+        "matches_reaching_line": b["matches_reached"],
+        "matches_with_data": b["matches_counted"],
     }
 
 
@@ -60,6 +79,7 @@ def build_facts(profile: dict) -> dict[str, Any]:
                 "season_average": _r(m["season_average"], dec),
                 "league_rank_by_season_average": m["rank_by_average"],
                 "one_match_effect": _skew_fact(m, labels_by_id, dec),
+                "elite_line": _line_fact(m, dec),
                 "unit": m["unit"],
                 "league_rank": m["rank"],
                 "teams_ranked": m["of"],
@@ -152,6 +172,7 @@ def build_facts(profile: dict) -> dict[str, Any]:
         ],
         "metrics": metrics,
         "context": profile.get("context"),
+        "best_line": _best_line_summary(profile, labels),
         "players": players,
         "notes": [
             "typical_match is the team's median match; league_rank, league_percentile and "
@@ -169,6 +190,27 @@ def build_facts(profile: dict) -> dict[str, Any]:
             "of_which_from_outside_box is a subset of the other categories.",
         ],
         "not_measured": NOT_MEASURED,
+    }
+
+
+def _best_line_summary(profile: dict, labels: list[str]) -> dict | None:
+    bl = profile.get("best_line")
+    if not bl:
+        return None
+    return {
+        "what_it_is": (
+            f"Median of each metric across the {bl['wins']} league wins of the {bl['season']} "
+            f"top four ({', '.join(bl['elite'])}); wins against 10 men from before the 70th "
+            "minute excluded. elite_range is the middle half of those wins."
+        ),
+        "wins_by_team": bl["wins_by_team"],
+        "typical_match_reaches_line_on": bl["typical_at_or_above_line"],
+        "metrics_with_a_line": bl["metrics_compared"],
+        "per_match": [
+            {"match": lbl, "metrics_at_or_above_line": p["reached"], "of": p["of"]}
+            for lbl, p in zip(labels, bl["per_match"], strict=True)
+        ],
+        "no_line_because_definition_changed": sorted(bl.get("not_comparable", {})),
     }
 
 

@@ -8,6 +8,22 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-019 — Stage 2 best line: last season's top-4 wins, median per metric · 2026-10-15 · accepted
+Chosen with the user. **Elite** = the previous season's final top four (2025-26: Arsenal,
+Man City, Man United, Villa — United's own 3rd place included). **Best games** = their
+league wins, minus wins where the opponent was sent off before the 70th minute (11 v 10
+for 20+ min inflates possession/territory; 3 excluded). **Line** = median of each metric over
+those wins; the middle half (p25–p75) is the "elite range". Fixed for the season, rebuilt
+each summer from `data/processed/{season-1}` (needs a one-off `build_season --season
+<prev>`, ~10 min). "Reached" = at least as good as the median; gaps are also expressed in
+elite-range units so metrics with different scales can be ranked. Running metrics rest on
+the ~57 wins with tracking (FotMob tracking starts Dec 2025).
+**Cross-season guard:** if a metric's league-wide mean moved > 0.5 SD between seasons, the
+provider changed its definition and the metric gets no line — FotMob's line-breaking
+passes went from a median of 52 to 93.5 (+1.9 SD). PL only: the UCL has different
+providers and no previous-season pool. Supersedes TDP's 90%-win cohort as the *displayed*
+line for now; the empirical 90%-win proof stays for stage 3.
+
 ## D-018 — Post-match updates: local launchd + a background Claude session publishes · 2026-10-15 · accepted
 `corridor.scripts.update` runs twice a day (10:31, 14:31 local — when the Mac is awake) from
 a user launchd agent (`ops/launchd/`). It refreshes the PL + UCL fixture lists and only
