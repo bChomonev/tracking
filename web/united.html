@@ -129,6 +129,18 @@ td.l small { color: var(--muted); }
 .gauge i { position: absolute; top: 4px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: var(--ink); border: 2px solid var(--panel); }
 .gauge-legend { display: flex; justify-content: space-between; gap: 8px; font-size: .76rem; color: var(--muted); }
 .gauge-legend .num { color: var(--ink); }
+/* Metric explanations: hover/focus tooltip; on touch screens shown inline instead. */
+.tip { position: relative; }
+.tip::after { content: attr(data-tip); position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 5; width: max-content; max-width: min(300px, 80vw);
+  background: var(--ink); color: var(--bg); font: 400 .84rem/1.35 var(--body); text-transform: none; letter-spacing: 0; text-align: left; white-space: normal;
+  padding: 7px 10px; border-radius: 4px; box-shadow: 0 4px 14px rgb(0 0 0 / .18); opacity: 0; visibility: hidden; pointer-events: none; }
+.tip.below::after { bottom: auto; top: calc(100% + 6px); }
+.tip.end::after { left: auto; right: 0; }
+.tip:hover::after, .tip:focus-visible::after { opacity: 1; visibility: visible; }
+@media (prefers-reduced-motion: no-preference) { .tip::after { transition: opacity .12s ease-out, visibility .12s; } }
+th .tip { cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; }
+.f-explain { display: none; color: var(--ink); font-size: .84rem; }
+@media (hover: none) { .f-explain { display: block; } .tip::after { display: none; } }
 .pill { justify-self: end; font: 600 .74rem/1 var(--body); text-transform: uppercase; letter-spacing: .06em; padding: 6px 8px; border-radius: 4px; text-align: center; }
 .pill.best { background: var(--good-bg); color: var(--good); }
 .pill.between { background: var(--track); color: var(--muted); }
@@ -364,6 +376,7 @@ th[aria-sort] button::after { content: " ▾"; }
     helps: ["Helps a little", "A 10–20 point effect on results."],
     no_effect: ["Doesn't decide matches", "Under 10 points: teams win about as often whether they reach these lines or not."],
   };
+  const tipOf = (m) => m.explain + (m.direction < 0 ? " Lower is better." : " Higher is better.");
   const STATUS = { best: "Elite level", between: "In between", worst: "Relegation level" };
   const F = P.focus;
   if (F) {
@@ -382,8 +395,8 @@ th[aria-sort] button::after { content: " ▾"; }
         gauge = `<div class="gauge" aria-hidden="true"><span class="lw"></span><span class="lb"></span><i style="left:${(12 + 76 * t).toFixed(1)}%"></i></div>
           <div class="gauge-legend"><span>worst <span class="num">${esc(showVal(m, wl.value))}</span></span><span>United <span class="num">${esc(showVal(m, m.value))}</span></span><span>elite <span class="num">${esc(showVal(m, bl.value))}</span></span></div>`;
       }
-      return `<li class="f-row"><div class="f-name"><button type="button" class="chip-link" data-metric="${esc(k)}">${esc(m.label)}</button>${im.provisional ? `<span class="prov" title="Running data only exists this season: tested on ${im.n} matches">provisional</span>` : ""}
-          <small>Won ${pctTxt(im.won_when_reached)} when reaching the elite line, ${pctTxt(im.won_when_not)} when not${im.lost_when_at_worst != null ? ` · lost ${pctTxt(im.lost_when_at_worst)} at the worst line` : ""}</small></div>
+      return `<li class="f-row"><div class="f-name"><button type="button" class="chip-link tip" data-tip="${esc(tipOf(m))}" data-metric="${esc(k)}">${esc(m.label)}</button>${im.provisional ? `<span class="prov" title="Running data only exists this season: tested on ${im.n} matches">provisional</span>` : ""}
+          <span class="f-explain">${esc(tipOf(m))}</span><small>Won ${pctTxt(im.won_when_reached)} when reaching the elite line, ${pctTxt(im.won_when_not)} when not${im.lost_when_at_worst != null ? ` · lost ${pctTxt(im.lost_when_at_worst)} at the worst line` : ""}</small></div>
         <div class="f-gauge">${gauge}</div><span class="pill ${st}">${STATUS[st]}</span></li>`;
     };
     $("focus-tiers").innerHTML = Object.entries(F.tiers).map(([tier, t]) => {
@@ -443,7 +456,7 @@ th[aria-sort] button::after { content: " ▾"; }
     $("proof-metrics").innerHTML = `<thead><tr><th class="l">Line</th><th>Won · reached elite</th><th>Won · didn't</th><th>Lost · at worst</th><th>Lost · not</th><th>United typical</th></tr></thead><tbody>` +
       keys.map((k) => { const m = plBy[k], im = m.impact;
         const st = m.best_line?.typical_hits ? "best" : m.worst_line?.typical_hits ? "worst" : "between";
-        return `<tr><td class="l"><span class="lift-bar" style="width:${Math.round(Math.max(0, im.impact) * 60)}px"></span>${esc(m.label)} <span class="imp-tag ${im.tier}">${TIER[im.tier][0]}</span>${im.provisional ? ` <small>(this season only, ${im.n} matches)</small>` : ""}</td>
+        return `<tr><td class="l"><span class="lift-bar" style="width:${Math.round(Math.max(0, im.impact) * 60)}px"></span><span class="tip below" tabindex="0" data-tip="${esc(tipOf(m))}">${esc(m.label)}</span> <span class="imp-tag ${im.tier}">${TIER[im.tier][0]}</span>${im.provisional ? ` <small>(this season only, ${im.n} matches)</small>` : ""}</td>
           <td class="cell">${pctTxt(im.won_when_reached)}</td><td class="cell">${pctTxt(im.won_when_not)}</td>
           <td class="cell">${pctTxt(im.lost_when_at_worst)}</td><td class="cell">${pctTxt(im.lost_when_not)}</td>
           <td class="cell ${st === "best" ? "h-good" : st === "worst" ? "h-bad" : ""}">${STATUS[st].toLowerCase()}</td></tr>`; }).join("") + "</tbody>";
@@ -527,7 +540,7 @@ th[aria-sort] button::after { content: " ▾"; }
     ? `Elite score: share of the elite lines a match reached, each line weighted by how much it decides matches (0–100), with how often teams with that score won. Danger score: the same for the worst lines, and how often those teams lost. Then the ${cols.length} metrics that decide matches: green = at or above the elite line, red = at or below the worst line.`
     : `Cell colour = how that single performance ranks against every team-match in the Champions League this season (green top third, red bottom third). No elite or worst lines here: they are built from Premier League data.`;
   const TW = withLines && P.proof.typical_weighted;
-  $("matches").innerHTML = `<thead><tr><th class="l">Match</th><th>Score</th>${withLines ? "<th>Elite score</th><th>Danger score</th>" : ""}${cols.map((k) => `<th>${colLabel[k] || esc(metricBy[k].label)}</th>`).join("")}</tr></thead><tbody>` +
+  $("matches").innerHTML = `<thead><tr><th class="l">Match</th><th>Score</th>${withLines ? "<th>Elite score</th><th>Danger score</th>" : ""}${cols.map((k, i) => `<th><span class="tip below${i >= cols.length - 3 ? " end" : ""}" tabindex="0" data-tip="${esc(metricBy[k].label + ": " + tipOf(metricBy[k]))}">${colLabel[k] || esc(metricBy[k].label)}</span></th>`).join("")}</tr></thead><tbody>` +
     (withLines ? `<tr class="typical"><td class="l">Typical match</td><td></td><td class="score-cell">${Math.round(100 * TW.best.share)}<small>won ${pctTxt(TW.best.history?.W)}</small></td><td class="score-cell">${Math.round(100 * TW.worst.share)}<small>lost ${pctTxt(TW.worst.history?.L)}</small></td>${cols.map((k) => { const m = metricBy[k]; return `<td class="cell h-${lineTier(m, m.value)}">${cellTxt(m, m.value)}</td>`; }).join("")}</tr>` : "") +
     C.matches.map((mt, i) => `<tr><td class="l"><span class="pos">${mt.kickoff_utc.slice(5, 10).split("-").reverse().join("/")} ${mt.is_home ? "H" : "A"}</span> ${esc(short(mt.opponent))}</td>
       <td><span class="res ${mt.result}">${mt.result}</span> <span class="num">${mt.goals_for}–${mt.goals_against}</span></td>
