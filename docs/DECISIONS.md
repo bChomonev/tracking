@@ -8,6 +8,43 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-027 — Scoreline model for goal lines · 2026-10-15 · accepted (1X2: revisit)
+Poisson goals per side (scikit-learn PoissonRegressor on the same pre-match ratings:
+own npxG / goals for, opponent npxGA / goals against) with a Dixon–Coles low-score
+correction → a scoreline matrix → most likely scores, over 1.5 / 2.5 / 3.5, both teams to
+score, clean sheets. Raw rates were over-confident (74% "over 2.5" happened 62%), so rates
+are shrunk towards the league mean in log space; the factor 0.7 was chosen on 2016-17…
+2019-20. Held-out 2020-21…now: over 2.5 Brier 0.2435 vs 0.2476 base rate, bookmakers
+0.2414; BTTS 0.2476 vs 0.2490. **Win/draw/loss stays with the logistic model**: it won on
+the tuning seasons (RPS 0.1917 vs 0.1923) although the unshrunk goals model was better on
+the held-out ones (0.2025 vs 0.2046) — switching on held-out evidence would be choosing by
+the test set; revisit with a fresh tuning protocol. Goal lines don't use team news yet.
+
+## D-026 — Team news in the prediction (one parameter) · 2026-10-15 · accepted (watch)
+`corridor.absences`: FotMob lists each side's unavailable players on every match page, so
+the cached pages give 820 past PL matches (2024-25 → now) of team news. Each absent
+player is weighted by his share of the team's minutes and of its chance creation (npxG +
+xA), counted only over earlier matches (last season at half weight). Tests: re-fitting a
+stacked model on one season *hurt* (overfit), so the adjustment is a single parameter —
+home-win odds × exp(k·d), away-win odds × exp(−k·d), d = away minus home share of usual
+minutes missing. k fitted separately on 2024-25 (1.74) and 2025-26 (1.90) → 1.8. Out of
+sample the gain is small and not significant (+0.0007 and +0.0022 RPS, CIs include 0;
+−0.0026 on this season's 60), right direction in the 63 big-gap matches (home side
+missing much more: base 38%, adjusted 30%, actual 20%). Adopted because the direction is
+stable and both versions are logged: the running record shows RPS with and without team
+news, so it can be dropped if it doesn't pay. Using output share or both shares overfit.
+
+## D-025 — Who takes the shots (player shot quality) · 2026-10-15 · accepted
+Per player, from the shot map: non-penalty shots, npxG per shot vs the league average for
+his role, distance, outside-box / blocked / headed shares, and **npxG wasted** = shots ×
+role-average quality − actual npxG; summed it splits the team's shot-quality gap by
+player (United: 0.45 per match, most in the league — Cunha +1.49, Rashford +0.64, the
+centre-backs and Dalot shooting from range; Mbeumo −1.04). Defending can't be split the
+same way (no per-player attribution of chances allowed), only "errors leading to a goal"
+is shown. The parser now records per-player shot detail and uses the match's own team
+names — FotMob's player blocks said "Bournemouth" / "Brighton and Hove Albion", which had
+silently emptied those two teams' player tables and team-news shares since D-022.
+
 ## D-024 — Stage 5: match previews (team news, line-ups, shooters, corners) · 2026-10-15 · accepted
 Clicking a next-round fixture opens `#match/<id>`: the prediction, **team news** (FotMob's
 pre-match "unavailable" list: type, expected return, the player's minutes and share of the

@@ -427,6 +427,10 @@ th[aria-sort] button::after { content: " ▾"; }
       <h1 id="mv-title"></h1>
       <div id="mv-pred"></div>
     </section>
+    <section aria-labelledby="mvg-title">
+      <div class="section-head"><h2 id="mvg-title">Scorelines &amp; goals</h2><p id="mvg-sub"></p></div>
+      <div class="mv-cols" id="mv-goals"></div>
+    </section>
     <section aria-labelledby="mvn-title">
       <div class="section-head"><h2 id="mvn-title">Team news</h2><p id="mvn-sub"></p></div>
       <div class="mv-cols" id="mv-news"></div>
@@ -470,6 +474,17 @@ th[aria-sort] button::after { content: " ▾"; }
     <summary><h2 id="analyst-title">The analyst's read</h2><span class="fold-hint"></span><p class="lede" id="analyst-lede"></p></summary>
     <div class="analyst" id="analyst"></div>
   </details>
+
+  <section aria-labelledby="shoot-title" id="shoot-sec" hidden>
+    <div class="section-head">
+      <h2 id="shoot-title">Who takes the shots</h2>
+      <p id="shoot-sub"></p>
+    </div>
+    <p class="focus-lede" id="shoot-lede"></p>
+    <figure class="ov-chart" id="shoot-chart"></figure>
+    <div class="table-wrap" style="margin-top:14px"><table id="shoot-table"></table></div>
+    <p class="bl-foot" id="shoot-foot"></p>
+  </section>
 
   <section aria-labelledby="proof-title" id="proof-sec" hidden>
     <div class="section-head">
@@ -643,6 +658,34 @@ th[aria-sort] button::after { content: " ▾"; }
       $("player-notes").innerHTML = A.players.map((p) => `<li class="${esc(p.kind)}"><b>${esc(p.name)}</b>${esc(p.text)}</li>`).join("");
       $("player-notes").hidden = false;
     }
+  }
+
+  // ---- Who takes the shots (D-025): each player's shot quality vs his role's average
+  const SH = P.shooting;
+  $("shoot-sec").hidden = !SH || !SH.shots;
+  if (SH && SH.shots) {
+    const gaps = Object.values(L.teams).map((t) => t.shooting?.quality_gap_per_match).filter((x) => x != null).sort((a, b) => b - a);
+    const rank = gaps.indexOf(SH.quality_gap_per_match) + 1;
+    const lost = SH.quality_gap_per_match > 0;
+    $("shoot-sub").textContent = `Every non-penalty shot this season from FotMob's shot map. "npxG wasted": what a player's shots would have produced at the league-average quality for his position, minus what they produced. Positive (red) = chances wasted on poor shots; negative (green) = better shots than his position usually takes.`;
+    $("shoot-lede").innerHTML = `${esc(TN)} ${lost ? `<em>lose</em>` : `<strong>gain</strong>`} <span class="num">${Math.abs(SH.quality_gap_per_match).toFixed(2)}</span> npxG a match through shot selection — ${ord(rank)} of ${gaps.length} for chances wasted. Their ${SH.shots} shots produced <span class="num">${SH.npxg.toFixed(1)}</span> npxG; at their positions' average quality they'd have produced <span class="num">${(SH.npxg + SH.quality_gap).toFixed(1)}</span>.`;
+    const ps = [...SH.players].sort((a, b) => b.quality_gap - a.quality_gap);
+    const W = 820, rowH = 24, lab = 190, H = ps.length * rowH + 30;
+    const pos = Math.max(0.05, ...ps.map((r) => r.quality_gap)), neg = Math.max(0.05, ...ps.map((r) => -r.quality_gap));
+    const span = W - lab - 120, sc = span / (pos + neg), mid = lab + 60 + neg * sc;
+    $("shoot-chart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Quality gap per player">
+      <line x1="${mid}" x2="${mid}" y1="0" y2="${H - 24}" stroke="var(--muted)"></line>
+      ${ps.map((r, i) => { const y = 6 + i * rowH, w = Math.abs(r.quality_gap) * sc, bad = r.quality_gap > 0;
+        return `<text x="${lab}" y="${y + 14}" text-anchor="end">${esc(r.name)}</text>
+          <rect x="${(bad ? mid : mid - w).toFixed(1)}" y="${y + 3}" width="${Math.max(1, w).toFixed(1)}" height="${rowH - 8}" rx="2" fill="var(--${bad ? "bad" : "good"})"></rect>
+          <text x="${(bad ? mid + w + 6 : mid - w - 6).toFixed(1)}" y="${y + 14}" text-anchor="${bad ? "start" : "end"}" style="font:500 11px var(--mono)">${signed(r.quality_gap, 2)}</text>`; }).join("")}
+      <g class="axis"><text x="${mid - 8}" y="${H - 6}" text-anchor="end">← better shots than his position</text><text x="${mid + 8}" y="${H - 6}">npxG wasted on poor shots →</text></g></svg>`;
+    $("shoot-table").innerHTML = `<thead><tr><th class="l">Player</th><th>Shots</th><th>Share</th><th>Goals</th><th><span class="tip below" tabindex="0" data-tip="Average non-penalty xG per shot, vs the league average for his position.">npxG / shot</span></th><th>Avg distance</th><th>Outside box</th><th>Blocked</th><th><span class="tip below end" tabindex="0" data-tip="npxG his shots would have produced at his position's average quality, minus what they produced. + = wasted on poor shots.">npxG wasted</span></th></tr></thead><tbody>` +
+      [...SH.players].map((r) => `<tr><td class="l">${esc(r.name)} <span class="pos">${esc(r.role)}</span></td><td class="cell">${r.shots}</td><td class="cell">${r.share_of_shots.toFixed(0)}%</td><td class="cell">${r.goals}</td>
+        <td class="cell h-${r.npxg_per_shot >= r.role_npxg_per_shot * 1.15 ? "good" : r.npxg_per_shot <= r.role_npxg_per_shot * 0.7 ? "bad" : ""}">${r.npxg_per_shot.toFixed(3)} <small style="color:var(--muted)">/ ${r.role_npxg_per_shot.toFixed(3)}</small></td>
+        <td class="cell">${r.avg_distance_m.toFixed(1)} m</td><td class="cell">${r.outside_pct.toFixed(0)}%</td><td class="cell">${r.blocked_pct.toFixed(0)}%</td><td class="cell diff ${r.quality_gap > 0.2 ? "down" : r.quality_gap < -0.2 ? "up" : ""}">${signed(r.quality_gap, 2)}</td></tr>`).join("") + "</tbody>";
+    const err = SH.errors_led_to_goal;
+    $("shoot-foot").textContent = `Players with fewer than 3 shots (${SH.others.players} players, ${SH.others.shots} shots) are left out of the list but counted in the total. Defending can't be split by player the same way: the data doesn't say who allowed a chance. ${err.length ? `Errors leading directly to a goal: ${err.map((e) => `${e.name} (${e.errors})`).join(", ")}.` : "No errors leading directly to a goal recorded."}`;
   }
 
   // ---- How we know (PL only)
@@ -822,6 +865,12 @@ th[aria-sort] button::after { content: " ▾"; }
   const pc = (x, d = 0) => (x == null ? "—" : (100 * x).toFixed(d) + "%");
   const fxWhen = (iso) => new Date(iso.replace(" ", "T") + "Z").toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   const teamLink = (t) => (bySlug[slug(t)] ? `<a href="#team/${slug(t)}">${esc(short(t))}</a>` : esc(short(t)));
+  const newsLine = (f) => {
+    if (!f.absence || !f.p_base) return "";
+    const [bh, , ba] = f.p_base, [h, , a] = f.p, moved = Math.abs(h - bh) >= 0.02;
+    const side = (k) => `${esc(short(f[k]))} missing ${pc(f.absence[k].minutes)} of their usual minutes (${f.absence[k].n} out)`;
+    return `<p class="fx-why">Team news: ${side("home")}; ${side("away")}.${moved ? ` That moved it from ${pc(bh)} / ${pc(1 - bh - ba)} / ${pc(ba)}.` : " Little effect on the odds."}</p>`;
+  };
   const fixtureCard = (f) => {
     const [h, d, a] = f.p, lab = (x) => (x >= 0.12 ? Math.round(100 * x) + "%" : "");
     const fav = h >= a ? [f.home, h] : [f.away, a];
@@ -832,6 +881,8 @@ th[aria-sort] button::after { content: " ▾"; }
       <div class="pbar3" role="img" aria-label="Home win ${pc(h)}, draw ${pc(d)}, away win ${pc(a)}"><span class="h" style="width:${100 * h}%">${lab(h)}</span><span class="d" style="width:${100 * d}%">${lab(d)}</span><span class="a" style="width:${100 * a}%">${lab(a)}</span></div>
       <div class="pbar3-legend"><span>Home win ${pc(h)}</span><span>Draw ${pc(d)}</span><span>Away win ${pc(a)}</span></div>
       <p class="fx-why">Expected chance quality <span class="num">${f.exp_home.toFixed(2)}–${f.exp_away.toFixed(2)}</span>. ${Math.max(h, a) < 0.45 ? "Close to a coin toss." : `Leans ${esc(short(fav[0]))}.`}${why ? ` Biggest factors: ${why}.` : ""}</p>
+      ${newsLine(f)}
+      ${f.goals ? `<p class="fx-why">Most likely score ${f.goals.scores[0].home}–${f.goals.scores[0].away} (${pc(f.goals.scores[0].p)}) · over 2.5 goals ${pc(f.goals.over_2_5)} · both score ${pc(f.goals.btts)}</p>` : ""}
       ${L.previews?.fixtures?.[f.id] ? `<a class="fx-link" href="#match/${esc(f.id)}">Match preview: team news, line-ups, shooters, corners →</a>` : ""}
     </article>`;
   };
@@ -840,11 +891,11 @@ th[aria-sort] button::after { content: " ▾"; }
     const nx = PRD.next_round || [];
     $("pr-sec").hidden = !nx.length;
     if (nx.length) {
-      $("pr-sub").textContent = `Home win, draw and away win chances for every fixture, from each team's rolling ratings (chance quality created and conceded, goal difference, elite and worst lines; opponent-adjusted, recent matches weigh most). Ratings change slowly: early in a season they still lean on last season.`;
+      $("pr-sub").textContent = `Home win, draw and away win chances for every fixture, from each team's rolling ratings (chance quality created and conceded, goal difference, elite and worst lines; opponent-adjusted, recent matches weigh most), then nudged by team news: the side missing more of its usual minutes loses some of its chance. Ratings change slowly: early in a season they still lean on last season.`;
       $("pr-fixtures").innerHTML = nx.map(fixtureCard).join("");
       const R = PRD.record;
       $("pr-record").textContent = R.scored
-        ? `Record this season: ${R.scored} predictions scored, ${R.hits} favourites won (${pc(R.hits / R.scored)}). Average RPS ${R.rps.toFixed(3)}${R.avg_rps != null ? ` vs the bookmakers' ${R.avg_rps.toFixed(3)}` : ""} (lower is better).`
+        ? `Record this season: ${R.scored} predictions scored, ${R.hits} favourites won (${pc(R.hits / R.scored)}). Average RPS ${R.rps.toFixed(3)}${R.rps_base != null ? ` (${R.rps_base.toFixed(3)} without team news)` : ""}${R.avg_rps != null ? ` vs the bookmakers' ${R.avg_rps.toFixed(3)}` : ""} (lower is better).`
         : `Every prediction is saved before kickoff and scored after the match — the record starts with this round.`;
     }
     const pj = PRD.projection || [];
@@ -879,10 +930,10 @@ th[aria-sort] button::after { content: " ▾"; }
       </svg>`;
     const R = PRD.record;
     $("bt-record").innerHTML = R.matches.length
-      ? `<thead><tr><th class="l">Match</th><th>Result</th><th>Home</th><th>Draw</th><th>Away</th><th>RPS</th><th>Bookmakers RPS</th></tr></thead><tbody>` +
-        R.matches.map((e) => `<tr><td class="l">${esc(short(e.home))} v ${esc(short(e.away))}</td><td class="cell">${esc(e.score)}</td>${e.p.map((x, i) => `<td class="cell ${"HDA"[i] === e.result ? "h-good" : ""}">${pc(x)}</td>`).join("")}<td class="cell">${e.rps.toFixed(3)}</td><td class="cell">${e.avg_rps != null ? e.avg_rps.toFixed(3) : "—"}</td></tr>`).join("") + "</tbody>"
+      ? `<thead><tr><th class="l">Match</th><th>Result</th><th>Home</th><th>Draw</th><th>Away</th><th>RPS</th><th>Without team news</th><th>Bookmakers RPS</th></tr></thead><tbody>` +
+        R.matches.map((e) => `<tr><td class="l">${esc(short(e.home))} v ${esc(short(e.away))}</td><td class="cell">${esc(e.score)}</td>${e.p.map((x, i) => `<td class="cell ${"HDA"[i] === e.result ? "h-good" : ""}">${pc(x)}</td>`).join("")}<td class="cell">${e.rps.toFixed(3)}</td><td class="cell">${e.rps_base != null ? e.rps_base.toFixed(3) : "—"}</td><td class="cell">${e.avg_rps != null ? e.avg_rps.toFixed(3) : "—"}</td></tr>`).join("") + "</tbody>"
       : `<tbody><tr><td class="l">No predictions scored yet. The first ones, for the next round, were saved on ${esc(when(PRD.generated_at, true))}.</td></tr></tbody>`;
-    $("bt-foot").textContent = `What the ratings use: Understat non-penalty xG created and conceded, goals, and the share of the 5 core elite and worst lines reached, each match opponent-adjusted and weighted so the last ~24 matches count half. Honest result: the line features add very little on top of xG and goals, and the model trails the bookmakers by about ${((pooled.model.rps - (pooled.avg?.rps ?? pooled.model.rps))).toFixed(3)} RPS — they also know injuries and line-ups. Bookmaker odds (football-data.co.uk) are used only as this benchmark.`;
+    $("bt-foot").textContent = `What the ratings use: Understat non-penalty xG created and conceded, goals, and the share of the 5 core elite and worst lines reached, each match opponent-adjusted and weighted so the last ~24 matches count half. Honest result: the line features add very little on top of xG and goals, and the model trails the bookmakers by about ${((pooled.model.rps - (pooled.avg?.rps ?? pooled.model.rps))).toFixed(3)} RPS — they also know injuries and line-ups. Bookmaker odds (football-data.co.uk) are used only as this benchmark.${PRD.backtest_goals ? ` Scorelines and goal lines come from a separate goals model: over 2.5 goals Brier ${PRD.backtest_goals.over.toFixed(3)} vs ${PRD.backtest_goals.over_base.toFixed(3)} for the league rate and ${PRD.backtest_goals.over_book.toFixed(3)} for the bookmakers.` : ""}`;
   };
   const teamNext = (P) => {
     const nx = (PRD?.next_round || []).find((f) => f.home === P.team || f.away === P.team);
@@ -902,7 +953,18 @@ th[aria-sort] button::after { content: " ▾"; }
     const [ph, pd, pa] = f.p, lab = (x) => (x >= 0.1 ? Math.round(100 * x) + "%" : "");
     $("mv-pred").innerHTML = `<div class="pred-big"><div class="pbar3" role="img" aria-label="Home win ${pc(ph)}, draw ${pc(pd)}, away win ${pc(pa)}"><span class="h" style="width:${100 * ph}%">${lab(ph)}</span><span class="d" style="width:${100 * pd}%">${lab(pd)}</span><span class="a" style="width:${100 * pa}%">${lab(pa)}</span></div>
       <div class="pbar3-legend"><span>${esc(H)} win ${pc(ph)}</span><span>Draw ${pc(pd)}</span><span>${esc(A)} win ${pc(pa)}</span></div>
-      <p class="fx-why">Expected chance quality <span class="num">${f.exp_home.toFixed(2)}–${f.exp_away.toFixed(2)}</span>. ${(f.drivers || []).length ? `Biggest factors: ${f.drivers.map((x) => `${x.feature} (${esc(short(x.favours === "home" ? f.home : f.away))})`).join(", ")}.` : ""} The probabilities come from the team ratings and don't yet adjust for the absences below.</p></div>`;
+      <p class="fx-why">Expected chance quality <span class="num">${f.exp_home.toFixed(2)}–${f.exp_away.toFixed(2)}</span>. ${(f.drivers || []).length ? `Biggest factors: ${f.drivers.map((x) => `${x.feature} (${esc(short(x.favours === "home" ? f.home : f.away))})`).join(", ")}.` : ""} </p>${newsLine(f)}</div>`;
+    const G = f.goals, GB = PRD.backtest_goals;
+    if (G) {
+      $("mvg-sub").textContent = `From a goals model on the same team ratings (expected goals ${G.exp_home.toFixed(2)}–${G.exp_away.toFixed(2)}), with the usual correction for low scores. It doesn't include team news yet, and the win/draw/loss chances above come from the main model.`;
+      const top = G.scores[0].p;
+      $("mv-goals").innerHTML = `<article class="mv-card"><h3>Most likely scores</h3>
+          ${G.scores.map((x) => `<div class="pbar" style="grid-template-columns: 4em minmax(0,1fr) 3.4em"><b style="text-align:left">${x.home}–${x.away}</b><div class="track"><span style="width:${(100 * x.p) / top}%;background:var(--${x.home > x.away ? "good" : x.home < x.away ? "ink" : "muted"})"></span></div><b>${pc(x.p)}</b></div>`).join("")}
+          <p class="fx-why" style="margin-top:8px">Even the likeliest score happens only about one time in ${Math.round(1 / top)}.</p></article>
+        <article class="mv-card"><h3>Goal lines</h3><ul class="mv-list">
+          ${[["Over 1.5 goals", G.over_1_5], ["Over 2.5 goals", G.over_2_5], ["Over 3.5 goals", G.over_3_5], ["Both teams score", G.btts], [`${esc(H)} clean sheet`, G.clean_sheet_home], [`${esc(A)} clean sheet`, G.clean_sheet_away]].map(([k, v]) => `<li><span>${k}</span><span class="num">${pc(v)}</span></li>`).join("")}</ul>
+          ${GB ? `<p class="fx-why" style="margin-top:8px">Tested on ${GB.n.toLocaleString()} past matches: over 2.5 Brier ${GB.over.toFixed(3)} vs ${GB.over_base.toFixed(3)} for the league rate and ${GB.over_book.toFixed(3)} for the bookmakers (lower is better) — goal totals are hard to call.</p>` : ""}</article>`;
+    } else { $("mv-goals").innerHTML = ""; }
     if (!V) {
       ["mv-news", "mv-lineups", "mv-shooters", "mv-corners"].forEach((k) => ($(k).innerHTML = `<p class="bl-foot">No preview data for this fixture yet.</p>`));
       return;
@@ -941,7 +1003,7 @@ th[aria-sort] button::after { content: " ▾"; }
         <ul class="mv-list">${Object.entries(C.p_over).map(([l, p]) => `<li><span>Over ${l}</span><span class="num">${pc(p)}</span></li>`).join("")}</ul></article></div>`;
     $("mv-notes").innerHTML = [
       `How these were tested (every match predicted from earlier matches only): shooters on ${(sb.starters).toLocaleString()} starts — Brier score for "at least one shot" ${sb.brier_shot.toFixed(3)} vs ${sb.brier_shot_naive.toFixed(3)} for a position-average guess; goal chances are calibrated (when it says 25%, about a quarter score). Corners on ${CB.matches} matches — a side's corners off by ${CB.mae_side.toFixed(2)} on average vs ${CB.mae_side_naive.toFixed(2)} for the average; the side expected to win more corners did so ${pc(CB.favourite_more_corners)} of the time; match totals barely predictable (correlation ${CB.corr_total.toFixed(2)}).`,
-      `Absences are shown but not yet fed into the win/draw/loss probabilities: there's no injury history to test such an adjustment on. Shooter numbers drop players who are out.`,
+      `Absences feed the win/draw/loss chances through one tested number: each side's share of its usual minutes that is missing (players weighted by minutes this season, plus last season at half weight). Tested on past seasons the gain is small but consistent; both versions are logged so the record shows whether it helps. Shooter lists drop players who are out.`,
       `Team news and line-ups: FotMob, fetched ${fetched}. The page refreshes after each match day.`,
     ].map((t) => `<p>${esc(t)}</p>`).join("");
   };

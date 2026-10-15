@@ -40,6 +40,11 @@ say it is association measured on past seasons, not certainty.
 "decides matches" tier. Mention a strength on a metric that "does not decide matches" only \
 to say that it is not what wins games. Quote the impact scores and their historical \
 percentages exactly.
+- Use "shooting" to name who takes the poor shots (npxg_wasted, npxg_per_shot vs the \
+role average, distance, outside-box and blocked shares) — this is the player-level \
+answer to shot quality. Do not attribute defensive chances to players: the data can't.
+- If "next_match" is present, end the findings with one "watch" finding about it: \
+the chances, the team news and what to look for, quoting its numbers exactly.
 - Look for the story *across* metrics, e.g. a team that dominates territory but takes poor \
 shots, or concedes few shots but very good ones. Explain what the combination means.
 - Keep facts and interpretation apart: "text" contains only what the data shows; \

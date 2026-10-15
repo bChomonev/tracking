@@ -106,6 +106,7 @@ PLAYER_STATS = {
     "expected_goals_on_target_faced": "xgot_faced",
     "goals_prevented": "goals_prevented",
     "saves": "saves",
+    "errors_led_to_goal": "errors_led_to_goal",
 }
 
 # Summed from player rows to team level (FotMob has no team total for these).
@@ -132,6 +133,19 @@ def match_details(match_id: str | int) -> dict:
     return fetch_json("fotmob", f"{BASE}/matchDetails?matchId={match_id}")
 
 
+_SHOT_ZERO = {
+    "np_shots": 0,
+    "np_shots_on_target": 0,
+    "npxg_shots": 0.0,
+    "penalties": 0,
+    "np_goals": 0,
+    "np_shots_outside_box": 0,
+    "np_shots_blocked": 0,
+    "np_shots_headed": 0,
+    "np_shot_distance_sum_m": 0.0,
+}
+
+
 def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
     """Return ([home_record, away_record], player_records)."""
     g = d["general"]
@@ -151,6 +165,7 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
         for lp in ((d["content"].get("lineup") or {}).get(side) or {}).get("starters", []):
             lineup_pos[lp["id"]] = (lp.get("positionId"), lp.get("usualPlayingPositionId"))
 
+    team_names = {side["id"]: side["name"] for side in sides}
     players = []
     for p in (d["content"].get("playerStats") or {}).values():
         pos_id, usual = lineup_pos.get(p["id"], (None, p.get("usualPosition")))
@@ -159,7 +174,9 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
             "player_id": p["id"],
             "name": p["name"],
             "team_id": p["teamId"],
-            "team": p["teamName"],
+            # The match's own team name: FotMob's player blocks sometimes spell clubs
+            # differently ("Bournemouth" vs "AFC Bournemouth").
+            "team": team_names.get(p["teamId"], p["teamName"]),
             "position": POSITION_GROUPS.get(p.get("usualPosition"), "UNK"),
             "started": p["id"] in lineup_pos,
             "position_id": pos_id,
@@ -180,16 +197,7 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
     for sh in shots:
         if sh.get("isOwnGoal") or sh.get("playerId") is None:
             continue
-        b = by_player.setdefault(
-            sh["playerId"],
-            {
-                "np_shots": 0,
-                "np_shots_on_target": 0,
-                "npxg_shots": 0.0,
-                "penalties": 0,
-                "np_goals": 0,
-            },
-        )
+        b = by_player.setdefault(sh["playerId"], dict(_SHOT_ZERO))
         if sh.get("situation") == "Penalty":
             b["penalties"] += 1
             continue
@@ -197,15 +205,13 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
         b["np_shots_on_target"] += bool(sh.get("isOnTarget"))
         b["npxg_shots"] += sh.get("expectedGoals") or 0.0
         b["np_goals"] += sh.get("eventType") == "Goal"
-    zero = {
-        "np_shots": 0,
-        "np_shots_on_target": 0,
-        "npxg_shots": 0.0,
-        "penalties": 0,
-        "np_goals": 0,
-    }
+        b["np_shots_outside_box"] += not sh.get("isFromInsideBox")
+        b["np_shots_blocked"] += bool(sh.get("isBlocked"))
+        b["np_shots_headed"] += sh.get("shotType") == "Header"
+        b["np_shot_distance_sum_m"] += math.hypot(105 - sh["x"], 34 - sh["y"])
     for pl in players:
-        pl |= by_player.get(pl["player_id"], zero)
+        pl |= by_player.get(pl["player_id"], _SHOT_ZERO)
+        pl.setdefault("errors_led_to_goal", 0.0)
     reds = red_card_minutes(d)
     records = []
     for i, side in enumerate(sides):

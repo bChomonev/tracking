@@ -14,7 +14,7 @@ from corridor import proof
 from corridor.best_line import build_line, compare, hits_line
 from corridor.ingest import understat
 from corridor.ingest.http import DATA_DIR
-from corridor.profile import player_profiles, team_profile
+from corridor.profile import player_profiles, shooting, team_profile
 
 
 def _fmt(v, d):
@@ -166,6 +166,7 @@ def build_team(
 ) -> dict:
     prof = team_profile(ctx["rows"], team)
     prof["players"] = player_profiles(ctx["players"], team)
+    prof["shooting"] = shooting(ctx["players"], team)
     prof["season"] = ctx["season"]
     prof["competition"] = "Premier League"
     for line in lines.values():
@@ -260,6 +261,14 @@ def main() -> None:
 
     names = sorted({r["team"] for r in rows})
     teams = {t: build_team(t, ctx, rec, lines, ucl_rows) for t in names}
+    gaps = sorted(
+        (p["shooting"]["quality_gap_per_match"] or 0 for p in teams.values()), reverse=True
+    )
+    for p in teams.values():
+        p["shooting"]["league_rank_wasted"] = (
+            gaps.index(p["shooting"]["quality_gap_per_match"] or 0) + 1
+        )
+        p["shooting"]["teams"] = len(gaps)
     prof = teams[args.team]
     out = DATA_DIR / "site" / str(args.season)
     out.mkdir(parents=True, exist_ok=True)

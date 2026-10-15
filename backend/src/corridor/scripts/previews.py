@@ -105,7 +105,8 @@ def main() -> None:
         fm = fm_fixtures.get((f["home"], f["away"]))
         if not fm:
             continue
-        d = fetch_json("fotmob_upcoming", f"{BASE}/matchDetails?matchId={fm['id']}", refresh=True)
+        # `predictions` fetched this page moments ago; reuse it (one request per fixture).
+        d = fetch_json("fotmob_upcoming", f"{BASE}/matchDetails?matchId={fm['id']}")
         lineup = d["content"].get("lineup") or {}
         official = lineup.get("lineupType") not in (None, "lastStarting11", "predicted")
         sides = {}

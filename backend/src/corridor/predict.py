@@ -192,6 +192,8 @@ class Ratings:
             "danger_diff": h["danger"] - a["danger"],
             "exp_home": xh,
             "exp_away": xa,
+            **{f"h_{k}": h[k] for k in ("npxg", "npxga", "gf", "ga")},
+            **{f"a_{k}": a[k] for k in ("npxg", "npxga", "gf", "ga")},
         }
 
 
@@ -253,6 +255,140 @@ class Model:
         coef = self.lr.coef_
         h, a = list(self.lr.classes_).index("H"), list(self.lr.classes_).index("A")
         return {f: float((coef[h][i] - coef[a][i]) * x[i]) for i, f in enumerate(self.feats)}
+
+
+# ---------------------------------------------------------------------------- goals
+
+
+MAX_GOALS = 10
+HOME_FEATS = ("h_npxg", "a_npxga", "h_gf", "a_ga")
+AWAY_FEATS = ("a_npxg", "h_npxga", "a_gf", "h_ga")
+
+
+def _pois(lam: float) -> np.ndarray:
+    k = np.arange(MAX_GOALS + 1)
+    from math import lgamma
+
+    return np.exp(k * np.log(max(lam, 1e-9)) - lam - np.array([lgamma(i + 1) for i in k]))
+
+
+def _dc(rho: float, lh: float, la: float) -> np.ndarray:
+    """Dixon–Coles low-score correction (0-0, 1-0, 0-1, 1-1)."""
+    t = np.ones((MAX_GOALS + 1, MAX_GOALS + 1))
+    t[0, 0] = 1 - lh * la * rho
+    t[0, 1] = 1 + lh * rho
+    t[1, 0] = 1 + la * rho
+    t[1, 1] = 1 - rho
+    return t
+
+
+GOALS_SHRINK = 0.7  # rates pulled towards the league mean; chosen on 2016-17…2019-20
+
+
+class GoalsModel:
+    """Poisson goals for each side from the same pre-match ratings, with a Dixon–Coles
+    correction; gives a full scoreline matrix (D-027). Raw rates were over-confident (big
+    totals predicted too often), so each rate is shrunk towards the league mean in log
+    space: λ = mean · (λ_raw / mean)^GOALS_SHRINK."""
+
+    def __init__(self, shrink: float = GOALS_SHRINK):
+        self.shrink = shrink
+
+    def fit(self, ms: Sequence[dict]) -> "GoalsModel":
+        from sklearn.linear_model import PoissonRegressor
+
+        Xh, Xa = _X(ms, HOME_FEATS), _X(ms, AWAY_FEATS)
+        self.h = PoissonRegressor(alpha=1e-3, max_iter=1000).fit(Xh, [m["hg"] for m in ms])
+        self.a = PoissonRegressor(alpha=1e-3, max_iter=1000).fit(Xa, [m["ag"] for m in ms])
+        self.mean_h = float(np.mean([m["hg"] for m in ms]))
+        self.mean_a = float(np.mean([m["ag"] for m in ms]))
+        lh, la = self.rates(ms)
+        best = (-np.inf, 0.0)
+        for rho in np.linspace(-0.2, 0.1, 31):
+            ll = 0.0
+            for m, x, y in zip(ms, lh, la, strict=True):
+                i, j = min(m["hg"], MAX_GOALS), min(m["ag"], MAX_GOALS)
+                ll += np.log(max(1e-12, _pois(x)[i] * _pois(y)[j] * _dc(rho, x, y)[i, j]))
+            best = max(best, (ll, float(rho)))
+        self.rho = best[1]
+        return self
+
+    def rates(self, ms: Sequence[dict]) -> tuple[np.ndarray, np.ndarray]:
+        lh, la = self.h.predict(_X(ms, HOME_FEATS)), self.a.predict(_X(ms, AWAY_FEATS))
+        return (
+            self.mean_h * (lh / self.mean_h) ** self.shrink,
+            self.mean_a * (la / self.mean_a) ** self.shrink,
+        )
+
+    def matrix(self, lh: float, la: float) -> np.ndarray:
+        mx = np.outer(_pois(lh), _pois(la)) * _dc(self.rho, lh, la)
+        return mx / mx.sum()
+
+
+def markets(mx: np.ndarray) -> dict[str, Any]:
+    """Everything the page shows from one scoreline matrix."""
+    n = mx.shape[0]
+    tot = np.add.outer(np.arange(n), np.arange(n))
+    top = np.dstack(np.unravel_index(np.argsort(mx, axis=None)[::-1][:6], mx.shape))[0]
+    return {
+        "p": [float(np.tril(mx, -1).sum()), float(np.trace(mx)), float(np.triu(mx, 1).sum())],
+        "over_1_5": float(mx[tot > 1.5].sum()),
+        "over_2_5": float(mx[tot > 2.5].sum()),
+        "over_3_5": float(mx[tot > 3.5].sum()),
+        "btts": float(mx[1:, 1:].sum()),
+        "clean_sheet_home": float(mx[:, 0].sum()),
+        "clean_sheet_away": float(mx[0, :].sum()),
+        "scores": [{"home": int(i), "away": int(j), "p": float(mx[i, j])} for i, j in top],
+    }
+
+
+def evaluate_goals(scored: list[dict], seasons: Sequence[int], first_train: int) -> dict:
+    """Walk-forward test of the goals model: 1X2 RPS, over 2.5 and both-teams-to-score
+    (Brier, vs base rate and, for over 2.5, the bookmakers), exact-score log loss."""
+    rows: dict[str, list] = defaultdict(list)
+    for s in seasons:
+        train = [m for m in scored if first_train <= m["season"] < s and m["played"]]
+        test = [m for m in scored if m["season"] == s and m["played"]]
+        if not train or not test:
+            continue
+        g = GoalsModel().fit(train)
+        lh, la = g.rates(test)
+        base_over = np.mean([m["hg"] + m["ag"] > 2.5 for m in train])
+        base_btts = np.mean([m["hg"] > 0 and m["ag"] > 0 for m in train])
+        for m, x, y in zip(test, lh, la, strict=True):
+            mx = g.matrix(x, y)
+            mk = markets(mx)
+            over = m["hg"] + m["ag"] > 2.5
+            btts = m["hg"] > 0 and m["ag"] > 0
+            rows["rps"].append(rps(mk["p"], m["result"]))
+            rows["over"].append((mk["over_2_5"] - over) ** 2)
+            rows["over_base"].append((base_over - over) ** 2)
+            rows["btts"].append((mk["btts"] - btts) ** 2)
+            rows["btts_base"].append((base_btts - btts) ** 2)
+            i, j = min(m["hg"], MAX_GOALS), min(m["ag"], MAX_GOALS)
+            rows["score_ll"].append(-np.log(max(mx[i, j], 1e-12)))
+            rows["calib_over"].append((mk["over_2_5"], over))
+            ou = m.get("odds", {}).get("ou25")
+            if ou:
+                rows["over_book"].append((ou[0] - over) ** 2)
+                rows["over_model_on_book"].append((mk["over_2_5"] - over) ** 2)
+    out = {k: float(np.mean(v)) for k, v in rows.items() if k != "calib_over" and v}
+    out["n"] = len(rows["rps"])
+    out["n_book"] = len(rows["over_book"])
+    bins = defaultdict(list)
+    for p, o in rows["calib_over"]:
+        bins[min(int(p * 10), 9)].append((p, o))
+    out["calibration_over"] = [
+        {
+            "from": b / 10,
+            "n": len(v),
+            "predicted": float(np.mean([p for p, _ in v])),
+            "observed": float(np.mean([o for _, o in v])),
+        }
+        for b, v in sorted(bins.items())
+        if len(v) >= 20
+    ]
+    return out
 
 
 # ---------------------------------------------------------------------------- scoring

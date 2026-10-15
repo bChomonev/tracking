@@ -23,7 +23,16 @@ def main() -> None:
     args = ap.parse_args()
 
     out = DATA_DIR / "site" / str(args.season)
-    facts = build_facts(json.loads((out / "profile.json").read_text()))
+
+    def _opt(name: str) -> dict | None:
+        p = out / name
+        return json.loads(p.read_text()) if p.exists() else None
+
+    facts = build_facts(
+        json.loads((out / "profile.json").read_text()),
+        _opt("predictions.json"),
+        _opt("previews.json"),
+    )
     (out / "facts.json").write_text(json.dumps(facts, indent=1, ensure_ascii=False))
 
     res = write_analysis(

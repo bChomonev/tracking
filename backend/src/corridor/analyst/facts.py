@@ -52,7 +52,101 @@ def _line_fact(m: dict, dec: int, side: str) -> dict | None:
     }
 
 
-def build_facts(profile: dict) -> dict[str, Any]:
+def _shooting_facts(profile: dict) -> dict | None:
+    sh = profile.get("shooting")
+    if not sh or not sh.get("shots"):
+        return None
+    return {
+        "what_it_is": (
+            "Every non-penalty shot from the shot map, season totals. npxg_wasted = the npxG "
+            "the player's shots would have produced at the league-average quality for his "
+            "role, minus what they produced (positive = chances wasted on poor shots). The "
+            "data cannot say which defender allowed a chance."
+        ),
+        "team_shots": sh["shots"],
+        "team_npxg": _r(sh["npxg"], 2),
+        "team_npxg_per_shot_season": _r(sh["npxg_per_shot"], 3),
+        "league_npxg_per_shot_season": _r(sh["league_npxg_per_shot"], 3),
+        "npxg_wasted_per_match": _r(sh["quality_gap_per_match"], 2),
+        "league_rank_for_npxg_wasted": (
+            f"{sh['league_rank_wasted']} of {sh['teams']} (1 = most wasted)"
+        ),
+        "players": [
+            {
+                "name": r["name"],
+                "role": r["role"],
+                "shots": r["shots"],
+                "share_of_team_shots_pct": round(r["share_of_shots"]),
+                "np_goals": r["goals"],
+                "npxg_per_shot": _r(r["npxg_per_shot"], 3),
+                "role_average_npxg_per_shot": _r(r["role_npxg_per_shot"], 3),
+                "avg_shot_distance_m": _r(r["avg_distance_m"], 1),
+                "outside_box_pct": round(r["outside_pct"]),
+                "blocked_pct": round(r["blocked_pct"]),
+                "npxg_wasted": _r(r["quality_gap"], 2),
+            }
+            for r in sorted(sh["players"], key=lambda r: -r["quality_gap"])
+        ],
+        "errors_led_to_goal": sh["errors_led_to_goal"],
+    }
+
+
+def _next_match_facts(
+    profile: dict, predictions: dict | None, previews: dict | None
+) -> dict | None:
+    if not predictions:
+        return None
+    team = profile["team"]
+    f = next((x for x in predictions.get("next_round", []) if team in (x["home"], x["away"])), None)
+    if not f:
+        return None
+    home = f["home"] == team
+    opp = f["away"] if home else f["home"]
+    p, pb = f["p"], f.get("p_base", f["p"])
+    win, loss = (0, 2) if home else (2, 0)
+    out: dict[str, Any] = {
+        "opponent": opp,
+        "venue": "home" if home else "away",
+        "kickoff_utc": f["kickoff"],
+        "pct_win": _pct(p[win]),
+        "pct_draw": _pct(p[1]),
+        "pct_loss": _pct(p[loss]),
+        "pct_win_before_team_news": _pct(pb[win]),
+        "note": "Win/draw/loss from the prediction model, nudged by team news (share of "
+        "usual minutes missing). A forecast, not a certainty.",
+    }
+    if f.get("absence"):
+        me, them = ("home", "away") if home else ("away", "home")
+        out["share_of_usual_minutes_missing_pct"] = {
+            team: _pct(f["absence"][me]["minutes"]),
+            opp: _pct(f["absence"][them]["minutes"]),
+        }
+    g = f.get("goals")
+    if g:
+        s0 = g["scores"][0]
+        out["most_likely_score"] = f"{s0['home']}-{s0['away']} ({f['home']} first)"
+        out["pct_most_likely_score"] = _pct(s0["p"])
+        out["pct_over_2_5_goals"] = _pct(g["over_2_5"])
+    v = (previews or {}).get("fixtures", {}).get(f["id"])
+    if v:
+        mine = v["sides"]["home" if home else "away"]
+        out["unavailable"] = [
+            {"name": n["name"], "type": n["type"], "expected_back": n["back"]} for n in mine["news"]
+        ]
+        out["likely_shooters_if_they_start"] = [
+            {
+                "name": x["name"],
+                "pct_at_least_one_shot": _pct(x["p_shot"]),
+                "pct_non_penalty_goal": _pct(x["p_goal"]),
+            }
+            for x in mine["shooters"][:3]
+        ]
+    return out
+
+
+def build_facts(
+    profile: dict, predictions: dict | None = None, previews: dict | None = None
+) -> dict[str, Any]:
     matches = profile["matches"]
     labels = [f"{m['opponent']} ({'H' if m['is_home'] else 'A'})" for m in matches]
     w = sum(m["result"] == "W" for m in matches)
@@ -185,6 +279,8 @@ def build_facts(profile: dict) -> dict[str, Any]:
         "worst_line": _line_summary(profile, labels, "worst"),
         "proof": _proof_facts(profile, labels),
         "what_decides_matches": _focus_facts(profile, labels),
+        "shooting": _shooting_facts(profile),
+        "next_match": _next_match_facts(profile, predictions, previews),
         "players": players,
         "notes": [
             "typical_match is the team's median match; league_rank, league_percentile and "

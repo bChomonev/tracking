@@ -14,9 +14,11 @@ from datetime import UTC, datetime
 
 import numpy as np
 
+from corridor import absences as AB
 from corridor import predict as P
 from corridor.ingest import fotmob
-from corridor.ingest.http import DATA_DIR
+from corridor.ingest.fotmob import BASE
+from corridor.ingest.http import DATA_DIR, fetch_json
 from corridor.scripts.build_season import _name_map
 
 # Frozen after tuning on 2016-17 … 2019-20 (D-023). Re-tune only deliberately, never to
@@ -49,10 +51,12 @@ def main() -> None:
 
     # 1. Backtest: walk-forward on the held-out seasons (tuning used earlier seasons only).
     ev = P.evaluate(scored, PARAMS, range(FIRST_TEST, season + 1), FIRST_TRAIN)
+    ev_goals = P.evaluate_goals(scored, range(FIRST_TEST, season + 1), FIRST_TRAIN)
 
     # 2. Final model: every played match up to now.
     train = [m for m in scored if m["played"] and m["season"] >= FIRST_TRAIN]
     model = P.Model(PARAMS).fit(train)
+    goals = P.GoalsModel().fit(train)
 
     # Understat → FotMob names, so predictions link to the team pages.
     fm_fix = fotmob.league_matches(f"{season}/{season + 1}")
@@ -90,7 +94,49 @@ def main() -> None:
             ],
         }
 
-    nxt = [fixture(m) for m in P.next_round(current, now)]
+    nxt_ms = P.next_round(current, now)
+    nxt = [fixture(m) for m in nxt_ms]
+    # Scorelines and goal lines from the goals model (D-027). Win/draw/loss stays with the
+    # logistic model, which won on the tuning seasons.
+    if nxt_ms:
+        lh, la = goals.rates(nxt_ms)
+        for f, x, y in zip(nxt, lh, la, strict=True):
+            mk = P.markets(goals.matrix(x, y))
+            f["goals"] = {"exp_home": round(float(x), 2), "exp_away": round(float(y), 2)} | {
+                k: (round(v, 4) if isinstance(v, float) else v) for k, v in mk.items() if k != "p"
+            }
+
+    # Team news (D-026): FotMob's unavailable lists for the next round, weighted by each
+    # absent player's share of the team's minutes; a one-parameter shift of the odds.
+    def _players(s: int) -> list[dict]:
+        p = DATA_DIR / "processed" / str(s) / "player_matches.json"
+        return json.loads(p.read_text()) if p.exists() else []
+
+    contrib = AB.current_contributions(_players(season - 1), _players(season))
+    fm_open = {
+        (m["home"]["name"], m["away"]["name"]): m for m in fm_fix if not m["status"].get("finished")
+    }
+    for f in nxt:
+        fm = fm_open.get((f["home"], f["away"]))
+        f["p_base"] = f["p"]
+        if not fm:
+            continue
+        try:
+            url = f"{BASE}/matchDetails?matchId={fm['id']}"
+            details = fetch_json("fotmob_upcoming", url, refresh=True)
+        except Exception:  # noqa: BLE001 — no team news → keep the base prediction
+            continue
+        un = AB.unavailable(details)
+        miss = {
+            side: contrib.missing(f[side], [u["id"] for u in un[side]]) | {"n": len(un[side])}
+            for side in ("home", "away")
+        }
+        f["absence"] = {k: {kk: round(vv, 3) for kk, vv in v.items()} for k, v in miss.items()}
+        adj = AB.adjust(f["p_base"], miss["home"]["minutes"], miss["away"]["minutes"])
+        f["p"] = [round(x, 4) for x in adj]
+        pmap[f["id"]] = np.array(f["p"])
+    if upcoming:
+        probs = np.array([pmap[m["id"]] for m in upcoming])
 
     # 3. Season simulation from the current table and fixed ratings.
     table: dict[str, dict] = {}
@@ -127,7 +173,7 @@ def main() -> None:
     made_at = datetime.now(UTC).isoformat()
     for f in nxt:
         if datetime.fromisoformat(f["kickoff"]) > now:
-            log[f["id"]] = {k: f[k] for k in ("kickoff", "home", "away", "p")} | {
+            log[f["id"]] = {k: f[k] for k in ("kickoff", "home", "away", "p", "p_base")} | {
                 "made_at": made_at
             }
     by_id = {m["id"]: m for m in current}
@@ -137,6 +183,7 @@ def main() -> None:
             e["result"] = m["result"]
             e["score"] = f"{m['hg']}-{m['ag']}"
             e["rps"] = P.rps(e["p"], m["result"])
+            e["rps_base"] = P.rps(e.get("p_base", e["p"]), m["result"])
             for book in ("avg", "closing"):
                 if book in m.get("odds", {}):
                     e[f"{book}_rps"] = P.rps(m["odds"][book], m["result"])
@@ -146,6 +193,7 @@ def main() -> None:
         "scored": len(done),
         "rps": float(np.mean([e["rps"] for e in done])) if done else None,
         "hits": sum(P.OUTCOMES[int(np.argmax(e["p"]))] == e["result"] for e in done),
+        "rps_base": float(np.mean([e["rps_base"] for e in done])) if done else None,
         "avg_rps": float(np.mean([e["avg_rps"] for e in done if "avg_rps" in e]))
         if any("avg_rps" in e for e in done)
         else None,
@@ -162,6 +210,7 @@ def main() -> None:
         "next_round": nxt,
         "projection": projection,
         "backtest": ev,
+        "backtest_goals": ev_goals,
         "record": record,
         "trained_on": len(train),
     }

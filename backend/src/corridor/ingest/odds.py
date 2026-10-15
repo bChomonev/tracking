@@ -17,6 +17,8 @@ URL = "https://football-data.co.uk/mmz4281/{code}/E0.csv"
 BOOKS = {
     "avg": (("AvgH", "AvgD", "AvgA"), ("BbAvH", "BbAvD", "BbAvA")),
     "closing": (("PSCH", "PSCD", "PSCA"), ("AvgCH", "AvgCD", "AvgCA")),
+    # Over / under 2.5 goals (pre-match average).
+    "ou25": (("Avg>2.5", "Avg<2.5"), ("BbAv>2.5", "BbAv<2.5")),
 }
 
 

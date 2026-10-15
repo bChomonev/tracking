@@ -649,3 +649,111 @@ def player_profiles(players: list[dict], team: str, min_minutes: int = 90) -> li
         row["effort_percentile"] = round(mean(effort)) if effort else None
         out.append(row)
     return sorted(out, key=lambda r: -r["minutes"])
+
+
+MIN_SHOTS_LISTED = 3
+GROUP_ROLE = {"GK": "GK", "DEF": "CB", "MID": "CM", "FWD": "ST"}  # subs without a line-up slot
+
+
+def shooting(players: list[dict], team: str) -> dict:
+    """Who takes the team's shots, and how good are they (D-025)? Per player, from the shot
+    map: non-penalty shots, npxG, quality per shot, distance, outside-box / blocked / headed
+    shares, and the **quality gap** — npxG the shots would have produced at the league
+    average quality for the player's role, minus what they did produce. Summed over the
+    squad it splits the team's shot-quality problem by player."""
+    role_acc: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0])
+    per: dict[int, dict] = {}
+    for p in players:
+        r = role_acc[p.get("role") or "UNK"]
+        r[0] += p["np_shots"]
+        r[1] += p["npxg_shots"]
+        a = per.setdefault(
+            p["player_id"],
+            {
+                "name": p["name"],
+                "team": p["team"],
+                "minutes": 0.0,
+                "shots": 0,
+                "npxg": 0.0,
+                "goals": 0,
+                "on_target": 0,
+                "outside": 0,
+                "blocked": 0,
+                "headed": 0,
+                "distance_sum": 0.0,
+                "errors_led_to_goal": 0,
+                "roles": defaultdict(float),
+            },
+        )
+        a["team"] = p["team"]
+        a["minutes"] += p["minutes"]
+        a["shots"] += p["np_shots"]
+        a["npxg"] += p["npxg_shots"]
+        a["goals"] += p.get("np_goals", 0)
+        a["on_target"] += p.get("np_shots_on_target", 0)
+        a["outside"] += p.get("np_shots_outside_box", 0)
+        a["blocked"] += p.get("np_shots_blocked", 0)
+        a["headed"] += p.get("np_shots_headed", 0)
+        a["distance_sum"] += p.get("np_shot_distance_sum_m", 0.0)
+        a["errors_led_to_goal"] += int(p.get("errors_led_to_goal") or 0)
+        a["roles"][p.get("role") or "UNK"] += p["minutes"]
+        a["fallback_role"] = GROUP_ROLE.get(p.get("position"), "UNK")
+    role_q = {r: x / s for r, (s, x) in role_acc.items() if s}
+    league_q = sum(x for _, x in role_acc.values()) / max(1, sum(s for s, _ in role_acc.values()))
+
+    def row(a: dict) -> dict:
+        known = {r: m for r, m in a["roles"].items() if r != "UNK"}
+        role = max(known, key=known.get) if known else a["fallback_role"]
+        q = a["npxg"] / a["shots"] if a["shots"] else None
+        base = role_q.get(role, league_q)
+        return {
+            "name": a["name"],
+            "role": role,
+            "minutes": round(a["minutes"]),
+            "shots": a["shots"],
+            "shots_per90": 90 * a["shots"] / a["minutes"] if a["minutes"] else None,
+            "npxg": a["npxg"],
+            "goals": a["goals"],
+            "on_target": a["on_target"],
+            "npxg_per_shot": q,
+            "role_npxg_per_shot": base,
+            "avg_distance_m": a["distance_sum"] / a["shots"] if a["shots"] else None,
+            "outside_pct": 100 * a["outside"] / a["shots"] if a["shots"] else None,
+            "blocked_pct": 100 * a["blocked"] / a["shots"] if a["shots"] else None,
+            "headed_pct": 100 * a["headed"] / a["shots"] if a["shots"] else None,
+            "quality_gap": a["shots"] * base - a["npxg"],
+            "errors_led_to_goal": a["errors_led_to_goal"],
+        }
+
+    rows = [row(a) for a in per.values() if a["team"] == team]
+    shooters = sorted((r for r in rows if r["shots"]), key=lambda r: -r["shots"])
+    total_shots = sum(r["shots"] for r in shooters)
+    for r in shooters:
+        r["share_of_shots"] = 100 * r["shots"] / total_shots if total_shots else None
+    matches = len({p["match_id"] for p in players if p["team"] == team})
+    team_npxg = sum(r["npxg"] for r in shooters)
+    return {
+        "matches": matches,
+        "shots": total_shots,
+        "npxg": team_npxg,
+        "npxg_per_shot": team_npxg / total_shots if total_shots else None,
+        "league_npxg_per_shot": league_q,
+        "quality_gap": sum(r["quality_gap"] for r in shooters),
+        "quality_gap_per_match": sum(r["quality_gap"] for r in shooters) / matches
+        if matches
+        else None,
+        "players": [r for r in shooters if r["shots"] >= MIN_SHOTS_LISTED],
+        "others": {
+            "players": sum(1 for r in shooters if r["shots"] < MIN_SHOTS_LISTED),
+            "shots": sum(r["shots"] for r in shooters if r["shots"] < MIN_SHOTS_LISTED),
+            "quality_gap": sum(r["quality_gap"] for r in shooters if r["shots"] < MIN_SHOTS_LISTED),
+        },
+        "errors_led_to_goal": sorted(
+            (
+                {"name": r["name"], "role": r["role"], "errors": r["errors_led_to_goal"]}
+                for r in rows
+                if r["errors_led_to_goal"]
+            ),
+            key=lambda e: -e["errors"],
+        ),
+    }
