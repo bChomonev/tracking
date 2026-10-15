@@ -203,12 +203,14 @@ def write_analysis(
     rejected: list[list[str]] = []
     t0 = time.monotonic()
     for attempt in range(1, max_attempts + 1):
-        # The model's own reasoning counts against max_tokens; a large fact sheet can need
-        # most of the 32k output budget. If it still overruns, retry with less reasoning.
+        # The model's reasoning counts against max_tokens. At its default effort it often
+        # thinks through the whole 32k budget on this fact sheet and returns nothing (75-90 s
+        # wasted per call); medium effort writes a full draft in ~40 s, and the number check
+        # + critic guard quality. If even that overruns, drop to low.
         try:
-            text, u = _complete(client, model, messages, 32000)
-        except TruncatedError:
             text, u = _complete(client, model, messages, 32000, reasoning_effort="medium")
+        except TruncatedError:
+            text, u = _complete(client, model, messages, 32000, reasoning_effort="low")
         usage.append(u)
         flags: list[dict] = []
         try:
