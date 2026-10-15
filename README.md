@@ -21,7 +21,7 @@ uv run python -m corridor.scripts.build_site      # render data/site/2026/index.
 ```
 
 **Automatic updates after each match:** `./ops/launchd/install.sh` installs a launchd job
-(07:41, 12:41, 18:41, 23:41) that runs `corridor.scripts.update --publish`: it rebuilds only
+(10:31 and 14:31) that runs `corridor.scripts.update --publish`: it rebuilds only
 when United have a new finished match whose data is ready, then a background Claude Code
 session republishes the artifact. Try it by hand with `uv run python -m
 corridor.scripts.update --check`. Log: `data/logs/update.log`.

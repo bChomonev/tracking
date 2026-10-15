@@ -68,6 +68,11 @@ h2 { font-size: 1.9rem; text-transform: uppercase; letter-spacing: .02em; }
 .hero { display: grid; gap: 20px; border-bottom: 3px solid var(--red); padding-bottom: 28px; }
 .hero h1 { font-size: clamp(2.6rem, 7vw, 4.6rem); text-transform: uppercase; }
 .hero h1 span { color: var(--red); }
+.freshness { margin: -8px 0 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .88rem; color: var(--muted); }
+.freshness b { color: var(--ink); font-weight: 600; }
+.freshness .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--good); margin-right: 6px; vertical-align: 1px; }
+.freshness .dot.old { background: var(--mid); }
+.byline .stale { color: var(--bad); }
 .record { display: flex; flex-wrap: wrap; gap: 8px 28px; }
 .record div { display: grid; }
 .record b { font: 600 2rem/1 var(--display); }
@@ -163,6 +168,7 @@ th[aria-sort] button::after { content: " ▾"; }
 <main>
   <section class="hero" aria-labelledby="title">
     <p class="eyebrow" id="season-label">Premier League</p>
+    <p class="freshness" id="freshness"></p>
     <h1 id="title">Why are United <span>struggling?</span></h1>
     <div class="record" id="record"></div>
     <div class="analyst" id="analyst" hidden></div>
@@ -219,6 +225,21 @@ th[aria-sort] button::after { content: " ▾"; }
 
   // ---- Hero
   $("season-label").textContent = `Premier League ${P.season} · after ${P.record.played} matches`;
+
+  // What data am I looking at? Build time + the latest match in each competition.
+  const when = (iso, time) => new Date(iso).toLocaleString(undefined, time
+    ? { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }
+    : { weekday: "short", day: "numeric", month: "short" });
+  const ago = (iso) => { const d = Math.floor((Date.now() - new Date(iso)) / 864e5); return d <= 0 ? "today" : d === 1 ? "yesterday" : `${d} days ago`; };
+  const lastOf = (C) => C && C.matches.length ? C.matches[C.matches.length - 1] : null;
+  const matchTxt = (mt) => `${short(mt.opponent)} (${mt.is_home ? "H" : "A"}) ${mt.goals_for}–${mt.goals_against}, ${when(mt.kickoff_utc)}`;
+  const lastPL = lastOf(P), lastUCL = lastOf(P.ucl);
+  const fresh = (Date.now() - new Date(P.generated_at)) / 864e5 < 8;
+  $("freshness").innerHTML = [
+    `<span><i class="dot${fresh ? "" : " old"}"></i>Updated <b>${esc(when(P.generated_at, true))}</b> (${ago(P.generated_at)})</span>`,
+    lastPL && `<span>Latest PL match: <b>${esc(matchTxt(lastPL))}</b></span>`,
+    lastUCL && `<span>Latest UCL match: <b>${esc(matchTxt(lastUCL))}</b></span>`,
+  ].filter(Boolean).join("");
   const w = P.matches.filter((m) => m.result === "W").length, d = P.matches.filter((m) => m.result === "D").length;
   const gf = P.matches.reduce((a, m) => a + m.goals_for, 0), ga = P.matches.reduce((a, m) => a + m.goals_against, 0);
   const xgf = P.matches.reduce((a, m) => a + m.xg, 0), xga = P.matches.reduce((a, m) => a + m.xg_conceded, 0);
@@ -242,7 +263,7 @@ th[aria-sort] button::after { content: " ▾"; }
         <div class="chips">${(f.evidence || []).filter((k) => metricBy[k]).map((k) =>
           `<button class="chip" type="button" data-metric="${esc(k)}">${esc(metricBy[k].label)}</button>`).join("")}</div>
       </li>`).join("")}</ul>
-      <p class="byline">Written by an AI analyst (${esc(A.meta?.model || "LLM")}) from the numbers on this page. Every number it quotes is checked against the data before publishing; the italic "Reading" lines are its interpretation, not data.</p>`;
+      <p class="byline">Written ${A.meta?.generated_at ? esc(when(A.meta.generated_at, true)) + " " : ""}by an AI analyst (${esc(A.meta?.model || "LLM")}) from the numbers on this page${A.meta?.matches && A.meta.matches !== P.record.played ? ` <span class="stale">— it covers ${A.meta.matches} Premier League matches; the numbers below include ${P.record.played}</span>` : ""}. Every number it quotes is checked against the data before publishing; the italic "Reading" lines are its interpretation, not data.</p>`;
     $("analyst").hidden = false;
     $("verdict").hidden = true;
     if (A.players?.length) {

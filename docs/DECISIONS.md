@@ -9,10 +9,12 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 ---
 
 ## D-018 — Post-match updates: local launchd + a background Claude session publishes · 2026-10-15 · accepted
-`corridor.scripts.update` runs 4x a day from a user launchd agent (`ops/launchd/`). It
-refreshes the PL + UCL fixture lists and only rebuilds when United have a new finished
-match that is *ready*: PL 3 h after kickoff (FotMob), and it waits up to 48 h for Understat's
-PPDA; UCL 18 h after kickoff (UEFA tracking). Then build_season (pl, ucl) → united_profile
+`corridor.scripts.update` runs twice a day (10:31, 14:31 local — when the Mac is awake) from
+a user launchd agent (`ops/launchd/`). It refreshes the PL + UCL fixture lists and only
+rebuilds when United have a new finished match whose data is in: tried from 3 h (PL) / 12 h
+(UCL) after kickoff, and it checks the slow sources actually have the match (Understat PPDA,
+UEFA tracking ~17 h) before the expensive steps, waiting up to 72 h. A late UCL match
+usually lands the next day at 14:31 or the morning after. Then build_season (pl, ucl) → united_profile
 → analyse (one retry; on a second failure the stale read is moved aside so the page never
 shows text about older numbers) → build_site. Publishing needs Claude's Artifact tool, which
 `claude -p` lacks but a `claude --bg` session has: the script starts one with a narrow

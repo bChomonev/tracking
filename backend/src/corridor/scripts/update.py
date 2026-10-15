@@ -4,11 +4,12 @@
 
 Meant to run on a schedule (see ops/launchd). Each run:
 1. Refreshes the PL and UCL fixture lists (2 requests) and finds United's finished matches.
-2. Decides whether a new match is *ready*: FotMob stats ~3 h after kickoff for the PL; UEFA
-   tracking ~17 h after kickoff for the UCL. Not ready → exit quietly.
-3. Runs build_season (pl, ucl) → united_profile → analyse → build_site.
-   If Understat hasn't published the new PL match yet (no PPDA), waits for a later run,
-   up to UNDERSTAT_MAX_WAIT.
+2. Decides whether a new match is worth trying: 3 h after kickoff for the PL, 12 h for the
+   UCL. Not yet → exit quietly.
+3. Runs build_season (pl, ucl) → united_profile → analyse → build_site. Before the expensive
+   steps it checks the slow sources actually have the match — Understat's PPDA (PL) and
+   UEFA's tracking (UCL, ~17 h after kickoff) — and otherwise waits for a later run, up to
+   MAX_WAIT, after which it builds with what it has.
 4. With --publish, starts a background Claude Code session that republishes the page to the
    artifact (only Claude can publish artifacts), and shows a macOS notification.
 State lives in data/site/{season}/update_state.json; logs in data/logs/update.log.
@@ -30,8 +31,8 @@ from corridor.ingest.http import DATA_DIR
 TEAM = "Manchester United"
 ARTIFACT_URL = "https://claude.ai/artifact/U17iYtvFhdCsqucR2iY4fT"
 REPO = Path(__file__).resolve().parents[4]
-READY_AFTER = {"pl": timedelta(hours=3), "ucl": timedelta(hours=18)}
-UNDERSTAT_MAX_WAIT = timedelta(hours=48)
+READY_AFTER = {"pl": timedelta(hours=3), "ucl": timedelta(hours=12)}
+MAX_WAIT = timedelta(hours=72)  # for Understat (PL PPDA) and UEFA tracking (UCL)
 LEAGUES = {"pl": fotmob.PREMIER_LEAGUE, "ucl": fotmob.CHAMPIONS_LEAGUE}
 
 log = logging.getLogger("update")
@@ -70,13 +71,23 @@ def pending(finished: dict[str, list[dict]], state: dict, now: datetime) -> list
     ]
 
 
-def understat_missing(season: int, match_ids: set[int]) -> list[int]:
-    rows = json.loads((DATA_DIR / "processed" / str(season) / "team_matches.json").read_text())
-    return [
-        r["match_id"]
-        for r in rows
-        if r["team"] == TEAM and r["match_id"] in match_ids and r.get("ppda") is None
-    ]
+def missing_slow_data(season: int, new: list[tuple]) -> list[dict]:
+    """New matches whose slow source hasn't published yet: Understat PPDA for the PL,
+    UEFA tracking (distance) for the UCL."""
+    out = []
+    for comp, field, sub in (("pl", "ppda", ""), ("ucl", "distance_m", "ucl")):
+        ids = {m["id"] for c, m in new if c == comp}
+        if not ids:
+            continue
+        path = DATA_DIR / "processed" / str(season) / sub / "team_matches.json"
+        rows = json.loads(path.read_text())
+        missing = {
+            r["match_id"]
+            for r in rows
+            if r["team"] == TEAM and r["match_id"] in ids and r.get(field) is None
+        }
+        out += [m for c, m in new if c == comp and m["id"] in missing]
+    return out
 
 
 def run_step(module: str, *args: str) -> None:
@@ -167,15 +178,11 @@ def main() -> None:
 
     try:
         run_step("build_season", "--season", str(args.season))
-        new_pl = {m["id"] for comp, m in new if comp == "pl"}
-        missing = understat_missing(args.season, new_pl)
-        recent = [
-            m for comp, m in new if m["id"] in missing and now - _kickoff(m) < UNDERSTAT_MAX_WAIT
-        ]
-        if recent and not args.force:
-            log.info("Understat has no PPDA yet for %s; trying again next run", recent[0]["label"])
-            return
         run_step("build_season", "--season", str(args.season), "--competition", "ucl")
+        late = [m for m in missing_slow_data(args.season, new) if now - _kickoff(m) < MAX_WAIT]
+        if late and not args.force:
+            log.info("source data not published yet for %s; trying next run", late[0]["label"])
+            return
         run_step("united_profile", "--season", str(args.season))
         try:
             run_step("analyse", "--season", str(args.season))

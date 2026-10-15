@@ -11,4 +11,4 @@ sed -e "s#__UV__#$UV#g" -e "s#__REPO__#$REPO#g" -e "s#__HOME__#$HOME#g" \
 plutil -lint "$DEST"
 launchctl bootout "gui/$(id -u)/com.corridor.united-update" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$DEST"
-echo "installed: $DEST (runs 07:41, 12:41, 18:41, 23:41)"
+echo "installed: $DEST (runs 10:31 and 14:31)"
