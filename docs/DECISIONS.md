@@ -24,7 +24,10 @@ Leeds favourites (45/25/30, with team news) but 1–2 above 2–1. Now the goals
 expected *total*, and the split between the sides is solved so the matrix's home-minus-away
 win chance equals the published prediction (team news included). Held-out: over 2.5
 unchanged (0.2435), 1X2 0.2054 → 0.2046, exact-score log loss 2.9862 → 2.9855. The page
-also explains why the single likeliest score can be a draw while one side is favourite.
+also explains why the single likeliest score can be a draw while one side is favourite. Matching only the
+home-minus-away gap left draws up to ~3 points off, so the home-win, draw and away-win
+scorelines are then each rescaled to sum exactly to the published chances (`reconcile`);
+held-out over 2.5 0.2434, exact-score log loss 2.9864. Applies to every fixture.
 
 ## D-026 — Team news in the prediction (one parameter) · 2026-10-15 · accepted (watch)
 `corridor.absences`: FotMob lists each side's unavailable players on every match page, so

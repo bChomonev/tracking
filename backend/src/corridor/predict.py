@@ -343,6 +343,21 @@ def align(goals: "GoalsModel", lh: float, la: float, p: Sequence[float]) -> tupl
     return total * share, total * (1 - share)
 
 
+def reconcile(mx: np.ndarray, p: Sequence[float]) -> np.ndarray:
+    """Rescale home-win, draw and away-win scorelines separately so they sum exactly to the
+    published chances ``p``; the shape within each result is kept."""
+    out = mx.copy()
+    for mask, target in (
+        (np.tril(np.ones_like(mx, bool), -1), p[0]),
+        (np.eye(mx.shape[0], dtype=bool), p[1]),
+        (np.triu(np.ones_like(mx, bool), 1), p[2]),
+    ):
+        tot = out[mask].sum()
+        if tot > 0:
+            out[mask] *= target / tot
+    return out / out.sum()
+
+
 def markets(mx: np.ndarray) -> dict[str, Any]:
     """Everything the page shows from one scoreline matrix."""
     n = mx.shape[0]
@@ -377,10 +392,12 @@ def evaluate_goals(
             pm = Model(params).fit(train).predict(test)
             pairs = [align(g, float(x), float(y), p) for x, y, p in zip(lh, la, pm, strict=True)]
             lh, la = np.array([a for a, _ in pairs]), np.array([b for _, b in pairs])
+        else:
+            pm = [None] * len(test)
         base_over = np.mean([m["hg"] + m["ag"] > 2.5 for m in train])
         base_btts = np.mean([m["hg"] > 0 and m["ag"] > 0 for m in train])
-        for m, x, y in zip(test, lh, la, strict=True):
-            mx = g.matrix(x, y)
+        for m, x, y, pp in zip(test, lh, la, pm, strict=True):
+            mx = g.matrix(x, y) if pp is None else reconcile(g.matrix(x, y), pp)
             mk = markets(mx)
             over = m["hg"] + m["ag"] > 2.5
             btts = m["hg"] > 0 and m["ag"] > 0

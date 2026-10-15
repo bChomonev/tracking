@@ -76,3 +76,11 @@ def test_aligned_scorelines_add_up_to_the_published_prediction():
     mk = P.markets(g.matrix(lh, la))
     assert abs((mk["p"][0] - mk["p"][2]) - (p[0] - p[2])) < 1e-6
     assert abs(lh + la - (1.43 + 1.49)) < 1e-9 and lh > la
+
+
+def test_reconciled_scorelines_sum_exactly_to_the_prediction():
+    g = P.GoalsModel(shrink=1.0)
+    g.rho = -0.05
+    p = [0.4668, 0.2647, 0.2685]
+    mk = P.markets(P.reconcile(g.matrix(*P.align(g, 1.7, 1.3, p)), p))
+    assert np.allclose(mk["p"], p, atol=1e-9)

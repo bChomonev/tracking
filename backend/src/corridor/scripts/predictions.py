@@ -136,7 +136,7 @@ def main() -> None:
         lh, la = goals.rates(nxt_ms)
         for f, x, y in zip(nxt, lh, la, strict=True):
             ah, aa = P.align(goals, float(x), float(y), f["p"])
-            mk = P.markets(goals.matrix(ah, aa))
+            mk = P.markets(P.reconcile(goals.matrix(ah, aa), f["p"]))
             f["goals"] = {"exp_home": round(ah, 2), "exp_away": round(aa, 2)} | {
                 k: (round(v, 4) if isinstance(v, float) else v) for k, v in mk.items() if k != "p"
             }
