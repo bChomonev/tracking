@@ -53,9 +53,20 @@ def _fotmob_season(season: int, league_id: int) -> tuple[list[dict], list[dict],
         m for m in fixtures if m["status"].get("finished") and not m["status"].get("cancelled")
     ]
     print(f"FotMob: {len(finished)} finished matches (league {league_id})")
+    # One spelling per club: FotMob's match pages sometimes drop accents its fixture list
+    # keeps ("Atletico Madrid" vs "Atlético Madrid"), so names come from the fixture list,
+    # matched by team id.
+    name_by_id = {
+        int(m[side]["id"]): m[side]["name"] for m in fixtures for side in ("home", "away")
+    }
     team_rows, player_rows = [], []
     for i, m in enumerate(finished, 1):
         teams, players = fotmob.parse_match(fotmob.match_details(m["id"]))
+        for t in teams:
+            t["team"] = name_by_id.get(int(t["team_id"]), t["team"])
+            t["opponent"] = name_by_id.get(int(t["opponent_id"]), t["opponent"])
+        for p in players:
+            p["team"] = name_by_id.get(int(p["team_id"]), p["team"])
         for t in teams:
             t["fixture"] = m
         team_rows += teams

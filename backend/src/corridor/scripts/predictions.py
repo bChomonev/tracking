@@ -189,6 +189,10 @@ def main() -> None:
         return json.loads(p.read_text()) if p.exists() else []
 
     contrib = AB.current_contributions(_players(season - 1), _players(season))
+    # The adjustment is applied only where its own out-of-sample test shows a gain (D-031):
+    # England's two cross-season tests did; Spain's clean test with the frozen weight didn't.
+    tn_test = AB.TEST if league.key == "pl" else team_news_test(league, scored, season)
+    tn_on = bool(tn_test) and all(f["rps_adjusted"] < f["rps_base"] for f in tn_test["fits"])
     fm_open = {
         (m["home"]["name"], m["away"]["name"]): m for m in fm_fix if not m["status"].get("finished")
     }
@@ -209,8 +213,11 @@ def main() -> None:
         }
         f["absence"] = {k: {kk: round(vv, 3) for kk, vv in v.items()} for k, v in miss.items()}
         adj = AB.adjust(f["p_base"], miss["home"]["minutes"], miss["away"]["minutes"])
-        f["p"] = [round(x, 4) for x in adj]
-        pmap[f["id"]] = np.array(f["p"])
+        f["absence"]["p_with"] = [round(x, 4) for x in adj]
+        f["absence"]["applied"] = tn_on
+        if tn_on:
+            f["p"] = [round(x, 4) for x in adj]
+            pmap[f["id"]] = np.array(f["p"])
     if upcoming:
         probs = np.array([pmap[m["id"]] for m in upcoming])
 
@@ -264,7 +271,8 @@ def main() -> None:
     for f in nxt:
         if datetime.fromisoformat(f["kickoff"]) > now:
             log[f["id"]] = {k: f[k] for k in ("kickoff", "home", "away", "p", "p_base")} | {
-                "made_at": made_at
+                "p_with_news": (f.get("absence") or {}).get("p_with"),
+                "made_at": made_at,
             }
     by_id = {m["id"]: m for m in current}
     for fid, e in log.items():
@@ -274,6 +282,8 @@ def main() -> None:
             e["score"] = f"{m['hg']}-{m['ag']}"
             e["rps"] = P.rps(e["p"], m["result"])
             e["rps_base"] = P.rps(e.get("p_base", e["p"]), m["result"])
+            if e.get("p_with_news"):
+                e["rps_with_news"] = P.rps(e["p_with_news"], m["result"])
             for book in ("avg", "closing"):
                 if book in m.get("odds", {}):
                     e[f"{book}_rps"] = P.rps(m["odds"][book], m["result"])
@@ -301,7 +311,8 @@ def main() -> None:
         "projection": projection,
         "backtest": ev,
         "backtest_goals": ev_goals,
-        "team_news_test": AB.TEST if league.key == "pl" else team_news_test(league, scored, season),
+        "team_news_test": tn_test,
+        "team_news_applied": tn_on,
         "record": record,
         "trained_on": len(train),
     }

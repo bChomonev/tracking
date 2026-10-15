@@ -8,6 +8,23 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-031 — Team news only where its own test shows a gain; La Liga live · 2026-10-15 · accepted
+The clean test of the PL-frozen team-news weight on 837 La Liga matches made predictions
+slightly worse (RPS 0.1934 → 0.1942) and pointed the wrong way in big-gap matches (home
+sides missing much more won 64% vs 54% predicted). So the adjustment is applied per league
+only if every one of that league's out-of-sample tests shows a gain (`team_news_applied`):
+on in the PL (both cross-season tests positive), off in La Liga. Team news is still shown
+everywhere, and the adjusted version is logged (`p_with_news`, `rps_with_news`) so the
+record can overturn this. **La Liga results:** the decisive metrics are almost the same as
+in England (chance quality created / conceded, big chances both ends, shot quality); Spain
+adds counter-attack chances conceded and shots conceded; territory, final-third passes and
+PPDA decide nothing in either league. Core lines: all 5 elite → won 83% (186), all 5 worst
+→ lost 79% (337). **Fixes found on the way:** FotMob spells some clubs differently on match
+pages ("Atletico Madrid") and in fixture lists ("Atlético Madrid"), which broke the
+Understat join for Atlético and Alavés — team names now come from the fixture list by team
+id (La Liga joins 760/760, 758/760, 156/156); slugs strip accents; FotMob line-ups have four
+states (official "standard", "predicted", "lastStarting11", "unavailable"), all shown.
+
 ## D-030 — Cards and assists in the match preview · 2026-10-15 · accepted
 The parser now records team yellow / red cards and fouls (conceded too), the referee, and
 each player's cards (from card events; a second yellow = one yellow + one red).

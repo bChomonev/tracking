@@ -125,7 +125,10 @@ def main() -> None:
         # `predictions` fetched this page moments ago; reuse it (one request per fixture).
         d = fetch_json("fotmob_upcoming", f"{BASE}/matchDetails?matchId={fm['id']}")
         lineup = d["content"].get("lineup") or {}
-        official = lineup.get("lineupType") not in (None, "lastStarting11", "predicted")
+        # "standard" = the confirmed XI; "predicted" = FotMob's predicted XI (from its data
+        # partner); "lastStarting11" = each side's previous XI; "unavailable" = none yet.
+        lineup_type = lineup.get("lineupType")
+        official = lineup_type == "standard"
         sides = {}
         for key, team, opp in (
             ("homeTeam", f["home"], f["away"]),
@@ -196,7 +199,11 @@ def main() -> None:
         rg = ref_games.get(ref or "", [0, 0])
         previews[f["id"]] = {
             "fotmob_id": fm["id"],
-            "lineup": "official" if official else "last_xi",
+            "lineup": {
+                "standard": "official",
+                "predicted": "predicted",
+                "lastStarting11": "last_xi",
+            }.get(lineup_type or "", "none"),
             "fetched_at": datetime.now(UTC).isoformat(),
             "sides": sides,
             "corners": {
