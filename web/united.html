@@ -880,7 +880,7 @@ th[aria-sort] button::after { content: " ▾"; }
       <div class="fx-teams"><span>${teamLink(f.home)}</span><small>v</small><span class="away">${teamLink(f.away)}</span></div>
       <div class="pbar3" role="img" aria-label="Home win ${pc(h)}, draw ${pc(d)}, away win ${pc(a)}"><span class="h" style="width:${100 * h}%">${lab(h)}</span><span class="d" style="width:${100 * d}%">${lab(d)}</span><span class="a" style="width:${100 * a}%">${lab(a)}</span></div>
       <div class="pbar3-legend"><span>Home win ${pc(h)}</span><span>Draw ${pc(d)}</span><span>Away win ${pc(a)}</span></div>
-      <p class="fx-why">Expected chance quality <span class="num">${f.exp_home.toFixed(2)}–${f.exp_away.toFixed(2)}</span>. ${Math.max(h, a) < 0.45 ? "Close to a coin toss." : `Leans ${esc(short(fav[0]))}.`}${why ? ` Biggest factors: ${why}.` : ""}</p>
+      <p class="fx-why">${Math.max(h, a) < 0.45 ? "Close to a coin toss." : `Leans ${esc(short(fav[0]))}.`} ${f.absence ? "Before team news, the" : "The"} ratings expect chance quality <span class="num">${f.exp_home.toFixed(2)}–${f.exp_away.toFixed(2)}</span>${why ? `; biggest factors: ${why}` : ""}.</p>
       ${newsLine(f)}
       ${f.goals ? `<p class="fx-why">Most likely score ${f.goals.scores[0].home}–${f.goals.scores[0].away} (${pc(f.goals.scores[0].p)}) · over 2.5 goals ${pc(f.goals.over_2_5)} · both score ${pc(f.goals.btts)}</p>` : ""}
       ${L.previews?.fixtures?.[f.id] ? `<a class="fx-link" href="#match/${esc(f.id)}">Match preview: team news, line-ups, shooters, corners →</a>` : ""}
@@ -953,14 +953,14 @@ th[aria-sort] button::after { content: " ▾"; }
     const [ph, pd, pa] = f.p, lab = (x) => (x >= 0.1 ? Math.round(100 * x) + "%" : "");
     $("mv-pred").innerHTML = `<div class="pred-big"><div class="pbar3" role="img" aria-label="Home win ${pc(ph)}, draw ${pc(pd)}, away win ${pc(pa)}"><span class="h" style="width:${100 * ph}%">${lab(ph)}</span><span class="d" style="width:${100 * pd}%">${lab(pd)}</span><span class="a" style="width:${100 * pa}%">${lab(pa)}</span></div>
       <div class="pbar3-legend"><span>${esc(H)} win ${pc(ph)}</span><span>Draw ${pc(pd)}</span><span>${esc(A)} win ${pc(pa)}</span></div>
-      <p class="fx-why">Expected chance quality <span class="num">${f.exp_home.toFixed(2)}–${f.exp_away.toFixed(2)}</span>. ${(f.drivers || []).length ? `Biggest factors: ${f.drivers.map((x) => `${x.feature} (${esc(short(x.favours === "home" ? f.home : f.away))})`).join(", ")}.` : ""} </p>${newsLine(f)}</div>`;
+      <p class="fx-why">${f.absence ? "Before team news, the" : "The"} team ratings expect chance quality <span class="num">${f.exp_home.toFixed(2)}–${f.exp_away.toFixed(2)}</span>${(f.drivers || []).length ? `; biggest factors: ${f.drivers.map((x) => `${x.feature} (${esc(short(x.favours === "home" ? f.home : f.away))})`).join(", ")}` : ""}.</p>${newsLine(f)}</div>`;
     const G = f.goals, GB = PRD.backtest_goals;
     if (G) {
-      $("mvg-sub").textContent = `From a goals model on the same team ratings (expected goals ${G.exp_home.toFixed(2)}–${G.exp_away.toFixed(2)}), with the usual correction for low scores. It doesn't include team news yet, and the win/draw/loss chances above come from the main model.`;
+      $("mvg-sub").textContent = `A goals model sets how many goals to expect; the split between the teams (expected goals ${G.exp_home.toFixed(2)}–${G.exp_away.toFixed(2)}) is set so the scorelines add up to the win/draw/loss chances above, team news included.`;
       const top = G.scores[0].p;
       $("mv-goals").innerHTML = `<article class="mv-card"><h3>Most likely scores</h3>
           ${G.scores.map((x) => `<div class="pbar" style="grid-template-columns: 4em minmax(0,1fr) 3.4em"><b style="text-align:left">${x.home}–${x.away}</b><div class="track"><span style="width:${(100 * x.p) / top}%;background:var(--${x.home > x.away ? "good" : x.home < x.away ? "ink" : "muted"})"></span></div><b>${pc(x.p)}</b></div>`).join("")}
-          <p class="fx-why" style="margin-top:8px">Even the likeliest score happens only about one time in ${Math.round(1 / top)}.</p></article>
+          <p class="fx-why" style="margin-top:8px">Why can a draw be the likeliest score while one side is favourite? 1–1 is the most common <i>single</i> score in a close game, but a win is spread over many scores (1–0, 2–1, 2–0, 3–1…). Added up: ${esc(H)} win ${pc(G.p_check[0])}, draw ${pc(G.p_check[1])}, ${esc(A)} win ${pc(G.p_check[2])}. Even the likeliest score happens only about one time in ${Math.round(1 / top)}.</p></article>
         <article class="mv-card"><h3>Goal lines</h3><ul class="mv-list">
           ${[["Over 1.5 goals", G.over_1_5], ["Over 2.5 goals", G.over_2_5], ["Over 3.5 goals", G.over_3_5], ["Both teams score", G.btts], [`${esc(H)} clean sheet`, G.clean_sheet_home], [`${esc(A)} clean sheet`, G.clean_sheet_away]].map(([k, v]) => `<li><span>${k}</span><span class="num">${pc(v)}</span></li>`).join("")}</ul>
           ${GB ? `<p class="fx-why" style="margin-top:8px">Tested on ${GB.n.toLocaleString()} past matches: over 2.5 Brier ${GB.over.toFixed(3)} vs ${GB.over_base.toFixed(3)} for the league rate and ${GB.over_book.toFixed(3)} for the bookmakers (lower is better) — goal totals are hard to call.</p>` : ""}</article>`;

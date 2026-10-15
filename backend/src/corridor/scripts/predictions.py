@@ -51,7 +51,7 @@ def main() -> None:
 
     # 1. Backtest: walk-forward on the held-out seasons (tuning used earlier seasons only).
     ev = P.evaluate(scored, PARAMS, range(FIRST_TEST, season + 1), FIRST_TRAIN)
-    ev_goals = P.evaluate_goals(scored, range(FIRST_TEST, season + 1), FIRST_TRAIN)
+    ev_goals = P.evaluate_goals(scored, range(FIRST_TEST, season + 1), FIRST_TRAIN, PARAMS)
 
     # 2. Final model: every played match up to now.
     train = [m for m in scored if m["played"] and m["season"] >= FIRST_TRAIN]
@@ -96,15 +96,6 @@ def main() -> None:
 
     nxt_ms = P.next_round(current, now)
     nxt = [fixture(m) for m in nxt_ms]
-    # Scorelines and goal lines from the goals model (D-027). Win/draw/loss stays with the
-    # logistic model, which won on the tuning seasons.
-    if nxt_ms:
-        lh, la = goals.rates(nxt_ms)
-        for f, x, y in zip(nxt, lh, la, strict=True):
-            mk = P.markets(goals.matrix(x, y))
-            f["goals"] = {"exp_home": round(float(x), 2), "exp_away": round(float(y), 2)} | {
-                k: (round(v, 4) if isinstance(v, float) else v) for k, v in mk.items() if k != "p"
-            }
 
     # Team news (D-026): FotMob's unavailable lists for the next round, weighted by each
     # absent player's share of the team's minutes; a one-parameter shift of the odds.
@@ -137,6 +128,19 @@ def main() -> None:
         pmap[f["id"]] = np.array(f["p"])
     if upcoming:
         probs = np.array([pmap[m["id"]] for m in upcoming])
+
+    # Scorelines and goal lines (D-027): the goals model sets how many goals to expect;
+    # the split between the sides is set so the scorelines add up to the published
+    # win/draw/loss chances (team news included).
+    if nxt_ms:
+        lh, la = goals.rates(nxt_ms)
+        for f, x, y in zip(nxt, lh, la, strict=True):
+            ah, aa = P.align(goals, float(x), float(y), f["p"])
+            mk = P.markets(goals.matrix(ah, aa))
+            f["goals"] = {"exp_home": round(ah, 2), "exp_away": round(aa, 2)} | {
+                k: (round(v, 4) if isinstance(v, float) else v) for k, v in mk.items() if k != "p"
+            }
+            f["goals"]["p_check"] = [round(v, 4) for v in mk["p"]]
 
     # 3. Season simulation from the current table and fixed ratings.
     table: dict[str, dict] = {}

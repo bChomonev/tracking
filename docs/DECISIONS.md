@@ -18,7 +18,13 @@ are shrunk towards the league mean in log space; the factor 0.7 was chosen on 20
 0.2414; BTTS 0.2476 vs 0.2490. **Win/draw/loss stays with the logistic model**: it won on
 the tuning seasons (RPS 0.1917 vs 0.1923) although the unshrunk goals model was better on
 the held-out ones (0.2025 vs 0.2046) — switching on held-out evidence would be choosing by
-the test set; revisit with a fresh tuning protocol. Goal lines don't use team news yet.
+the test set; revisit with a fresh tuning protocol. **Alignment (same day, after the user
+spotted it):** scorelines first came from the goals model alone, so Leeds–United showed
+Leeds favourites (45/25/30, with team news) but 1–2 above 2–1. Now the goals model sets the
+expected *total*, and the split between the sides is solved so the matrix's home-minus-away
+win chance equals the published prediction (team news included). Held-out: over 2.5
+unchanged (0.2435), 1X2 0.2054 → 0.2046, exact-score log loss 2.9862 → 2.9855. The page
+also explains why the single likeliest score can be a draw while one side is favourite.
 
 ## D-026 — Team news in the prediction (one parameter) · 2026-10-15 · accepted (watch)
 `corridor.absences`: FotMob lists each side's unavailable players on every match page, so

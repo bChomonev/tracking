@@ -66,3 +66,13 @@ def test_shooting_quality_gap_sums_to_the_team_gap():
     gaps = {r["name"]: r["quality_gap"] for r in sh["players"]}
     assert abs(gaps["P1"] - (10 * role_q - 0.5)) < 1e-12 and gaps["P2"] < 0
     assert abs(sh["quality_gap"] - sum(gaps.values())) < 1e-12
+
+
+def test_aligned_scorelines_add_up_to_the_published_prediction():
+    g = P.GoalsModel(shrink=1.0)
+    g.rho = -0.05
+    p = [0.45, 0.25, 0.30]
+    lh, la = P.align(g, 1.43, 1.49, p)  # goals model alone had the away side ahead
+    mk = P.markets(g.matrix(lh, la))
+    assert abs((mk["p"][0] - mk["p"][2]) - (p[0] - p[2])) < 1e-6
+    assert abs(lh + la - (1.43 + 1.49)) < 1e-9 and lh > la

@@ -325,6 +325,24 @@ class GoalsModel:
         return mx / mx.sum()
 
 
+def align(goals: "GoalsModel", lh: float, la: float, p: Sequence[float]) -> tuple[float, float]:
+    """Keep the goals model's expected total (lh + la) but split it between the sides so the
+    scoreline matrix's home-win minus away-win chance equals the main prediction's ``p``.
+    Scorelines then add up to the published win/draw/loss chances (D-027)."""
+    total, target = lh + la, p[0] - p[2]
+
+    def edge(share: float) -> float:
+        mk = markets(goals.matrix(total * share, total * (1 - share)))
+        return mk["p"][0] - mk["p"][2]
+
+    lo, hi = 0.02, 0.98  # edge() rises with the home share
+    for _ in range(50):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if edge(mid) < target else (lo, mid)
+    share = (lo + hi) / 2
+    return total * share, total * (1 - share)
+
+
 def markets(mx: np.ndarray) -> dict[str, Any]:
     """Everything the page shows from one scoreline matrix."""
     n = mx.shape[0]
@@ -342,7 +360,9 @@ def markets(mx: np.ndarray) -> dict[str, Any]:
     }
 
 
-def evaluate_goals(scored: list[dict], seasons: Sequence[int], first_train: int) -> dict:
+def evaluate_goals(
+    scored: list[dict], seasons: Sequence[int], first_train: int, params: "Params | None" = None
+) -> dict:
     """Walk-forward test of the goals model: 1X2 RPS, over 2.5 and both-teams-to-score
     (Brier, vs base rate and, for over 2.5, the bookmakers), exact-score log loss."""
     rows: dict[str, list] = defaultdict(list)
@@ -353,6 +373,10 @@ def evaluate_goals(scored: list[dict], seasons: Sequence[int], first_train: int)
             continue
         g = GoalsModel().fit(train)
         lh, la = g.rates(test)
+        if params is not None:  # align the split with the main model, as published
+            pm = Model(params).fit(train).predict(test)
+            pairs = [align(g, float(x), float(y), p) for x, y, p in zip(lh, la, pm, strict=True)]
+            lh, la = np.array([a for a, _ in pairs]), np.array([b for _, b in pairs])
         base_over = np.mean([m["hg"] + m["ag"] > 2.5 for m in train])
         base_btts = np.mean([m["hg"] > 0 and m["ag"] > 0 for m in train])
         for m, x, y in zip(test, lh, la, strict=True):
