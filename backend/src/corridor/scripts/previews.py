@@ -73,6 +73,20 @@ def main() -> None:
     corner_preds, CR = V.corner_walk(corner_seasons)
     corner_bt = V.corner_backtest(corner_preds, season - 1)
     disp = corner_bt["side_dispersion"]
+    # Cards (D-030): same idea; totals and reds use league rates (not predictable).
+    card_preds, KR = V.card_walk(corner_seasons)
+    card_bt = V.card_backtest(card_preds, season - 1)
+    n_now = max(1, len({r["match_id"] for r in teams_now}))
+    league_yellows = sum(r.get("yellow_cards") or 0 for r in teams_now) / n_now
+    league_red = card_bt["red_rate"]  # this season + last: reds are rare
+    ref_games: dict[str, list[int]] = {}
+    for r in teams_now:
+        if r.get("referee") and r["is_home"]:
+            g = ref_games.setdefault(r["referee"], [0, 0])
+            g[0] += 1
+            g[1] += sum(
+                x.get("yellow_cards") or 0 for x in teams_now if x["match_id"] == r["match_id"]
+            )
     league_total = sum(r["corners"] for r in teams_now if r.get("corners") is not None) / max(
         1, len({r["match_id"] for r in teams_now})
     )
@@ -148,6 +162,7 @@ def main() -> None:
                 shooters.append(
                     {"name": s["name"], "role": role} | {k: round(v, 4) for k, v in e.items()}
                 )
+            booked = sorted(shooters, key=lambda x: -x["p_booked"])[:3]
             shooters.sort(key=lambda x: -x["exp_shots"])
             sides["home" if key == "homeTeam" else "away"] = {
                 "team": team,
@@ -157,9 +172,28 @@ def main() -> None:
                 "missing_share_output": round(sum(n["share_output"] for n in news), 3),
                 "shooters": shooters[:SHOOTERS_SHOWN],
                 "exp_shots": round(sum(x["exp_shots"] for x in shooters), 2),
+                "likely_booked": [
+                    {"name": x["name"], "role": x["role"], "p": x["p_booked"]} for x in booked
+                ],
+                "assisters": sorted(
+                    (
+                        {
+                            "name": x["name"],
+                            "role": x["role"],
+                            "p_assist": x["p_assist"],
+                            "p_involved": x["p_involved"],
+                        }
+                        for x in shooters
+                    ),
+                    key=lambda x: -x["p_assist"],
+                )[:4],
             }
         eh, ea = CR.expect(f["home"], f["away"])
         more = V.p_more(eh, ea, disp)
+        ref = V.referee_name(d)
+        yh, ya = KR.expect(f["home"], f["away"], ref, use_ref=False)
+        ymore = V.p_more(yh, ya, 50.0)
+        rg = ref_games.get(ref or "", [0, 0])
         previews[f["id"]] = {
             "fotmob_id": fm["id"],
             "lineup": "official" if official else "last_xi",
@@ -175,6 +209,20 @@ def main() -> None:
                 # Totals are barely predictable (D-024): use the league average.
                 "p_over": {str(x): round(V.p_over(x, league_total), 3) for x in CORNER_LINES},
             },
+            "cards": {
+                "referee": ref,
+                "referee_games": rg[0],
+                "referee_yellows_per_game": round(rg[1] / rg[0], 2) if rg[0] else None,
+                "league_yellows_per_game": round(league_yellows, 2),
+                "exp_home": round(yh, 2),
+                "exp_away": round(ya, 2),
+                "p_home_more": round(ymore[0], 3),
+                "p_equal": round(ymore[1], 3),
+                "p_away_more": round(ymore[2], 3),
+                # Totals and red cards aren't predictable (D-030): league rates.
+                "p_over": {str(x): round(V.p_over(x, league_yellows), 3) for x in (3.5, 4.5, 5.5)},
+                "p_red": round(league_red, 3),
+            },
         }
         h, a = sides["home"], sides["away"]
         print(
@@ -187,7 +235,7 @@ def main() -> None:
     out = {
         "generated_at": datetime.now(UTC).isoformat(),
         "fixtures": previews,
-        "backtest": {"corners": corner_bt, "shooters": shooter_bt},
+        "backtest": {"corners": corner_bt, "shooters": shooter_bt, "cards": card_bt},
     }
     (out_dir / "previews.json").write_text(json.dumps(out, indent=1))
     print(f"wrote {out_dir / 'previews.json'} ({len(previews)} fixtures)")

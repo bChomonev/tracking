@@ -50,3 +50,57 @@ def test_player_rates_shrink_towards_the_role_average():
     assert 2.0 < s90 < 10.0  # one big game moves him, but not all the way
     e = V.expect_player(R, 1, "ST", 90, 1.0, 1.0)
     assert abs(e["p_shot"] - (1 - math.exp(-e["exp_shots"]))) < 1e-12
+
+
+def test_card_predictions_use_only_earlier_matches():
+    rows = []
+    for i in range(12):
+        ko = f"2025-09-{i + 1:02d}T15:00:00Z"
+        rows += [
+            {
+                "match_id": i,
+                "kickoff_utc": ko,
+                "team": "Dirty",
+                "opponent": "Clean",
+                "is_home": True,
+                "yellow_cards": 5,
+                "red_cards": 0,
+                "referee": "R",
+            },
+            {
+                "match_id": i,
+                "kickoff_utc": ko,
+                "team": "Clean",
+                "opponent": "Dirty",
+                "is_home": False,
+                "yellow_cards": 0,
+                "red_cards": 0,
+                "referee": "R",
+            },
+        ]
+    preds, R = V.card_walk([(2025, rows)])
+    assert (
+        preds[0]["exp_home"] < preds[-1]["exp_home"]
+        and preds[-1]["exp_home"] > preds[-1]["exp_away"]
+    )
+    h, a = R.expect("Dirty", "Clean", "R")
+    assert h > a and R.ref_factor("unknown") == 1.0
+
+
+def test_player_extra_rates_assists_and_bookings():
+    R = V.PlayerRates({"CM": {"shots90": 1.0, "npxg90": 0.08, "xa90": 0.1, "yellow90": 0.2}})
+    R.add(
+        {
+            "player_id": 9,
+            "np_shots": 0,
+            "npxg_shots": 0.0,
+            "minutes": 900,
+            "started": True,
+            "xa": 3.0,
+            "yellow": 5,
+        }
+    )
+    xa90, y90 = R.extra(9, "CM")
+    assert 0.1 < xa90 < 0.3 and 0.2 < y90 < 0.5
+    e = V.expect_player(R, 9, "CM", 90, 1.0, 1.0)
+    assert e["p_involved"] >= max(e["p_goal"], e["p_assist"])

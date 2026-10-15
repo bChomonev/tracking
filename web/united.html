@@ -488,8 +488,12 @@ th[aria-sort] button::after { content: " ▾"; }
       <div class="mv-cols" id="mv-lineups"></div>
     </section>
     <section aria-labelledby="mvs-title">
-      <div class="section-head"><h2 id="mvs-title">Who's most likely to shoot</h2><p id="mvs-sub"></p></div>
+      <div class="section-head"><h2 id="mvs-title">Shots, goals &amp; assists</h2><p id="mvs-sub"></p></div>
       <div class="mv-cols" id="mv-shooters"></div>
+    </section>
+    <section aria-labelledby="mvk-title">
+      <div class="section-head"><h2 id="mvk-title">Cards</h2><p id="mvk-sub"></p></div>
+      <div class="mv-cols" id="mv-cards"></div>
     </section>
     <section aria-labelledby="mvc-title">
       <div class="section-head"><h2 id="mvc-title">Corners</h2><p id="mvc-sub"></p></div>
@@ -976,12 +980,25 @@ th[aria-sort] button::after { content: " ▾"; }
         LINES.map((roles) => { const ps = t.xi.filter((x) => roles.includes(x.role)); return ps.length ? `<div class="xi-line">${ps.map((x) => `<span class="${x.out ? "out" : ""}" title="${esc(x.role || "")}">${esc(x.name)}</span>`).join("")}</div>` : ""; }).join("")}</div></article>`; }).join("");
     // Shooters
     const SB = PV.backtest.shooters, sb = SB[Object.keys(SB).sort()[0]];
-    $("mvs-sub").textContent = `If he starts: expected non-penalty shots, the chance of at least one shot, and the chance of a non-penalty goal. From each player's shots and xG per 90 this season and last (shrunk towards his position's average), his usual minutes, and how much the opponent concedes.`;
+    $("mvs-sub").textContent = `If he starts: expected non-penalty shots, the chance of at least one shot, of a non-penalty goal, of an assist, and of either. From each player's shots, xG and expected assists per 90 this season and last (shrunk towards his position's average), his usual minutes, and how much the opponent concedes.`;
     $("mv-shooters").innerHTML = ["home", "away"].map((k) => { const t = S[k];
       return `<article class="mv-card"><h3>${esc(short(t.team))}<small>≈${t.exp_shots.toFixed(1)} shots expected from this XI</small></h3>
-        <div class="table-wrap" style="border:0"><table><thead><tr><th class="l">Player</th><th>Exp. shots</th><th>≥1 shot</th><th>Scores (non-pen)</th></tr></thead><tbody>
-        ${t.shooters.map((x) => `<tr><td class="l">${esc(x.name)} <span class="pos">${esc(x.role || "")}</span></td><td class="cell">${x.exp_shots.toFixed(1)}</td><td class="cell h-${x.p_shot >= 0.75 ? "good" : x.p_shot >= 0.5 ? "mid" : ""}">${pc(x.p_shot)}</td><td class="cell">${pc(x.p_goal)}</td></tr>`).join("")}
+        <div class="table-wrap" style="border:0"><table><thead><tr><th class="l">Player</th><th><span class="tip below" tabindex="0" data-tip="Expected non-penalty shots">Shots</span></th><th>≥1 shot</th><th><span class="tip below" tabindex="0" data-tip="Chance of a non-penalty goal">Goal</span></th><th>Assist</th><th><span class="tip below end" tabindex="0" data-tip="Chance of a goal or an assist">G or A</span></th></tr></thead><tbody>
+        ${t.shooters.map((x) => `<tr><td class="l">${esc(x.name)} <span class="pos">${esc(x.role || "")}</span></td><td class="cell">${x.exp_shots.toFixed(1)}</td><td class="cell h-${x.p_shot >= 0.75 ? "good" : x.p_shot >= 0.5 ? "mid" : ""}">${pc(x.p_shot)}</td><td class="cell">${pc(x.p_goal)}</td><td class="cell">${x.p_assist != null ? pc(x.p_assist) : "—"}</td><td class="cell">${x.p_involved != null ? pc(x.p_involved) : "—"}</td></tr>`).join("")}
         </tbody></table></div></article>`; }).join("");
+    // Cards
+    const K = V.cards, KB = PV.backtest.cards;
+    if (K) {
+      $("mvk-sub").textContent = `Expected yellow cards for each side from how often they're booked and how many bookings their opponents usually draw. Which side gets more is fairly predictable; match totals and red cards aren't, so those use league rates.`;
+      $("mv-cards").innerHTML = `<article class="mv-card"><h3>Yellow cards</h3>
+          <div class="pbar" style="grid-template-columns: 8em minmax(0,1fr) 3em"><small>${esc(H)}</small><div class="track"><span style="width:${(100 * K.exp_home) / 4}%;background:var(--mid)"></span></div><b>${K.exp_home.toFixed(1)}</b></div>
+          <div class="pbar" style="grid-template-columns: 8em minmax(0,1fr) 3em"><small>${esc(A)}</small><div class="track"><span style="width:${(100 * K.exp_away) / 4}%;background:var(--mid)"></span></div><b>${K.exp_away.toFixed(1)}</b></div>
+          <p class="fx-why" style="margin-top:10px">More yellows: ${esc(H)} ${pc(K.p_home_more)} · level ${pc(K.p_equal)} · ${esc(A)} ${pc(K.p_away_more)}</p>
+          <ul class="mv-list">${Object.entries(K.p_over).map(([l, p]) => `<li><span>Over ${l} yellows (match)</span><span class="num">${pc(p)}</span></li>`).join("")}<li><span>A red card in the match</span><span class="num">${pc(K.p_red)}</span><small>league rate</small></li></ul></article>
+        <article class="mv-card"><h3>Most likely to be booked<small>if he starts</small></h3>
+          <ul class="mv-list">${["home", "away"].flatMap((k) => S[k].likely_booked.map((x) => `<li><span>${esc(x.name)} <span class="pos">${esc(x.role || "")} · ${esc(short(S[k].team))}</span></span><span class="num">${pc(x.p)}</span></li>`)).join("")}</ul>
+          ${K.referee ? `<p class="fx-why" style="margin-top:8px">Referee: <b>${esc(K.referee)}</b>${K.referee_yellows_per_game != null ? ` — ${K.referee_yellows_per_game.toFixed(1)} yellows a game in his ${K.referee_games} matches this season (league ${K.league_yellows_per_game.toFixed(1)})` : ""}. Shown for information: referees turned out to be consistent enough that adding him didn't improve the forecasts.</p>` : ""}</article>`;
+    } else { $("mv-cards").innerHTML = ""; }
     // Corners
     const C = V.corners, CB = PV.backtest.corners;
     $("mvc-sub").textContent = `Expected corners for each side from rolling corners won and conceded (opponent-adjusted). Which side wins more is fairly predictable; the match total isn't, so totals use the league average.`;
@@ -1169,6 +1186,8 @@ th[aria-sort] button::after { content: " ▾"; }
       ["Over 2.5 goals Brier: model · bookmakers", (lg) => `${lg.predictions.backtest_goals.over.toFixed(3)} · ${lg.predictions.backtest_goals.over_book.toFixed(3)}`],
       ["Shooters Brier (≥1 shot) vs position average", (lg) => { const b = lg.previews.backtest.shooters, x = b[Object.keys(b).sort()[0]]; return `${x.brier_shot.toFixed(3)} vs ${x.brier_shot_naive.toFixed(3)}`; }],
       ["Expected 'more corners' side got more", (lg) => pc(lg.previews.backtest.corners.favourite_more_corners)],
+      ["Expected 'more yellows' side got more", (lg) => pc(lg.previews.backtest.cards.more_cards_side)],
+      ["Assist Brier vs position average", (lg) => { const b = lg.previews.backtest.shooters, x = b[Object.keys(b).sort()[0]]; return `${x.brier_assist.toFixed(4)} vs ${x.brier_assist_naive.toFixed(4)}`; }],
     ];
     $("cmp-key").innerHTML = `<thead><tr><th class="l">Test</th>${lgs.map(([, lg]) => `<th>${esc(lg.competition)}</th>`).join("")}</tr></thead><tbody>` +
       rows.map(([label, f]) => `<tr><td class="l">${label}</td>${v(f).map((x) => `<td class="cell">${x}</td>`).join("")}</tr>`).join("") + "</tbody>";
@@ -1249,6 +1268,8 @@ th[aria-sort] button::after { content: " ▾"; }
       GB && card("Scorelines & goal lines", `<p class="fx-why">Poisson goals model on the team ratings, damped (chosen on 2016-17 to 2019-20), with scorelines made to add up to the published win/draw/loss chances.</p><ul class="mv-list"><li><span>Over 2.5 goals (Brier)</span><span class="num">${GB.over.toFixed(4)}</span><small>league rate ${GB.over_base.toFixed(4)} · bookmakers ${GB.over_book.toFixed(4)}</small></li><li><span>Both teams score (Brier)</span><span class="num">${GB.btts.toFixed(4)}</span><small>league rate ${GB.btts_base.toFixed(4)}</small></li></ul><p class="fx-why">${GB.n.toLocaleString()} matches. Goal totals are hard to call; the bookmakers are better at them.</p>`),
       sb && card("Likely shooters", `<p class="fx-why">Each player's shots and xG per 90, shrunk towards his position's average, × usual minutes × what the opponent concedes; "if he starts".</p><ul class="mv-list"><li><span>At least one shot (Brier)</span><span class="num">${sb.brier_shot.toFixed(3)}</span><small>position-average guess ${sb.brier_shot_naive.toFixed(3)}</small></li><li><span>Non-penalty goal (Brier)</span><span class="num">${sb.brier_goal.toFixed(4)}</span><small>position-average guess ${sb.brier_goal_naive.toFixed(4)}</small></li></ul><p class="fx-why">${sb.starters.toLocaleString()} starts. Goal chances are calibrated: when it says 25%, about a quarter score.</p>`),
       cb && card("Corners", `<p class="fx-why">Rolling corners won and conceded, opponent-adjusted.</p><ul class="mv-list"><li><span>A side's corners, average miss</span><span class="num">${cb.mae_side.toFixed(2)}</span><small>using the average: ${cb.mae_side_naive.toFixed(2)}</small></li><li><span>Expected "more corners" side got more</span><span class="num">${pc(cb.favourite_more_corners)}</span></li><li><span>Match total vs prediction (correlation)</span><span class="num">${cb.corr_total.toFixed(2)}</span><small>near zero — totals use the league average</small></li></ul><p class="fx-why">${cb.matches} matches.</p>`),
+      sb && sb.brier_assist != null && card("Assists & bookings", `<p class="fx-why">Same player model: expected assists per 90 and bookings per 90, each shrunk towards the position's average; "if he starts".</p><ul class="mv-list"><li><span>Assist (Brier)</span><span class="num">${sb.brier_assist.toFixed(4)}</span><small>position-average guess ${sb.brier_assist_naive.toFixed(4)}</small></li><li><span>Booked (Brier)</span><span class="num">${sb.brier_booked.toFixed(4)}</span><small>position-average guess ${sb.brier_booked_naive.toFixed(4)}</small></li></ul><p class="fx-why">Small gains, but calibrated: when it says 23% to be booked, 23% were.</p>`),
+      PVB?.cards && card("Team cards", `<p class="fx-why">Rolling yellows received and drawn, opponent-adjusted; the referee's own rate tested as an extra factor.</p><ul class="mv-list"><li><span>Expected "more yellows" side got more</span><span class="num">${pc(PVB.cards.more_cards_side)}</span></li><li><span>Match total vs prediction (correlation)</span><span class="num">${PVB.cards.corr_noref.toFixed(2)}</span><small>with the referee ${PVB.cards.corr.toFixed(2)} — totals use the league rate</small></li><li><span>Red card in the match (Brier)</span><span class="num">${PVB.cards.red_brier.toFixed(3)}</span><small>league rate ${PVB.cards.red_brier_naive.toFixed(3)} — reds use the league rate</small></li></ul><p class="fx-why">${PVB.cards.matches} matches. Referees are consistent enough that knowing who's in charge didn't help.</p>`),
     ].filter(Boolean).join("");
     $("how-notes").innerHTML = [
       `Sources: FotMob (match stats, running data, player stats, shot maps, team news), Understat (xG history since 2014, PPDA, deep completions), UEFA (Champions League running data), football-data.co.uk (bookmaker odds, used only as a benchmark). Each metric uses one provider, so comparisons are like-for-like.`,

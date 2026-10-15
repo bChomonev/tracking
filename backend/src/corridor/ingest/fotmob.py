@@ -72,6 +72,8 @@ TEAM_STATS = {
     "physical_metrics_sprinting": "sprinting_m",
     "physical_metrics_number_of_sprints": "sprints",
     "corners": "corners",
+    "yellow_cards": "yellow_cards",
+    "red_cards": "red_cards",
 }
 
 # FotMob player-stat key → our field name.
@@ -209,9 +211,11 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
         b["np_shots_blocked"] += bool(sh.get("isBlocked"))
         b["np_shots_headed"] += sh.get("shotType") == "Header"
         b["np_shot_distance_sum_m"] += math.hypot(105 - sh["x"], 34 - sh["y"])
+    cards = player_cards(d)
     for pl in players:
         pl |= by_player.get(pl["player_id"], _SHOT_ZERO)
         pl.setdefault("errors_led_to_goal", 0.0)
+        pl["yellow"], pl["red"] = cards.get(pl["player_id"], (0, 0))
     reds = red_card_minutes(d)
     records = []
     for i, side in enumerate(sides):
@@ -233,6 +237,7 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
             **own,
             **{f"{k}_conceded": v for k, v in opp.items() if k in _CONCEDED},
             "red_card_min": reds[i],
+            "referee": referee(d),
             "opp_red_card_min": reds[1 - i],
             "opp_distance_m": opp.get("distance_m"),
             "opp_sprints": opp.get("sprints"),
@@ -246,6 +251,29 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
             rec[k] = float(sum(vals)) if vals else None
         records.append(rec)
     return records, players
+
+
+def referee(d: dict) -> str | None:
+    ib = ((d.get("content") or {}).get("matchFacts") or {}).get("infoBox") or {}
+    return (ib.get("Referee") or {}).get("text")
+
+
+def player_cards(d: dict) -> dict[int, tuple[int, int]]:
+    """player id → (yellow cards, red cards); a second yellow counts as one yellow + red."""
+    out: dict[int, list[int]] = {}
+    events = ((d["content"].get("matchFacts") or {}).get("events") or {}).get("events") or []
+    for e in events:
+        if e.get("type") != "Card":
+            continue
+        pid = (e.get("player") or {}).get("id") or e.get("playerId")
+        if pid is None:
+            continue
+        c = out.setdefault(pid, [0, 0])
+        if e.get("card") == "Yellow":
+            c[0] += 1
+        elif e.get("card") in ("Red", "YellowRed"):
+            c[1] += 1
+    return {k: (min(v[0], 1), v[1]) for k, v in out.items()}
 
 
 def red_card_minutes(d: dict) -> tuple[int | None, int | None]:
@@ -296,6 +324,9 @@ def shot_profile(shots: list[dict], team_id: int) -> dict[str, float | int]:
 
 _CONCEDED = {
     "corners",
+    "yellow_cards",
+    "red_cards",
+    "fouls",
     "xg",
     "npxg",
     "xgot",

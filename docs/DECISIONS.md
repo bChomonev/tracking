@@ -8,6 +8,23 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-030 — Cards and assists in the match preview · 2026-10-15 · accepted
+The parser now records team yellow / red cards and fouls (conceded too), the referee, and
+each player's cards (from card events; a second yellow = one yellow + one red).
+**Team cards** (`preview.card_walk`): rolling yellows received and drawn, opponent-adjusted,
+plus a referee factor shrunk with 8 average games. Walk-forward on 440 PL matches: which
+side gets more yellows is predictable (61%), but the **match total is not** (correlation
+0.06 — worse than the league average) and the **referee factor made it slightly worse**
+(PL referees are consistent: the strictest books ~16% above average). Red cards: no better
+than the league rate. So the page shows each side's expected yellows and "more yellows",
+totals and reds at league rates, and the referee for information only.
+**Players:** the shooter model also carries expected assists per 90 (270-minute prior) and
+bookings per 90 (900-minute prior — rare events). Walk-forward 2025-26 (7,600 starts):
+assist Brier 0.0666 vs 0.0673 position average, booked 0.1310 vs 0.1324; both calibrated.
+Match page: Shots, goals & assists (≥1 shot, goal, assist, goal or assist), Cards (expected
+yellows, more-yellows chances, total lines, red at league rate, three most likely to be
+booked per side, referee).
+
 ## D-029 — La Liga: same method, measured on its own matches · 2026-10-15 · accepted
 `corridor.leagues` defines each league (FotMob id, Understat slug, football-data code,
 data sub-folder, focus team). La Liga: FotMob 87, Understat `La_liga`, odds `SP1`, data

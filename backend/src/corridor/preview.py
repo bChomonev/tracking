@@ -185,13 +185,24 @@ def corner_backtest(preds: list[dict], from_season: int) -> dict[str, Any]:
 
 
 def role_rates(players: list[dict]) -> dict[str, dict[str, float]]:
-    acc: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0, 0.0])
+    acc: dict[str, list[float]] = defaultdict(lambda: [0.0] * 5)
     for p in players:
         a = acc[p.get("role") or "UNK"]
         a[0] += p["np_shots"]
         a[1] += p["npxg_shots"]
-        a[2] += p["minutes"]
-    return {r: {"shots90": 90 * s / m, "npxg90": 90 * x / m} for r, (s, x, m) in acc.items() if m}
+        a[2] += p.get("xa") or 0.0
+        a[3] += p.get("yellow", 0)
+        a[4] += p["minutes"]
+    return {
+        r: {
+            "shots90": 90 * s / m,
+            "npxg90": 90 * x / m,
+            "xa90": 90 * xa / m,
+            "yellow90": 90 * y / m,
+        }
+        for r, (s, x, xa, y, m) in acc.items()
+        if m
+    }
 
 
 class PlayerRates:
@@ -199,7 +210,7 @@ class PlayerRates:
 
     def __init__(self, roles: dict[str, dict[str, float]]):
         self.roles = roles
-        self.acc: dict[int, list[float]] = defaultdict(lambda: [0.0, 0.0, 0.0])
+        self.acc: dict[int, list[float]] = defaultdict(lambda: [0.0] * 5)
         self.starts: dict[int, list[float]] = defaultdict(list)
 
     def add(self, p: dict, weight: float = 1.0) -> None:
@@ -207,16 +218,29 @@ class PlayerRates:
         a[0] += weight * p["np_shots"]
         a[1] += weight * p["npxg_shots"]
         a[2] += weight * p["minutes"]
+        a[3] += weight * (p.get("xa") or 0.0)
+        a[4] += weight * p.get("yellow", 0)
         if p["started"] and weight == 1.0:
             self.starts[p["player_id"]].append(p["minutes"])
 
     def rate(self, pid: int, role: str | None) -> tuple[float, float]:
         prior = self.roles.get(role or "UNK") or {"shots90": 1.0, "npxg90": 0.1}
-        s, x, m = self.acc.get(pid, (0.0, 0.0, 0.0))
+        s, x, m, *_ = self.acc.get(pid, (0.0, 0.0, 0.0, 0.0, 0.0))
         k = SHRINK_MIN
         return (
             90 * (s + prior["shots90"] * k / 90) / (m + k),
             90 * (x + prior["npxg90"] * k / 90) / (m + k),
+        )
+
+    def extra(self, pid: int, role: str | None) -> tuple[float, float]:
+        """(xA per 90, yellow cards per 90), shrunk towards the role average. Bookings are
+        rare, so they get a heavier prior (900 minutes)."""
+        prior = self.roles.get(role or "UNK") or {"xa90": 0.1, "yellow90": 0.15}
+        _, _, m, xa, y = self.acc.get(pid, (0.0, 0.0, 0.0, 0.0, 0.0))
+        pxa, py = prior.get("xa90", 0.1), prior.get("yellow90", 0.15)
+        return (
+            90 * (xa + pxa * SHRINK_MIN / 90) / (m + SHRINK_MIN),
+            90 * (y + py * 900 / 90) / (m + 900),
         )
 
     def minutes_if_starting(self, pid: int) -> float:
@@ -231,15 +255,23 @@ def expect_player(
     minutes: float,
     opp_shot_factor: float,
     opp_xg_factor: float,
+    card_factor: float = 1.0,
 ) -> dict[str, float]:
     s90, x90 = rates.rate(pid, role)
+    a90, y90 = rates.extra(pid, role)
     lam_s = s90 * minutes / 90 * opp_shot_factor
     lam_x = x90 * minutes / 90 * opp_xg_factor
+    lam_a = a90 * minutes / 90 * opp_xg_factor
+    lam_y = y90 * minutes / 90 * card_factor
     return {
         "exp_shots": lam_s,
         "p_shot": 1 - math.exp(-lam_s),
         "exp_npxg": lam_x,
         "p_goal": 1 - math.exp(-lam_x),
+        "exp_xa": lam_a,
+        "p_assist": 1 - math.exp(-lam_a),
+        "p_involved": 1 - math.exp(-(lam_x + lam_a)),
+        "p_booked": 1 - math.exp(-lam_y),
     }
 
 
@@ -289,14 +321,21 @@ def shooter_backtest(prev_players: list[dict], players: list[dict], team_rows: l
             e = expect_player(
                 R, p["player_id"], p.get("role"), R.minutes_if_starting(p["player_id"]), fs, fx
             )
-            base = roles.get(p.get("role") or "UNK", {"shots90": 1.0, "npxg90": 0.1})
+            base = roles.get(
+                p.get("role") or "UNK",
+                {"shots90": 1.0, "npxg90": 0.1, "xa90": 0.1, "yellow90": 0.15},
+            )
             preds.append(
                 e
                 | {
                     "naive_p_shot": 1 - math.exp(-base["shots90"] * 80 / 90),
                     "naive_p_goal": 1 - math.exp(-base["npxg90"] * 80 / 90),
+                    "naive_p_assist": 1 - math.exp(-base.get("xa90", 0.1) * 80 / 90),
+                    "naive_p_booked": 1 - math.exp(-base.get("yellow90", 0.15) * 80 / 90),
                     "shot": p["np_shots"] > 0,
                     "goal": p.get("np_goals", 0) > 0,
+                    "assist": (p.get("assists") or 0) > 0,
+                    "booked": p.get("yellow", 0) + p.get("red", 0) > 0,
                 }
             )
         for p in by_match[mid]:
@@ -326,6 +365,154 @@ def shooter_backtest(prev_players: list[dict], players: list[dict], team_rows: l
         "brier_shot_naive": brier("naive_p_shot", "shot"),
         "brier_goal": brier("p_goal", "goal"),
         "brier_goal_naive": brier("naive_p_goal", "goal"),
+        "brier_assist": brier("p_assist", "assist"),
+        "brier_assist_naive": brier("naive_p_assist", "assist"),
+        "brier_booked": brier("p_booked", "booked"),
+        "brier_booked_naive": brier("naive_p_booked", "booked"),
         "calibration_shot": calib("p_shot", "shot"),
         "calibration_goal": calib("p_goal", "goal"),
+        "calibration_assist": calib("p_assist", "assist"),
+        "calibration_booked": calib("p_booked", "booked"),
+    }
+
+
+# ---------------------------------------------------------------------------- cards (D-030)
+
+
+def referee_name(details: dict) -> str | None:
+    ib = ((details.get("content") or {}).get("matchFacts") or {}).get("infoBox") or {}
+    return (ib.get("Referee") or {}).get("text")
+
+
+REF_PRIOR_MATCHES = 8.0  # a referee's factor is shrunk towards 1 by this many average games
+
+
+class CardRatings:
+    """Rolling yellow-card ratings: how often a team is booked, how many bookings it draws
+    from opponents, and each referee's own rate (shrunk towards average)."""
+
+    def __init__(self, half_life: float = CORNER_HALF_LIFE, carry: float = CORNER_CARRY):
+        self.alpha = 1 - 0.5 ** (1 / half_life)
+        self.carry = carry
+        self.booked: dict[str, float] = {}
+        self.draws: dict[str, float] = {}
+        self.ref: dict[str, list[float]] = {}  # name → [sum of obs/expected, matches]
+        self.venue = {"home": 1.75, "away": 2.0}
+        self.red_rate = 0.06  # per team-match
+
+    def new_season(self, teams: set[str]) -> None:
+        for d in (self.booked, self.draws):
+            for t in list(d):
+                d[t] = 1 + self.carry * (d[t] - 1)
+            for t in teams:
+                d.setdefault(t, 1.0)
+
+    def ref_factor(self, name: str | None) -> float:
+        s, n = self.ref.get(name or "", (0.0, 0.0))
+        return (REF_PRIOR_MATCHES + s) / (REF_PRIOR_MATCHES + n)
+
+    def expect(
+        self, home: str, away: str, referee: str | None, use_ref: bool = True
+    ) -> tuple[float, float]:
+        f = self.ref_factor(referee) if use_ref else 1.0
+        h = self.venue["home"] * self.booked.get(home, 1) * self.draws.get(away, 1) * f
+        a = self.venue["away"] * self.booked.get(away, 1) * self.draws.get(home, 1) * f
+        return h, a
+
+    def update(
+        self, home: str, away: str, referee: str | None, yh: float, ya: float, reds: float
+    ) -> None:
+        eh, ea = self.expect(home, away, None, use_ref=False)
+        if referee and eh + ea > 0:
+            r = self.ref.setdefault(referee, [0.0, 0.0])
+            r[0] += (yh + ya) / (eh + ea)
+            r[1] += 1
+        v = 0.02
+        self.venue["home"] += v * (yh - self.venue["home"])
+        self.venue["away"] += v * (ya - self.venue["away"])
+        self.red_rate += v * (reds / 2 - self.red_rate)
+        f = self.ref_factor(referee)
+        for team, opp, got, venue in ((home, away, yh, "home"), (away, home, ya, "away")):
+            base = self.venue[venue] * f
+            b_obs = got / (base * self.draws.get(opp, 1))
+            d_obs = got / (base * self.booked.get(team, 1))
+            self.booked[team] = self.booked.get(team, 1) + self.alpha * (
+                b_obs - self.booked.get(team, 1)
+            )
+            self.draws[opp] = self.draws.get(opp, 1) + self.alpha * (d_obs - self.draws.get(opp, 1))
+
+
+def card_walk(seasons: Sequence[tuple[int, list[dict]]]) -> tuple[list[dict], CardRatings]:
+    """Predict every match's yellows (with and without the referee) and the chance of a red
+    card from earlier matches only."""
+    R = CardRatings()
+    out = []
+    for season, rows in seasons:
+        R.new_season({r["team"] for r in rows})
+        for m in _fixtures(rows):
+            h, a = m["home"], m["away"]
+            if h.get("yellow_cards") is None or a.get("yellow_cards") is None:
+                continue
+            ref = h.get("referee")
+            eh, ea = R.expect(h["team"], a["team"], ref)
+            nh, na = R.expect(h["team"], a["team"], ref, use_ref=False)
+            reds = (h.get("red_cards") or 0) + (a.get("red_cards") or 0)
+            out.append(
+                {
+                    "season": season,
+                    "exp": eh + ea,
+                    "exp_noref": nh + na,
+                    "exp_home": eh,
+                    "exp_away": ea,
+                    "p_red": 1 - math.exp(-2 * R.red_rate * R.ref_factor(ref) ** 0.5),
+                    "yellows": h["yellow_cards"] + a["yellow_cards"],
+                    "home": h["yellow_cards"],
+                    "away": a["yellow_cards"],
+                    "red": reds > 0,
+                }
+            )
+            R.update(h["team"], a["team"], ref, h["yellow_cards"], a["yellow_cards"], reds)
+    return out, R
+
+
+def card_backtest(preds: list[dict], from_season: int) -> dict[str, Any]:
+    ps = [p for p in preds if p["season"] >= from_season]
+    y = np.array([p["yellows"] for p in ps], float)
+    e, e0 = np.array([p["exp"] for p in ps]), np.array([p["exp_noref"] for p in ps])
+    naive = y.mean()
+    over = {}
+    for line in (3.5, 4.5, 5.5):
+        obs = y > line
+        over[str(line)] = {
+            "brier": float(
+                np.mean([(p_over(line, x) - o) ** 2 for x, o in zip(e, obs, strict=True)])
+            ),
+            "brier_noref": float(
+                np.mean([(p_over(line, x) - o) ** 2 for x, o in zip(e0, obs, strict=True)])
+            ),
+            "brier_naive": float(np.mean((obs.mean() - obs) ** 2)),
+        }
+    red = np.array([p["red"] for p in ps], float)
+    pr = np.array([p["p_red"] for p in ps])
+    sides = np.array([[p["home"], p["away"]] for p in ps], float)
+    exp_sides = np.array([[p["exp_home"], p["exp_away"]] for p in ps])
+    decided = sides[:, 0] != sides[:, 1]
+    return {
+        "matches": len(ps),
+        "mae": float(np.abs(y - e).mean()),
+        "mae_noref": float(np.abs(y - e0).mean()),
+        "mae_naive": float(np.abs(y - naive).mean()),
+        "corr": float(np.corrcoef(e, y)[0, 1]),
+        "corr_noref": float(np.corrcoef(e0, y)[0, 1]),
+        "more_cards_side": float(
+            np.mean(
+                np.sign(exp_sides[decided, 0] - exp_sides[decided, 1])
+                == np.sign(sides[decided, 0] - sides[decided, 1])
+            )
+        ),
+        "over": over,
+        "red_rate": float(red.mean()),
+        "red_brier": float(np.mean((pr - red) ** 2)),
+        "red_brier_naive": float(np.mean((red.mean() - red) ** 2)),
+        "variance_to_mean": float(y.var() / y.mean()),
     }
