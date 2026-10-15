@@ -30,14 +30,15 @@ from pathlib import Path
 
 from corridor.ingest import fotmob
 from corridor.ingest.http import DATA_DIR
+from corridor.leagues import LEAGUES as LEAGUE_DEFS
 
 TEAM = "Manchester United"
 ARTIFACT_URL = "https://claude.ai/artifact/U17iYtvFhdCsqucR2iY4fT"
 REPO = Path(__file__).resolve().parents[4]
-READY_AFTER = {"pl": timedelta(hours=3), "laliga": timedelta(hours=3), "ucl": timedelta(hours=12)}
+DOMESTIC = tuple(LEAGUE_DEFS)  # every league the site covers (corridor.leagues)
+READY_AFTER = {**{k: timedelta(hours=3) for k in DOMESTIC}, "ucl": timedelta(hours=12)}
 MAX_WAIT = timedelta(hours=72)  # for Understat (PL PPDA) and UEFA tracking (UCL)
-LEAGUES = {"pl": fotmob.PREMIER_LEAGUE, "laliga": 87, "ucl": fotmob.CHAMPIONS_LEAGUE}
-DOMESTIC = ("pl", "laliga")
+LEAGUES = {**{k: lg.fotmob_id for k, lg in LEAGUE_DEFS.items()}, "ucl": fotmob.CHAMPIONS_LEAGUE}
 
 log = logging.getLogger("update")
 
@@ -83,8 +84,7 @@ def missing_slow_data(season: int, new: list[tuple]) -> list[dict]:
     UEFA tracking (distance) for the UCL."""
     out = []
     for comp, field, sub in (
-        ("pl", "ppda", ""),
-        ("laliga", "ppda", "laliga"),
+        *((k, "ppda", lg.sub) for k, lg in LEAGUE_DEFS.items()),
         ("ucl", "distance_m", "ucl"),
     ):
         ids = {m["id"] for c, m in new if c == comp}
@@ -187,8 +187,8 @@ def main() -> None:
         return
 
     try:
-        comps = {c for c, _ in new} or {"pl", "laliga", "ucl"}
-        for comp in ("pl", "laliga", "ucl"):
+        comps = {c for c, _ in new} or {*DOMESTIC, "ucl"}
+        for comp in (*DOMESTIC, "ucl"):
             if comp in comps:
                 run_step("build_season", "--season", str(args.season), "--competition", comp)
         late = [m for m in missing_slow_data(args.season, new) if now - _kickoff(m) < MAX_WAIT]
@@ -205,7 +205,7 @@ def main() -> None:
                 except RuntimeError:
                     log.info("%s failed for %s; publishing the previous version", step, lg)
         if not comps & {"pl", "ucl"} and not args.force:
-            log.info("only La Liga changed; keeping the analyst's read")
+            log.info("only other leagues changed; keeping the analyst's read")
         else:
             run_analyst(site)
         run_step("build_site", "--season", str(args.season))

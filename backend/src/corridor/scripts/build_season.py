@@ -1,8 +1,9 @@
 """Fetch a season and write clean per-match files.
 
-    uv run python -m corridor.scripts.build_season [--season 2026] [--competition pl|laliga|ucl]
+    uv run python -m corridor.scripts.build_season [--season 2026] [--competition <league>|ucl]
 
-pl, laliga: FotMob + Understat (PPDA, deep completions) — see corridor.leagues
+leagues (pl, laliga, seriea, bundesliga): FotMob + Understat (PPDA, deep completions) — see
+corridor.leagues
 ucl: FotMob events + UEFA physical data (distance, sprints, running without the ball)
 
 Outputs (gitignored): data/processed/{season}/[ucl/|laliga/]team_matches.json, player_matches.json
@@ -107,7 +108,7 @@ def _write(out, team_rows: list[dict], player_rows: list[dict]) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2026, help="season start year")
-    ap.add_argument("--competition", choices=("pl", "laliga", "ucl"), default="pl")
+    ap.add_argument("--competition", choices=(*LEAGUES, "ucl"), default="pl")
     args = ap.parse_args()
     season = args.season
 

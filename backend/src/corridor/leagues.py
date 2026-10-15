@@ -21,6 +21,8 @@ class League:
 LEAGUES = {
     "pl": League("pl", "Premier League", 47, "EPL", "E0", "", "Manchester United"),
     "laliga": League("laliga", "La Liga", 87, "La_liga", "SP1", "laliga", None),
+    "seriea": League("seriea", "Serie A", 55, "Serie_A", "I1", "seriea", None),
+    "bundesliga": League("bundesliga", "Bundesliga", 54, "Bundesliga", "D1", "bundesliga", None),
 }
 
 

@@ -92,6 +92,17 @@ ALIAS = {
     "Valladolid": "Real Valladolid",
     "Oviedo": "Real Oviedo",
     "Santander": "Racing Santander",
+    # Serie A
+    "Spal": "SPAL 2013",
+    "Parma": "Parma Calcio 1913",
+    # Bundesliga
+    "Dortmund": "Borussia Dortmund",
+    "M'gladbach": "Borussia M.Gladbach",
+    "FC Koln": "FC Cologne",
+    "Hamburg": "Hamburger SV",
+    "Hertha": "Hertha Berlin",
+    "RB Leipzig": "RasenBallsport Leipzig",
+    "Bielefeld": "Arminia Bielefeld",
 }
 
 
@@ -102,6 +113,8 @@ def name_map(odds_names: set[str], our_names: set[str]) -> dict[str, str]:
     out: dict[str, str] = {}
     for n in odds_names:
         target = ALIAS.get(n, n)
+        if target not in our_names and n in our_names:
+            target = n  # the alias is for another era's name (e.g. Parma in 2014-15)
         if target in our_names:
             out[n] = target
             continue
