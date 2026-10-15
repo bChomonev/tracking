@@ -158,6 +158,19 @@ tr.typical td { background: var(--track); font-weight: 600; }
   .f-row .f-gauge { grid-column: 1 / -1; grid-row: 2; }
 }
 
+/* Collapsible section (analyst's read): title + headline always visible */
+.fold > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 8px 16px; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary:focus-visible { outline: 2px solid var(--red); outline-offset: 4px; }
+.fold > summary .lede { grid-column: 1 / -1; max-width: 70ch; }
+.fold-hint::after { content: "Show the full read ▾"; font: 600 .85rem/1 var(--body); color: var(--muted); }
+.fold[open] .fold-hint::after { content: "Hide ▴"; }
+.fold > summary:hover .fold-hint::after { color: var(--ink); }
+.fold > .analyst { margin-top: 18px; }
+.lines-cell b { font: 600 1.05rem/1 var(--mono); }
+.lines-cell.e b { color: var(--good); } .lines-cell.w b { color: var(--bad); }
+.lines-cell small { display: block; font: 400 .74rem/1.2 var(--body); color: var(--muted); }
+
 /* Hero */
 .hero { display: grid; gap: 20px; border-bottom: 3px solid var(--red); padding-bottom: 28px; }
 .hero h1 { font-size: clamp(2.6rem, 7vw, 4.6rem); text-transform: uppercase; }
@@ -220,7 +233,7 @@ th[aria-sort] button::after { content: " ▾"; }
 .pos { font: 600 .72rem/1 var(--body); color: var(--muted); letter-spacing: .06em; }
 /* Analyst */
 .analyst { display: grid; gap: 18px; max-width: 80ch; }
-.analyst .lede { font: 600 clamp(1.35rem, 3vw, 1.7rem)/1.25 var(--display); margin: 0; text-wrap: balance; }
+.analyst .lede, .fold .lede { font: 600 clamp(1.35rem, 3vw, 1.7rem)/1.25 var(--display); margin: 0; text-wrap: balance; }
 .analyst .summary { margin: 0; font-size: 1.05rem; }
 .findings { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
 .finding { display: grid; grid-template-columns: 6px minmax(0, 1fr); gap: 4px 14px; }
@@ -272,10 +285,10 @@ th[aria-sort] button::after { content: " ▾"; }
     <p class="bl-foot" id="focus-foot"></p>
   </section>
 
-  <section aria-labelledby="analyst-title" id="analyst-sec" hidden>
-    <div class="section-head"><h2 id="analyst-title">The analyst's read</h2></div>
+  <details class="fold" id="analyst-sec" hidden>
+    <summary><h2 id="analyst-title">The analyst's read</h2><span class="fold-hint"></span><p class="lede" id="analyst-lede"></p></summary>
     <div class="analyst" id="analyst"></div>
-  </section>
+  </details>
 
   <section aria-labelledby="proof-title" id="proof-sec" hidden>
     <div class="section-head">
@@ -419,7 +432,8 @@ th[aria-sort] button::after { content: " ▾"; }
   const A = JSON.parse(document.getElementById("analysis-data").textContent.replace("/*__ANALYSIS__*/", ""));
   const kindLabel = { problem: "Problem", strength: "Strength", watch: "Watch" };
   if (A) {
-    $("analyst").innerHTML = `<p class="lede">${esc(A.headline)}</p><p class="summary">${esc(A.summary)}</p>
+    $("analyst-lede").textContent = A.headline;
+    $("analyst").innerHTML = `<p class="summary">${esc(A.summary)}</p>
       <ul class="findings">${A.findings.map((f) => `<li class="finding ${esc(f.kind)}">
         <h3>${esc(f.title)}<small>${esc(kindLabel[f.kind] || f.kind)}</small></h3>
         <p>${esc(f.text)}</p>
@@ -537,14 +551,23 @@ th[aria-sort] button::after { content: " ▾"; }
   const cellTxt = (m, v) => (SIGNED.has(m.key) ? signed(v, m.decimals) : fmt(v, m.decimals));
   const scoreCells = (x) => x ? `<td class="score-cell">${Math.round(100 * x.best_weighted.share)}<small>won ${pctTxt(x.best_weighted.history?.W)}</small></td><td class="score-cell">${Math.round(100 * x.worst_weighted.share)}<small>lost ${pctTxt(x.worst_weighted.history?.L)}</small></td>` : "";
   $("matches-sub").textContent = withLines
-    ? `Elite score: share of the elite lines a match reached, each line weighted by how much it decides matches (0–100), with how often teams with that score won. Danger score: the same for the worst lines, and how often those teams lost. Then the ${cols.length} metrics that decide matches: green = at or above the elite line, red = at or below the worst line.`
+    ? `Elite lines / worst lines: how many of the ${cols.length} metrics that decide matches reached the elite line or sank to the worst line (small: out of all tested lines). Elite score: share of the elite lines a match reached, each line weighted by how much it decides matches (0–100), with how often teams with that score won. Danger score: the same for the worst lines, and how often those teams lost. Then the ${cols.length} metrics that decide matches: green = at or above the elite line, red = at or below the worst line.`
     : `Cell colour = how that single performance ranks against every team-match in the Champions League this season (green top third, red bottom third). No elite or worst lines here: they are built from Premier League data.`;
   const TW = withLines && P.proof.typical_weighted;
-  $("matches").innerHTML = `<thead><tr><th class="l">Match</th><th>Score</th>${withLines ? "<th>Elite score</th><th>Danger score</th>" : ""}${cols.map((k, i) => `<th><span class="tip below${i >= cols.length - 3 ? " end" : ""}" tabindex="0" data-tip="${esc(metricBy[k].label + ": " + tipOf(metricBy[k]))}">${colLabel[k] || esc(metricBy[k].label)}</span></th>`).join("")}</tr></thead><tbody>` +
-    (withLines ? `<tr class="typical"><td class="l">Typical match</td><td></td><td class="score-cell">${Math.round(100 * TW.best.share)}<small>won ${pctTxt(TW.best.history?.W)}</small></td><td class="score-cell">${Math.round(100 * TW.worst.share)}<small>lost ${pctTxt(TW.worst.history?.L)}</small></td>${cols.map((k) => { const m = metricBy[k]; return `<td class="cell h-${lineTier(m, m.value)}">${cellTxt(m, m.value)}</td>`; }).join("")}</tr>` : "") +
+  // Lines hit: the decisive ones (bold) and all tested lines (small).
+  const nDec = cols.length;
+  const countCells = (vals, all) => {
+    const e = cols.filter((k) => lineTier(metricBy[k], vals(k)) === "good").length;
+    const w = cols.filter((k) => lineTier(metricBy[k], vals(k)) === "bad").length;
+    return `<td class="lines-cell e"><b>${e}</b>/${nDec}<small>${all.best} of ${all.of} all</small></td><td class="lines-cell w"><b>${w}</b>/${nDec}<small>${all.worst} of ${all.of} all</small></td>`;
+  };
+  const tested = C.metrics.filter((m) => m.impact && m.best_line && m.worst_line);
+  const typicalAll = { best: tested.filter((m) => m.best_line.typical_hits).length, worst: tested.filter((m) => m.worst_line.typical_hits).length, of: tested.length };
+  $("matches").innerHTML = `<thead><tr><th class="l">Match</th><th>Score</th>${withLines ? `<th><span class="tip below" tabindex="0" data-tip="Elite lines reached: of the ${nDec} metrics that decide matches (big number), and of all tested lines (small).">Elite lines</span></th><th><span class="tip below" tabindex="0" data-tip="Worst lines hit (relegation level): of the ${nDec} metrics that decide matches (big number), and of all tested lines (small).">Worst lines</span></th><th>Elite score</th><th>Danger score</th>` : ""}${cols.map((k, i) => `<th><span class="tip below${i >= cols.length - 3 ? " end" : ""}" tabindex="0" data-tip="${esc(metricBy[k].label + ": " + tipOf(metricBy[k]))}">${colLabel[k] || esc(metricBy[k].label)}</span></th>`).join("")}</tr></thead><tbody>` +
+    (withLines ? `<tr class="typical"><td class="l">Typical match</td><td></td>${countCells((k) => metricBy[k].value, typicalAll)}<td class="score-cell">${Math.round(100 * TW.best.share)}<small>won ${pctTxt(TW.best.history?.W)}</small></td><td class="score-cell">${Math.round(100 * TW.worst.share)}<small>lost ${pctTxt(TW.worst.history?.L)}</small></td>${cols.map((k) => { const m = metricBy[k]; return `<td class="cell h-${lineTier(m, m.value)}">${cellTxt(m, m.value)}</td>`; }).join("")}</tr>` : "") +
     C.matches.map((mt, i) => `<tr><td class="l"><span class="pos">${mt.kickoff_utc.slice(5, 10).split("-").reverse().join("/")} ${mt.is_home ? "H" : "A"}</span> ${esc(short(mt.opponent))}</td>
       <td><span class="res ${mt.result}">${mt.result}</span> <span class="num">${mt.goals_for}–${mt.goals_against}</span></td>
-      ${withLines ? scoreCells(P.proof.matches[i]) : ""}
+      ${withLines ? countCells((k) => metricBy[k].matches[i].value, { best: P.proof.matches[i].best.hits, worst: P.proof.matches[i].worst.hits, of: P.proof.matches[i].best.of }) + scoreCells(P.proof.matches[i]) : ""}
       ${cols.map((k) => { const m = metricBy[k], c = m.matches[i]; const t = withLines ? lineTier(m, c.value) : tier(c.percentile);
         return `<td class="cell h-${t}" title="${c.percentile ?? "—"}th percentile">${cellTxt(m, c.value)}</td>`; }).join("")}</tr>`).join("") + "</tbody>";
 
