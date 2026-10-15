@@ -69,10 +69,21 @@ def test_next_round_is_one_window_from_the_next_kickoff():
     from datetime import datetime
 
     fx = [
-        {"id": "1", "played": True, "kickoff": "2026-10-10 14:00:00"},
-        {"id": "2", "played": False, "kickoff": "2026-10-17 14:00:00"},
-        {"id": "3", "played": False, "kickoff": "2026-10-19 19:00:00"},
-        {"id": "4", "played": False, "kickoff": "2026-10-31 14:00:00"},
+        {"id": "1", "played": True, "kickoff": "2026-10-10 14:00:00", "home": "A", "away": "B"},
+        {"id": "2", "played": False, "kickoff": "2026-10-17 14:00:00", "home": "A", "away": "B"},
+        {"id": "3", "played": False, "kickoff": "2026-10-19 19:00:00", "home": "C", "away": "D"},
+        {"id": "4", "played": False, "kickoff": "2026-10-31 14:00:00", "home": "E", "away": "F"},
     ]
     got = P.next_round(fx, datetime(2026, 10, 15, 12))
     assert [m["id"] for m in got] == ["2", "3"]
+
+
+def test_next_round_stops_when_a_team_plays_again():
+    from datetime import datetime
+
+    fx = [
+        {"id": "1", "played": False, "kickoff": "2026-10-17 13:30:00", "home": "A", "away": "B"},
+        {"id": "2", "played": False, "kickoff": "2026-10-18 13:30:00", "home": "C", "away": "D"},
+        {"id": "3", "played": False, "kickoff": "2026-10-23 18:30:00", "home": "B", "away": "C"},
+    ]
+    assert [m["id"] for m in P.next_round(fx, datetime(2026, 10, 15))] == ["1", "2"]

@@ -611,7 +611,8 @@ def simulate(
 
 
 def next_round(fixtures: list[dict], now: datetime, days: int = 8) -> list[dict]:
-    """Unplayed fixtures in the window starting at the next kickoff (one matchweek)."""
+    """The next round: upcoming fixtures from the next kickoff, stopping when a team would
+    appear twice (the following round) or after ``days``."""
     ahead = sorted(
         (m for m in fixtures if not m["played"] and datetime.fromisoformat(m["kickoff"]) > now),
         key=lambda m: m["kickoff"],
@@ -619,9 +620,15 @@ def next_round(fixtures: list[dict], now: datetime, days: int = 8) -> list[dict]
     if not ahead:
         return []
     first = datetime.fromisoformat(ahead[0]["kickoff"])
-    return [
-        m for m in ahead if datetime.fromisoformat(m["kickoff"]) < first + timedelta(days=days)
-    ][:10]
+    out, seen = [], set()
+    for m in ahead:
+        if datetime.fromisoformat(m["kickoff"]) >= first + timedelta(days=days):
+            break
+        if m["home"] in seen or m["away"] in seen:
+            break  # a team playing again = the next round has started
+        seen |= {m["home"], m["away"]}
+        out.append(m)
+    return out
 
 
 def today() -> date:
