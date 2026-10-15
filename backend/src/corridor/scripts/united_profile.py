@@ -14,6 +14,7 @@ from corridor import proof
 from corridor.best_line import build_line, compare, hits_line
 from corridor.ingest import understat
 from corridor.ingest.http import DATA_DIR
+from corridor.leagues import LEAGUES, League, processed_dir, site_dir
 from corridor.profile import player_profiles, shooting, team_profile
 
 
@@ -25,16 +26,21 @@ def _label(y: int) -> str:
     return f"{y}-{(y + 1) % 100:02d}"
 
 
-def proof_record(season: int) -> dict:
+def proof_record(season: int, league: League = LEAGUES["pl"]) -> dict:
     """Stage 3 proof, computed once per build and shared by every team (D-020, D-021)."""
     fot = [
         (_label(y), json.loads(p.read_text()))
         for y in range(season - 2, season + 1)
-        if (p := DATA_DIR / "processed" / str(y) / "team_matches.json").exists()
+        if (p := processed_dir(y, league) / "team_matches.json").exists()
     ]
     fm = proof.evaluate(proof.fotmob_seasons(fot), proof.FOTMOB_METRICS, proof.FOTMOB_BINS)
     us_seasons = [
-        (_label(y), proof.understat_rows(understat.team_matches(understat.league_data("EPL", y))))
+        (
+            _label(y),
+            proof.understat_rows(
+                understat.team_matches(understat.league_data(league.understat, y))
+            ),
+        )
         for y in range(2014, season + 1)
     ]
     us = proof.evaluate(us_seasons, proof.UNDERSTAT_METRICS, proof.UNDERSTAT_BINS)
@@ -168,7 +174,7 @@ def build_team(
     prof["players"] = player_profiles(ctx["players"], team)
     prof["shooting"] = shooting(ctx["players"], team)
     prof["season"] = ctx["season"]
-    prof["competition"] = "Premier League"
+    prof["competition"] = ctx["competition"]
     for line in lines.values():
         compare(prof, line)
     if rec and "best_line" in prof:
@@ -235,28 +241,32 @@ def table_row(prof: dict) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2026)
-    ap.add_argument("--team", default="Manchester United")
+    ap.add_argument("--league", choices=tuple(LEAGUES), default="pl")
+    ap.add_argument("--team", default=None, help="focus team (default: the league's)")
     args = ap.parse_args()
+    league = LEAGUES[args.league]
+    focus = args.team or league.focus_team
 
-    src = DATA_DIR / "processed" / str(args.season)
+    src = processed_dir(args.season, league)
     rows = json.loads((src / "team_matches.json").read_text())
     ctx = {
         "rows": rows,
         "players": json.loads((src / "player_matches.json").read_text()),
         "season": _label(args.season),
+        "competition": league.name,
     }
     lines: dict = {}
-    prev = DATA_DIR / "processed" / str(args.season - 1) / "team_matches.json"
+    prev = processed_dir(args.season - 1, league) / "team_matches.json"
     if prev.exists():
         # Stages 2-3: last season's top-4 wins / bottom-4 losses define this season's
-        # best and worst lines (PL only), the same lines for every team.
+        # best and worst lines (from this league only), the same lines for every team.
         prev_rows = json.loads(prev.read_text())
         lines = {
             side: build_line(prev_rows, _label(args.season - 1), rows, side=side)
             for side in ("best", "worst")
         }
-    rec = proof_record(args.season) if lines else None
-    ucl_src = src / "ucl" / "team_matches.json"
+    rec = proof_record(args.season, league) if lines else None
+    ucl_src = DATA_DIR / "processed" / str(args.season) / "ucl" / "team_matches.json"
     ucl_rows = json.loads(ucl_src.read_text()) if ucl_src.exists() else None
 
     names = sorted({r["team"] for r in rows})
@@ -269,27 +279,37 @@ def main() -> None:
             gaps.index(p["shooting"]["quality_gap_per_match"] or 0) + 1
         )
         p["shooting"]["teams"] = len(gaps)
-    prof = teams[args.team]
-    out = DATA_DIR / "site" / str(args.season)
+    out = site_dir(args.season, league)
     out.mkdir(parents=True, exist_ok=True)
     shared = {"fotmob": rec["fotmob"], "understat": rec["understat"]} if rec else None
-    # The focus team's file carries the shared proof too: the analyst reads it.
-    focus_prof = prof | ({"proof": prof["proof"] | shared} if shared else {})
-    (out / "profile.json").write_text(json.dumps(focus_prof, indent=1))
-    league = {
+    league_out = {
+        "league": league.key,
         "season": ctx["season"],
-        "competition": "Premier League",
-        "focus_team": args.team,
+        "competition": league.name,
+        "focus_team": focus,
         "proof": shared,
         "table": sorted((table_row(p) for p in teams.values()), key=lambda r: r["position"]),
         "teams": teams,
     }
-    (out / "league.json").write_text(json.dumps(league, separators=(",", ":")))
-    prof = focus_prof
+    (out / "league.json").write_text(json.dumps(league_out, separators=(",", ":")))
+    if not focus:
+        print(f"\n{league.name} {ctx['season']} — wrote {out / 'league.json'} ({len(teams)} teams)")
+        for r in league_out["table"]:
+            d = r.get("decisive", {})
+            print(
+                f"  {r['position']:>2} {r['team']:<24} {r['points']:>3} pts  deserved "
+                f"{r.get('deserved_points') or 0:5.1f}  decisive {d.get('best', '-')}/"
+                f"{d.get('between', '-')}/{d.get('worst', '-')}"
+            )
+        return
+    prof = teams[focus]
+    # The focus team's file carries the shared proof too: the analyst reads it.
+    prof = prof | ({"proof": prof["proof"] | shared} if shared else {})
+    (out / "profile.json").write_text(json.dumps(prof, indent=1))
 
     rec = prof["record"]
     print(
-        f"\n{args.team} — {prof['season']}: {rec['played']} played, {rec['points']} pts, "
+        f"\n{focus} — {prof['season']}: {rec['played']} played, {rec['points']} pts, "
         f"{rec['league_position']}th of {rec['teams']}\n"
     )
     for m in prof["matches"]:

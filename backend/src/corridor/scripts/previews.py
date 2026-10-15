@@ -15,14 +15,15 @@ from datetime import UTC, datetime
 from corridor import preview as V
 from corridor.ingest import fotmob
 from corridor.ingest.fotmob import BASE, role_from_position_id
-from corridor.ingest.http import DATA_DIR, fetch_json
+from corridor.ingest.http import fetch_json
+from corridor.leagues import LEAGUES, League, processed_dir, site_dir
 
 SHOOTERS_SHOWN = 6
 CORNER_LINES = (8.5, 9.5, 10.5, 11.5)
 
 
-def _load(season: int, name: str, sub: str = "") -> list[dict]:
-    p = DATA_DIR / "processed" / str(season) / sub / f"{name}.json"
+def _load(season: int, name: str, league: League = LEAGUES["pl"]) -> list[dict]:
+    p = processed_dir(season, league) / f"{name}.json"
     return json.loads(p.read_text()) if p.exists() else []
 
 
@@ -55,17 +56,19 @@ def _season_players(players: list[dict]) -> dict[int, dict]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2026)
+    ap.add_argument("--league", choices=tuple(LEAGUES), default="pl")
     args = ap.parse_args()
+    lg = LEAGUES[args.league]
     season = args.season
-    out_dir = DATA_DIR / "site" / str(season)
+    out_dir = site_dir(season, lg)
     pred = json.loads((out_dir / "predictions.json").read_text())
 
-    teams_now, players_now = _load(season, "team_matches"), _load(season, "player_matches")
-    players_prev = _load(season - 1, "player_matches")
+    teams_now, players_now = _load(season, "team_matches", lg), _load(season, "player_matches", lg)
+    players_prev = _load(season - 1, "player_matches", lg)
 
     # Corners: ratings through every played match, plus the backtest for the page.
     corner_seasons = [
-        (s, rows) for s in range(season - 2, season + 1) if (rows := _load(s, "team_matches"))
+        (s, rows) for s in range(season - 2, season + 1) if (rows := _load(s, "team_matches", lg))
     ]
     corner_preds, CR = V.corner_walk(corner_seasons)
     corner_bt = V.corner_backtest(corner_preds, season - 1)
@@ -84,9 +87,9 @@ def main() -> None:
     facs = V.opponent_factors(teams_now)
     # Shooter backtest on every season we have player data for (each from its own past).
     shooter_bt = {
-        str(s): V.shooter_backtest(prev, cur, _load(s, "team_matches"))
+        str(s): V.shooter_backtest(prev, cur, _load(s, "team_matches", lg))
         for s in range(season - 1, season + 1)
-        if (prev := _load(s - 1, "player_matches")) and (cur := _load(s, "player_matches"))
+        if (prev := _load(s - 1, "player_matches", lg)) and (cur := _load(s, "player_matches", lg))
     }
     season_stats = _season_players(players_now)
     team_totals: dict[str, dict[str, float]] = defaultdict(lambda: {"npxg_xa": 0.0, "minutes": 0.0})
@@ -96,7 +99,7 @@ def main() -> None:
 
     fm_fixtures = {
         (m["home"]["name"], m["away"]["name"]): m
-        for m in fotmob.league_matches(f"{season}/{season + 1}")
+        for m in fotmob.league_matches(f"{season}/{season + 1}", lg.fotmob_id)
         if not m["status"].get("finished")
     }
 

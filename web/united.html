@@ -1,4 +1,4 @@
-<title>Premier League Explained</title>
+<title>Football Explained</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -95,6 +95,8 @@ td.l small { color: var(--muted); }
 .comp-switch button small { font-weight: 400; color: var(--muted); margin-left: 4px; }
 .comp-switch button[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .comp-switch button[aria-selected="true"] small { color: inherit; opacity: .75; }
+.comp-switch a { font: 600 .9rem/1 var(--body); padding: 10px 14px; border-radius: 999px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); text-decoration: none; }
+.comp-switch a[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .skew { color: var(--muted); }
 .skew b { color: var(--ink); }
 .skew-tag { font: 600 .66rem/1 var(--body); text-transform: uppercase; letter-spacing: .06em; padding: 2px 5px; border-radius: 4px; border: 1px solid var(--muted); color: var(--muted); vertical-align: 2px; margin-left: 4px; }
@@ -359,7 +361,7 @@ th[aria-sort] button::after { content: " ▾"; }
 </style>
 
 <main>
-  <nav class="topnav" aria-label="Sections"><a href="#" data-nav="overview">Premier League</a><a href="#" data-nav="focus" id="nav-focus">Manchester United</a><a href="#how" data-nav="how">How we know</a></nav>
+  <nav class="topnav" aria-label="Sections" id="topnav"></nav>
   <div id="overview" hidden>
     <section class="hero" aria-labelledby="ov-title">
       <p class="eyebrow" id="ov-season"></p>
@@ -419,8 +421,16 @@ th[aria-sort] button::after { content: " ▾"; }
       <p class="eyebrow">Method, tests and data</p>
       <h1 id="how-h">How we <span>know</span></h1>
       <p class="ov-lede" id="how-lede"></p>
-      <p class="how-toc"><a href="#how" data-jump="proof-sec">The lines</a> · <a href="#how" data-jump="bt-sec">The predictions</a> · <a href="#how" data-jump="pv-sec">Match previews</a> · <a href="#how" data-jump="data-sec">Data &amp; caveats</a></p>
+      <p class="how-toc"><a href="#how" data-jump="cmp-sec">Leagues compared</a> · <a href="#how" data-jump="proof-sec">The lines</a> · <a href="#how" data-jump="bt-sec">The predictions</a> · <a href="#how" data-jump="pv-sec">Match previews</a> · <a href="#how" data-jump="data-sec">Data &amp; caveats</a></p>
     </section>
+    <section aria-labelledby="cmp-title" id="cmp-sec">
+      <div class="section-head"><h2 id="cmp-title">Same method, two leagues</h2><p id="cmp-sub"></p></div>
+      <div class="table-wrap"><table id="cmp-key"></table></div>
+      <h3 class="proof-h">Which lines decide matches, league by league</h3>
+      <p class="proof-note">Impact = how much reaching the elite line (or sinking to the worst line) moved results on later seasons. Each league measured on its own matches only.</p>
+      <div class="table-wrap"><table id="cmp-lines"></table></div>
+    </section>
+    <div class="comp-switch" id="how-switch" role="tablist" aria-label="League for the detail below"></div>
     <section aria-labelledby="proof-title" id="proof-sec">
     <div class="section-head">
       <h2 id="proof-title">The lines: do they decide matches?</h2>
@@ -546,7 +556,7 @@ th[aria-sort] button::after { content: " ▾"; }
   <section aria-labelledby="players-title">
     <div class="section-head">
       <h2 id="players-title">Who's doing the work</h2>
-      <p>Per 90 minutes, shaded by percentile against Premier League players in the same role (min. 90 minutes). Roles: CB centre-back, FB full/wing-back, CM central mid, AM attacking mid, W winger, ST striker. Click a column to sort.</p>
+      <p id="players-sub">Per 90 minutes, shaded by percentile against Premier League players in the same role (min. 90 minutes). Roles: CB centre-back, FB full/wing-back, CM central mid, AM attacking mid, W winger, ST striker. Click a column to sort.</p>
     </div>
     <ul class="player-notes" id="player-notes" hidden></ul>
     <div class="table-wrap"><table id="players"></table></div>
@@ -560,8 +570,12 @@ th[aria-sort] button::after { content: " ▾"; }
 <script type="application/json" id="analysis-data">/*__ANALYSIS__*/null</script>
 <script>
 (() => {
-  const L = JSON.parse(document.getElementById("profile-data").textContent.replace("/*__PROFILE__*/", ""));
-  if (!L) return;
+  const SITE = JSON.parse(document.getElementById("profile-data").textContent.replace("/*__PROFILE__*/", ""));
+  if (!SITE) return;
+  // Current league (D-029): every view reads L; useLeague() switches it.
+  let L = null, LK = null, LN = "", LS = "";
+  let bySlug = {}, PRD = null, PV = null, ME = null, T = [];
+  const FOCUS_LK = Object.keys(SITE.leagues).find((k) => SITE.leagues[k].focus_team) || "pl";
   const A = JSON.parse(document.getElementById("analysis-data").textContent.replace("/*__ANALYSIS__*/", ""));
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -587,9 +601,10 @@ th[aria-sort] button::after { content: " ▾"; }
   const tipOf = (m) => m.explain + (m.direction < 0 ? " Lower is better." : " Higher is better.");
   const STATUS = { best: "Elite level", between: "In between", worst: "Relegation level" };
   const slug = (t) => t.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  const bySlug = Object.fromEntries(Object.keys(L.teams).map((t) => [slug(t), t]));
-  const fresh = (Date.now() - new Date(L.generated_at)) / 864e5 < 8;
-  const updated = `<span><i class="dot${fresh ? "" : " old"}"></i>Updated <b>${esc(when(L.generated_at, true))}</b> (${ago(L.generated_at)})</span>`;
+  const fresh = (Date.now() - new Date(SITE.generated_at)) / 864e5 < 8;
+  const updated = `<span><i class="dot${fresh ? "" : " old"}"></i>Updated <b>${esc(when(SITE.generated_at, true))}</b> (${ago(SITE.generated_at)})</span>`;
+  const hTeam = (t, lk = LK) => `#${lk}/team/${slug(t)}`;
+  const hMatch = (id) => `#${LK}/match/${id}`;
 
   // ===== Team view (one team; the analyst only for the focus team) =====
   const renderTeam = (P) => {
@@ -599,15 +614,15 @@ th[aria-sort] button::after { content: " ▾"; }
   teamNext(P);
   const TN = nick(P.team);
   const metricBy = Object.fromEntries(P.metrics.map((m) => [m.key, m]));
-  $("season-label").textContent = `Premier League ${P.season} · after ${P.record.played} matches`;
+  $("season-label").textContent = `${LN} ${P.season} · after ${P.record.played} matches`;
   $("title").innerHTML = isFocus ? `Why are ${esc(TN)} <span>struggling?</span>` : `How good are <span>${esc(TN)}</span> really?`;
-  document.title = isFocus ? "United Explained" : `${short(P.team)} · Premier League Explained`;
+  document.title = isFocus ? "United Explained" : `${short(P.team)} · ${LN} Explained`;
   const lastOf = (C) => C && C.matches.length ? C.matches[C.matches.length - 1] : null;
   const matchTxt = (mt) => `${short(mt.opponent)} (${mt.is_home ? "H" : "A"}) ${mt.goals_for}–${mt.goals_against}, ${when(mt.kickoff_utc)}`;
   const lastPL = lastOf(P), lastUCL = lastOf(P.ucl);
   $("freshness").innerHTML = [
     updated,
-    lastPL && `<span>Latest PL match: <b>${esc(matchTxt(lastPL))}</b></span>`,
+    lastPL && `<span>Latest ${esc(LS)} match: <b>${esc(matchTxt(lastPL))}</b></span>`,
     lastUCL && `<span>Latest UCL match: <b>${esc(matchTxt(lastUCL))}</b></span>`,
   ].filter(Boolean).join("");
   const w = P.matches.filter((m) => m.result === "W").length, d = P.matches.filter((m) => m.result === "D").length;
@@ -751,7 +766,7 @@ th[aria-sort] button::after { content: " ▾"; }
       <header><h3>${esc(s.name)}</h3><span class="score num tier-${tier(s.score)}" title="Average percentile">${s.score ?? "—"}</span></header>
       ${ms.map((m) => `<details class="metric" id="m-${m.key}">
         <summary>
-          <span class="m-label">${esc(m.label)}${m.impact ? ` <span class="imp-tag ${m.impact.tier}" title="Measured on Premier League matches">${esc(TIER[m.impact.tier][0])}</span>` : ""}${m.skew?.flag ? ' <span class="skew-tag" title="One match skews the season average">skewed</span>' : ""}</span>
+          <span class="m-label">${esc(m.label)}${m.impact ? ` <span class="imp-tag ${m.impact.tier}" title="Measured on ${esc(LN)} matches">${esc(TIER[m.impact.tier][0])}</span>` : ""}${m.skew?.flag ? ' <span class="skew-tag" title="One match skews the season average">skewed</span>' : ""}</span>
           <span class="m-value"><span class="num">${esc(showVal(m, m.value))}</span><span class="rank">${ord(m.rank)}/${m.of}</span></span>
           <span class="bar" aria-hidden="true"><i class="tier-${tier(m.percentile)}" style="width:${Math.max(2, m.percentile ?? 0)}%"></i></span>
         </summary>
@@ -830,33 +845,41 @@ th[aria-sort] button::after { content: " ▾"; }
   const pCols = [["effort", "Effort pct"], ["distance_m", "Km"], ["sprints", "Sprints"], ["recoveries", "Recov."], ["duels_won", "Duels won"], ["line_breaking_passes", "Line-break"], ["box_touches", "Box touches"], ["xg_xa", "xG+xA"]];
   let sortKey = "minutes";
   const cellOf = (p, k) => (k === "effort" ? { value: p.effort_percentile, percentile: p.effort_percentile, decimals: 0 } : p.metrics[k]);
+  $("players-sub").textContent = `Per 90 minutes, shaded by percentile against ${LN} players in the same role (min. 90 minutes). Roles: CB centre-back, FB full/wing-back, CM central mid, AM attacking mid, W winger, ST striker. Click a column to sort.`;
+  // Columns with no data in this league (e.g. running data outside the Premier League) are hidden.
+  const pColsAll = pCols;
+  const hasSpeed = P.players.some((p) => p.top_speed_kmh);
+  const pColsHere = pColsAll.filter(([k]) => P.players.some((p) => cellOf(p, k)?.value != null));
   const renderPlayers = () => {
+    const pCols = pColsHere;
     const rows = [...P.players].sort((a, b) => sortKey === "minutes" ? b.minutes - a.minutes : (cellOf(b, sortKey).value ?? -1) - (cellOf(a, sortKey).value ?? -1));
     $("players").innerHTML = `<thead><tr><th class="l">Player</th><th${sortKey === "minutes" ? ' aria-sort="descending"' : ""}><button data-k="minutes">Mins</button></th>${pCols.map(([k, l]) =>
-      `<th${sortKey === k ? ' aria-sort="descending"' : ""}><button data-k="${k}">${l}</button></th>`).join("")}<th>Top speed</th></tr></thead><tbody>` +
+      `<th${sortKey === k ? ' aria-sort="descending"' : ""}><button data-k="${k}">${l}</button></th>`).join("")}${hasSpeed ? "<th>Top speed</th>" : ""}</tr></thead><tbody>` +
       rows.map((p) => `<tr><td class="l">${esc(p.name)} <span class="pos">${p.position}</span></td><td class="cell">${p.minutes}</td>
-        ${pCols.map(([k]) => { const c = cellOf(p, k); return `<td class="cell h-${tier(c.percentile)}" title="${c.percentile ?? "—"}th percentile vs ${p.peers} PL ${p.position}s">${fmt(c.value, c.decimals)}</td>`; }).join("")}
-        <td class="cell">${p.top_speed_kmh ? p.top_speed_kmh.toFixed(1) : "—"}</td></tr>`).join("") + "</tbody>";
+        ${pCols.map(([k]) => { const c = cellOf(p, k); return `<td class="cell h-${tier(c.percentile)}" title="${c.percentile ?? "—"}th percentile vs ${p.peers} ${esc(LS)} ${p.position}s">${fmt(c.value, c.decimals)}</td>`; }).join("")}
+        ${hasSpeed ? `<td class="cell">${p.top_speed_kmh ? p.top_speed_kmh.toFixed(1) : "—"}</td>` : ""}</tr>`).join("") + "</tbody>";
     $("players").querySelectorAll("th button").forEach((b) => b.addEventListener("click", () => { sortKey = b.dataset.k; renderPlayers(); }));
   };
   renderPlayers();
 
   // ---- Notes
   $("notes").innerHTML = [
-    `Data: match stats, running data and player stats from FotMob; PPDA and deep completions from Understat. Each metric uses one provider, so comparisons are like-for-like.`,
-    P.ucl && `Champions League: match stats from FotMob, running data from UEFA's tracking. UCL numbers are ranked only against the other ${P.ucl.metrics[0].of} UCL teams and never compared with Premier League numbers (different providers measure running differently).`,
+    LK === "pl"
+      ? `Data: match stats, running data and player stats from FotMob; PPDA and deep completions from Understat. Each metric uses one provider, so comparisons are like-for-like.`
+      : `Data: match stats and player stats from FotMob; PPDA and deep completions from Understat. FotMob has no running data for ${LN}, so distance and sprint metrics are left out rather than estimated.`,
+    P.ucl && `Champions League: match stats from FotMob, running data from UEFA's tracking. UCL numbers are ranked only against the other ${P.ucl.metrics[0].of} UCL teams and never compared with ${LN} numbers (different providers measure running differently).`,
     `Ranks compare each team's typical (median) match. A metric marked "skewed" has one match that moves the season average by several places; the detail names it.`,
-    `Small sample: ${P.record.played} Premier League${P.ucl ? ` and ${P.ucl.record.played} Champions League` : ""} matches. Expect these ranks to move.`,
+    `Small sample: ${P.record.played} ${LN}${P.ucl ? ` and ${P.ucl.record.played} Champions League` : ""} matches. Expect these ranks to move.`,
     `A player's role is the position they started in most often this season, taken from FotMob's line-ups.`,
     `Generated ${new Date(P.generated_at).toUTCString().slice(5, 22)} UTC.`,
   ].filter(Boolean).map((t) => `<p>${esc(t)}</p>`).join("");
   };
 
   // ===== Predictions (D-023): next round, season projection, track record =====
-  const PRD = L.predictions;
+
   const pc = (x, d = 0) => (x == null ? "—" : (100 * x).toFixed(d) + "%");
   const fxWhen = (iso) => new Date(iso.replace(" ", "T") + "Z").toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  const teamLink = (t) => (bySlug[slug(t)] ? `<a href="#team/${slug(t)}">${esc(short(t))}</a>` : esc(short(t)));
+  const teamLink = (t) => (bySlug[slug(t)] ? `<a href="${hTeam(t)}">${esc(short(t))}</a>` : esc(short(t)));
   const newsLine = (f) => {
     if (!f.absence || !f.p_base) return "";
     const [bh, , ba] = f.p_base, [h, , a] = f.p, moved = Math.abs(h - bh) >= 0.02;
@@ -875,7 +898,7 @@ th[aria-sort] button::after { content: " ▾"; }
       <p class="fx-why">${Math.max(h, a) < 0.45 ? "Close to a coin toss." : `Leans ${esc(short(fav[0]))}.`} ${f.absence ? "Before team news, the" : "The"} ratings expect chance quality <span class="num">${f.exp_home.toFixed(2)}–${f.exp_away.toFixed(2)}</span>${why ? `; biggest factors: ${why}` : ""}.</p>
       ${newsLine(f)}
       ${f.goals ? `<p class="fx-why">Most likely score ${f.goals.scores[0].home}–${f.goals.scores[0].away} (${pc(f.goals.scores[0].p)}) · over 2.5 goals ${pc(f.goals.over_2_5)} · both score ${pc(f.goals.btts)}</p>` : ""}
-      ${L.previews?.fixtures?.[f.id] ? `<a class="fx-link" href="#match/${esc(f.id)}">Match preview: team news, line-ups, shooters, corners →</a>` : ""}
+      ${L.previews?.fixtures?.[f.id] ? `<a class="fx-link" href="${hMatch(esc(f.id))}">Match preview: team news, line-ups, shooters, corners →</a>` : ""}
     </article>`;
   };
   const renderPredictions = () => {
@@ -905,17 +928,17 @@ th[aria-sort] button::after { content: " ▾"; }
   const teamNext = (P) => {
     const nx = (PRD?.next_round || []).find((f) => f.home === P.team || f.away === P.team);
     const pj = (PRD?.projection || []).find((r) => r.team === P.team);
-    $("team-next").innerHTML = nx || pj ? `${nx ? `<h3>Next match</h3>${fixtureCard(nx)}` : ""}${pj ? `<p class="fx-why" style="margin-top:8px">Season projection: <b class="num">${pj.points.toFixed(0)}</b> points (80% range ${pj.points_p10.toFixed(0)}–${pj.points_p90.toFixed(0)}) · top 4 ${pc(pj.top4)} · relegation ${pc(pj.relegation, pj.relegation > 0 && pj.relegation < 0.01 ? 1 : 0)} · <a href="#" class="back">see all predictions</a></p>` : ""}` : "";
+    $("team-next").innerHTML = nx || pj ? `${nx ? `<h3>Next match</h3>${fixtureCard(nx)}` : ""}${pj ? `<p class="fx-why" style="margin-top:8px">Season projection: <b class="num">${pj.points.toFixed(0)}</b> points (80% range ${pj.points_p10.toFixed(0)}–${pj.points_p90.toFixed(0)}) · top 4 ${pc(pj.top4)} · relegation ${pc(pj.relegation, pj.relegation > 0 && pj.relegation < 0.01 ? 1 : 0)} · <a href="#${LK}" class="back">see all predictions</a></p>` : ""}` : "";
   };
 
   // ===== Match preview (D-024): prediction, team news, line-ups, shooters, corners =====
-  const PV = L.previews;
+
   const renderMatch = (id) => {
     const f = (PRD?.next_round || []).find((x) => x.id === id), V = PV?.fixtures?.[id];
     if (!f) { location.hash = ""; return; }
     const H = short(f.home), A = short(f.away);
     document.title = `${H} v ${A} · Preview`;
-    $("mv-when").textContent = `Premier League · ${fxWhen(f.kickoff)}`;
+    $("mv-when").textContent = `${LN} · ${fxWhen(f.kickoff)}`;
     $("mv-title").innerHTML = `${teamLink(f.home)} <span>v</span> ${teamLink(f.away)}`;
     const [ph, pd, pa] = f.p, lab = (x) => (x >= 0.1 ? Math.round(100 * x) + "%" : "");
     $("mv-pred").innerHTML = `<div class="pred-big"><div class="pbar3" role="img" aria-label="Home win ${pc(ph)}, draw ${pc(pd)}, away win ${pc(pa)}"><span class="h" style="width:${100 * ph}%">${lab(ph)}</span><span class="d" style="width:${100 * pd}%">${lab(pd)}</span><span class="a" style="width:${100 * pa}%">${lab(pa)}</span></div>
@@ -976,8 +999,7 @@ th[aria-sort] button::after { content: " ▾"; }
   };
 
   // ===== Overview: every Premier League team on what decides matches =====
-  const ME = L.focus_team;
-  const T = L.table;
+
   const pct100 = (x) => (x == null ? "—" : Math.round(100 * x));
   const seg7 = (d) => `<span class="seg7" aria-label="${d.best} elite, ${d.between} between, ${d.worst} relegation level">${
     [...Array(d.best).fill("e"), ...Array(d.between).fill("b"), ...Array(d.worst).fill("w")].map((c) => `<i class="${c}"></i>`).join("")}</span><small>${d.best}·${d.worst}</small>`;
@@ -1010,7 +1032,7 @@ th[aria-sort] button::after { content: " ▾"; }
     attack: "Average percentile of the attack metrics.", defence: "Average percentile of the defence metrics.",
   };
   let ovSort = ["position", 1];
-  const teamHref = (t) => `#team/${slug(t)}`;
+  const teamHref = (t) => hTeam(t);
   const renderOvTable = () => {
     const [key, dir] = ovSort;
     const col = OV_COLS.find((c) => c[0] === key);
@@ -1098,11 +1120,12 @@ th[aria-sort] button::after { content: " ▾"; }
 
   let ovDone = false;
   const renderOverview = () => {
-    document.title = "Premier League Explained";
+    document.title = `${LN} Explained`;
+    $("ov-title").innerHTML = `${LK === "pl" ? "The " : ""}${esc(LN)}, <span>by what decides matches</span>`;
     if (ovDone) return;
     ovDone = true;
     const played = Math.max(...T.map((r) => r.played));
-    $("ov-season").textContent = `Premier League ${L.season} · after ${played} rounds`;
+    $("ov-season").textContent = `${LN} ${L.season} · after ${played} rounds`;
     $("ov-fresh").innerHTML = updated;
     const byGap = [...T].sort((a, b) => (b.elite_score - b.danger_score) - (a.elite_score - a.danger_score));
     const best = byGap[0], worst = byGap[byGap.length - 1];
@@ -1114,8 +1137,8 @@ th[aria-sort] button::after { content: " ▾"; }
       `<b>${esc(short(lucky.team))}</b> have ${lucky.points} points from performances worth ${lucky.deserved_points.toFixed(1)} — the most ahead of their football. <b>${esc(short(unlucky.team))}</b> have ${unlucky.points} from ${unlucky.deserved_points.toFixed(1)} — the unluckiest.`,
       me && `<b>${esc(short(me.team))}</b>: ${ord(me.position)}, ${me.points} points from performances worth ${me.deserved_points.toFixed(1)}; elite on ${me.decisive.best} and relegation level on ${me.decisive.worst} of the ${n}.`,
     ].filter(Boolean).map((t) => `<p>${t}</p>`).join("");
-    $("ov-cta").textContent = `${short(ME)}: the full breakdown →`;
-    $("ov-cta").href = teamHref(ME);
+    $("ov-cta").parentElement.hidden = !ME;
+    if (ME) { $("ov-cta").textContent = `${short(ME)}: the full breakdown →`; $("ov-cta").href = teamHref(ME); }
     $("ov-table-sub").textContent = `Every team, on the ${n} metrics that decide matches (tested on later seasons), next to the points they have. Click a column to sort, a team for its full breakdown. Hover a heading for what it means.`;
     renderOvTable();
     renderScatter();
@@ -1123,24 +1146,51 @@ th[aria-sort] button::after { content: " ▾"; }
     renderLuck();
     $("ov-notes").innerHTML = [
       `Elite line: last season's top four in their league wins; worst line: the bottom four in their defeats. Scores weight each line by how much it decided matches on later seasons — see "How we know" in the menu.`,
-      `Deserved points use the historical record of past Premier League team-matches with the same scores. It is a description of the performances, not a prediction, and partly shaped by game state (a team 2–0 up may sit back).`,
+      `Deserved points use the historical record of past ${LN} team-matches with the same scores. It is a description of the performances, not a prediction, and partly shaped by game state (a team 2–0 up may sit back).`,
       `Small sample: ${played} rounds. Data: FotMob (match, running and player stats) and Understat (PPDA, deep completions).`,
     ].map((t) => `<p>${esc(t)}</p>`).join("");
   };
 
   // ===== How we know (D-028): method and tests, shared by every view =====
-  let howDone = false;
+  let howDone = null;
+  const renderCompare = () => {
+    const lgs = Object.entries(SITE.leagues);
+    $("cmp-sub").textContent = `The method is the same everywhere; the numbers are measured separately on each league's own matches. Prediction settings were chosen on Premier League seasons and applied to ${lgs.filter(([k]) => k !== "pl").map(([, l]) => l.competition).join(", ")} unchanged — a clean test of whether the method travels.`;
+    const v = (f) => lgs.map(([, lg]) => { try { const x = f(lg); return x == null ? "—" : x; } catch { return "—"; } });
+    const last = (b) => b[b.length - 1];
+    const rows = [
+      ["Team-matches in the long record", (lg) => lg.proof.understat.team_matches.toLocaleString()],
+      ["All 5 core elite lines reached → won", (lg) => pc(last(lg.proof.understat.best.bins).W)],
+      ["All 5 core worst lines hit → lost", (lg) => pc(last(lg.proof.understat.worst.bins).L)],
+      ["Prediction RPS (lower is better)", (lg) => lg.predictions.backtest.pooled.model.rps.toFixed(3)],
+      ["Bookmakers' RPS (pre-match)", (lg) => lg.predictions.backtest.pooled.avg.rps.toFixed(3)],
+      ["Base-rate RPS", (lg) => lg.predictions.backtest.pooled.base.rps.toFixed(3)],
+      ["Favourite won", (lg) => pc(lg.predictions.backtest.pooled.model.hit_rate)],
+      ["Over 2.5 goals Brier: model · bookmakers", (lg) => `${lg.predictions.backtest_goals.over.toFixed(3)} · ${lg.predictions.backtest_goals.over_book.toFixed(3)}`],
+      ["Shooters Brier (≥1 shot) vs position average", (lg) => { const b = lg.previews.backtest.shooters, x = b[Object.keys(b).sort()[0]]; return `${x.brier_shot.toFixed(3)} vs ${x.brier_shot_naive.toFixed(3)}`; }],
+      ["Expected 'more corners' side got more", (lg) => pc(lg.previews.backtest.corners.favourite_more_corners)],
+    ];
+    $("cmp-key").innerHTML = `<thead><tr><th class="l">Test</th>${lgs.map(([, lg]) => `<th>${esc(lg.competition)}</th>`).join("")}</tr></thead><tbody>` +
+      rows.map(([label, f]) => `<tr><td class="l">${label}</td>${v(f).map((x) => `<td class="cell">${x}</td>`).join("")}</tr>`).join("") + "</tbody>";
+    const imp = lgs.map(([, lg]) => Object.fromEntries(Object.values(lg.teams)[0].metrics.filter((m) => m.impact).map((m) => [m.key, m])));
+    const keys = [...new Set(imp.flatMap((x) => Object.keys(x)))].sort((a, b) => Math.max(...imp.map((x) => x[b]?.impact.impact ?? -1)) - Math.max(...imp.map((x) => x[a]?.impact.impact ?? -1)));
+    $("cmp-lines").innerHTML = `<thead><tr><th class="l">Line</th>${lgs.map(([, lg]) => `<th class="l">${esc(lg.competition)}</th>`).join("")}</tr></thead><tbody>` +
+      keys.map((k) => { const m = imp.find((x) => x[k])[k];
+        return `<tr><td class="l"><span class="tip below" tabindex="0" data-tip="${esc(tipOf(m))}">${esc(m.label)}</span></td>${imp.map((x) => { const im = x[k]?.impact; return `<td class="l">${im ? `<span class="lift-bar" style="width:${Math.round(Math.max(0, im.impact) * 60)}px"></span><span class="imp-tag ${im.tier}">${TIER[im.tier][0]}</span> <small class="num">${im.impact >= 0 ? "+" : ""}${(100 * im.impact).toFixed(0)}</small>${im.provisional ? " <small>(this season only)</small>" : ""}` : "<small>no data</small>"}</td>`; }).join("")}</tr>`; }).join("") + "</tbody>";
+  };
   const renderHow = () => {
-    document.title = "How we know · Premier League Explained";
-    if (howDone) return;
-    howDone = true;
+    document.title = `How we know · ${LN}`;
+    if (howDone === LK) return;
+    if (howDone === null) renderCompare();
+    howDone = LK;
+    $("how-switch").innerHTML = `<span class="eyebrow" style="align-self:center">Detail for</span>` + Object.entries(SITE.leagues).map(([k, lg]) => `<a role="tab" class="${k === LK ? "on" : ""}" aria-selected="${k === LK}" href="#how/${k}">${esc(lg.competition)}</a>`).join("");
     $("how-lede").innerHTML = `<p>Everything on this site is measured the same way: build it from the past, then test it on matches it has never seen. Where something didn't work — corner totals, the line features in the prediction, a bigger team-news model — we say so and leave it out.</p>`;
     // The lines
     const PR = L.proof, FT = L.teams[L.focus_team];
     if (PR) {
       const US = PR.understat, FM = PR.fotmob;
       const seasons = `${US.pairs[0].tested_on}–${US.pairs[US.pairs.length - 1].tested_on}`;
-      $("proof-sub").textContent = `Each season's lines are built from the season before and tested on every Premier League team-match of the next, never on the games they came from. Long record: ${US.team_matches.toLocaleString()} team-matches, ${seasons}, on the 5 core metrics Understat has for every season. Detailed record: ${FM.team_matches} team-matches since 2025-26 on all FotMob metrics.`;
+      $("proof-sub").textContent = `Each season's lines are built from the season before and tested on every ${LN} team-match of the next, never on the games they came from. Long record: ${US.team_matches.toLocaleString()} team-matches, ${seasons}, on the 5 core metrics Understat has for every season. Detailed record: ${FM.team_matches} team-matches since 2025-26 on all FotMob metrics.`;
       const chart = (el, S, word, colour, title) => {
         const rows = S.bins.map((b, i) => ({ k: Math.round(b.from * 5 + (i ? 0.5 : 0)), ...b }));
         $(el).innerHTML = `<figcaption>${title}<small>${word === "won" ? `Baseline: ${pctTxt(US.baseline.W)} of all team-matches are wins.` : `Baseline: ${pctTxt(US.baseline.L)} are defeats.`}</small></figcaption>` +
@@ -1209,24 +1259,43 @@ th[aria-sort] button::after { content: " ▾"; }
     ].map((t) => `<p>${esc(t)}</p>`).join("");
   };
 
-  // ===== Router: #team/<slug> → team view; anything else → overview =====
+  // ===== Router (D-029): #<league>, #<league>/team/<slug>, #<league>/match/<id>, #how[/<league>]
+  // (old links #team/<slug> and #match/<id> mean the Premier League) =====
   let current = null;
-  $("nav-focus").href = `#team/${slug(L.focus_team)}`;
-  $("nav-focus").textContent = L.focus_team;
+  const useLeague = (k) => {
+    L = SITE.leagues[k];
+    L.generated_at = SITE.generated_at;
+    LK = k;
+    LN = L.competition;
+    LS = k === "pl" ? "PL" : L.competition;
+    bySlug = Object.fromEntries(Object.keys(L.teams).map((t) => [slug(t), t]));
+    PRD = L.predictions || null;
+    PV = L.previews || null;
+    ME = L.focus_team || null;
+    T = L.table;
+    ovDone = false;
+    current = null;
+  };
+  const FT_NAME = SITE.leagues[FOCUS_LK].focus_team;
+  $("topnav").innerHTML = Object.entries(SITE.leagues).map(([k, lg]) => `<a href="#${k}" data-nav="${k}">${esc(lg.competition)}</a>`).join("") +
+    (FT_NAME ? `<a href="${hTeam(FT_NAME, FOCUS_LK)}" data-nav="focus">${esc(FT_NAME)}</a>` : "") + `<a href="#how" data-nav="how">How we know</a>`;
   let jumpTo = null;
   const route = () => {
-    const m = location.hash.match(/^#\/?team\/([a-z0-9-]+)/);
-    const mm = location.hash.match(/^#\/?match\/([0-9]+)/);
-    const how = /^#\/?how/.test(location.hash);
-    const t = m && bySlug[m[1]];
+    let parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+    if (parts[0] === "team" || parts[0] === "match") parts = ["pl", ...parts];
+    const how = parts[0] === "how";
+    const want = how ? (SITE.leagues[parts[1]] ? parts[1] : LK || "pl") : SITE.leagues[parts[0]] ? parts[0] : "pl";
+    if (want !== LK) useLeague(want);
+    const t = !how && parts[1] === "team" && bySlug[parts[2]];
+    const mm = !how && parts[1] === "match" ? parts[2] : null;
     $("overview").hidden = !!(t || mm || how);
     $("team-view").hidden = !t;
     $("match-view").hidden = !mm;
     $("how-view").hidden = !how;
     if (how) renderHow();
-    else if (mm) renderMatch(mm[1]);
+    else if (mm) renderMatch(mm);
     else if (t) { if (t !== current) renderTeam(L.teams[t]); current = t; } else renderOverview();
-    const page = how ? "how" : t === L.focus_team ? "focus" : !t && !mm ? "overview" : "";
+    const page = how ? "how" : t && t === ME ? "focus" : !t && !mm ? LK : "";
     document.querySelectorAll(".topnav a").forEach((a) => (a.dataset.nav === page ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
     const target = jumpTo && document.getElementById(jumpTo);
     jumpTo = null;
@@ -1237,7 +1306,7 @@ th[aria-sort] button::after { content: " ▾"; }
     const a = e.target.closest("a[data-jump]");
     if (!a) return;
     jumpTo = a.dataset.jump;
-    if (location.hash === "#how") { e.preventDefault(); route(); }
+    if (location.hash.startsWith("#how")) { e.preventDefault(); route(); }
   });
   addEventListener("hashchange", route);
   route();

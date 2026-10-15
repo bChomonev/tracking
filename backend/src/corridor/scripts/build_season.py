@@ -1,11 +1,11 @@
 """Fetch a season and write clean per-match files.
 
-    uv run python -m corridor.scripts.build_season [--season 2026] [--competition pl|ucl]
+    uv run python -m corridor.scripts.build_season [--season 2026] [--competition pl|laliga|ucl]
 
-pl:  FotMob + Understat (PPDA, deep completions)
+pl, laliga: FotMob + Understat (PPDA, deep completions) — see corridor.leagues
 ucl: FotMob events + UEFA physical data (distance, sprints, running without the ball)
 
-Outputs (gitignored): data/processed/{season}/[ucl/]team_matches.json, player_matches.json
+Outputs (gitignored): data/processed/{season}/[ucl/|laliga/]team_matches.json, player_matches.json
 """
 
 import argparse
@@ -15,6 +15,7 @@ from collections import defaultdict
 
 from corridor.ingest import fotmob, uefa, understat
 from corridor.ingest.http import DATA_DIR
+from corridor.leagues import LEAGUES, processed_dir
 
 
 def _name_map(fm_fixtures: list[dict], us_dates: list[dict]) -> dict[str, str]:
@@ -95,7 +96,7 @@ def _write(out, team_rows: list[dict], player_rows: list[dict]) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2026, help="season start year")
-    ap.add_argument("--competition", choices=("pl", "ucl"), default="pl")
+    ap.add_argument("--competition", choices=("pl", "laliga", "ucl"), default="pl")
     args = ap.parse_args()
     season = args.season
 
@@ -107,9 +108,10 @@ def main() -> None:
         _write(DATA_DIR / "processed" / str(season) / "ucl", team_rows, player_rows)
         return
 
-    fixtures, team_rows, player_rows = _fotmob_season(season, fotmob.PREMIER_LEAGUE)
+    league = LEAGUES[args.competition]
+    fixtures, team_rows, player_rows = _fotmob_season(season, league.fotmob_id)
 
-    us_data = understat.league_data("EPL", season, refresh=True)
+    us_data = understat.league_data(league.understat, season, refresh=True)
     names = _name_map(fixtures, us_data["dates"])
     us_rows = {(names[r["team"]], r["kickoff"][:10]): r for r in understat.team_matches(us_data)}
     joined = 0
@@ -133,7 +135,7 @@ def main() -> None:
             joined += 1
     print(f"Understat: joined {joined}/{len(team_rows)} team-matches")
 
-    _write(DATA_DIR / "processed" / str(season), team_rows, player_rows)
+    _write(processed_dir(season, league), team_rows, player_rows)
 
 
 if __name__ == "__main__":

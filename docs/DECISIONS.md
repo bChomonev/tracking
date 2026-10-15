@@ -8,6 +8,25 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-029 — La Liga: same method, measured on its own matches · 2026-10-15 · accepted
+`corridor.leagues` defines each league (FotMob id, Understat slug, football-data code,
+data sub-folder, focus team). La Liga: FotMob 87, Understat `La_liga`, odds `SP1`, data
+under `processed/{season}/laliga` and `site/{season}/laliga`, **no focus team → no
+analyst**. Every script takes `--league`; `update` also watches La Liga (and UCL matches
+of Spanish sides) and skips the United analyst when only La Liga changed.
+**Same method, separate numbers:** La Liga's lines come from last season's La Liga top /
+bottom four, its proof and tiers from La Liga matches only, nothing borrowed from England.
+**Prediction settings are not re-tuned:** the PL-frozen settings (D-023, D-026, D-027) are
+applied unchanged — a clean out-of-sample test of the method. Result, 2020-21…now (2,358
+matches): RPS 0.1940 vs bookmakers 0.1922 and base rates 0.2255 (closer to the market than
+in England), well calibrated; over 2.5 Brier 0.2414 vs 0.2498 base / 0.2382 bookmakers. The
+PL team-news weight is tested on La Liga's own matches (`team_news_test`).
+**Missing data:** FotMob has no running data or line-breaking passes for La Liga; those
+metrics and player columns are left out, not estimated. **Page:** one site, both leagues;
+routes `#<league>[/team/<slug>|/match/<id>]`, old `#team/…` links mean the PL; menu per
+league; "How we know" opens with a side-by-side comparison of both leagues and a switch for
+the detail sections. First download: ~840 FotMob pages, ~2 h at FotMob's response times.
+
 ## D-028 — "How we know" is its own page · 2026-10-15 · accepted
 The proof section sat on every team page although it is league-wide (lines from last
 season's top/bottom four, tested on every PL team-match); only its "United typical" column

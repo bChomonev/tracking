@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from corridor.ingest.http import DATA_DIR
+from corridor.leagues import LEAGUES, site_dir
 
 TEMPLATE = Path(__file__).resolve().parents[4] / "web" / "united.html"
 
@@ -22,14 +23,17 @@ def main() -> None:
     ap.add_argument("--season", type=int, default=2026)
     args = ap.parse_args()
     out = DATA_DIR / "site" / str(args.season)
-    league = json.loads((out / "league.json").read_text())
-    league["generated_at"] = datetime.now(UTC).isoformat()
-    pred_path = out / "predictions.json"
-    if pred_path.exists():
-        league["predictions"] = json.loads(pred_path.read_text())
-    prev_path = out / "previews.json"
-    if prev_path.exists():
-        league["previews"] = json.loads(prev_path.read_text())
+    leagues = {}
+    for key, lg in LEAGUES.items():
+        d = site_dir(args.season, lg)
+        if not (d / "league.json").exists():
+            continue  # league not built yet
+        league = json.loads((d / "league.json").read_text())
+        for name in ("predictions", "previews"):
+            if (d / f"{name}.json").exists():
+                league[name] = json.loads((d / f"{name}.json").read_text())
+        leagues[key] = league
+    site = {"generated_at": datetime.now(UTC).isoformat(), "leagues": leagues}
     analysis_path = out / "analysis.json"
     analysis = json.loads(analysis_path.read_text()) if analysis_path.exists() else None
 
@@ -38,11 +42,11 @@ def main() -> None:
 
     html = (
         TEMPLATE.read_text()
-        .replace("/*__PROFILE__*/null", embed(league))
+        .replace("/*__PROFILE__*/null", embed(site))
         .replace("/*__ANALYSIS__*/null", embed(analysis))
     )
     (out / "index.html").write_text(html)
-    print(f"wrote {out / 'index.html'} ({len(html) // 1024} KB)")
+    print(f"wrote {out / 'index.html'} ({len(html) // 1024} KB; leagues: {', '.join(leagues)})")
 
 
 if __name__ == "__main__":

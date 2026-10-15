@@ -34,19 +34,20 @@ from corridor.ingest.http import DATA_DIR
 TEAM = "Manchester United"
 ARTIFACT_URL = "https://claude.ai/artifact/U17iYtvFhdCsqucR2iY4fT"
 REPO = Path(__file__).resolve().parents[4]
-READY_AFTER = {"pl": timedelta(hours=3), "ucl": timedelta(hours=12)}
+READY_AFTER = {"pl": timedelta(hours=3), "laliga": timedelta(hours=3), "ucl": timedelta(hours=12)}
 MAX_WAIT = timedelta(hours=72)  # for Understat (PL PPDA) and UEFA tracking (UCL)
-LEAGUES = {"pl": fotmob.PREMIER_LEAGUE, "ucl": fotmob.CHAMPIONS_LEAGUE}
+LEAGUES = {"pl": fotmob.PREMIER_LEAGUE, "laliga": 87, "ucl": fotmob.CHAMPIONS_LEAGUE}
+DOMESTIC = ("pl", "laliga")
 
 log = logging.getLogger("update")
 
 
 def finished_matches(season: int) -> dict[str, list[dict]]:
-    """{'pl': [{id, kickoff, label}], 'ucl': [...]}: every finished PL match, and the
-    finished UCL matches of Premier League teams."""
+    """{'pl' | 'laliga' | 'ucl': [{id, kickoff, label}]}: every finished league match, and
+    the finished UCL matches of teams from the leagues we cover."""
     out: dict[str, list[dict]] = {}
     fixtures = {c: fotmob.league_matches(f"{season}/{season + 1}", lg) for c, lg in LEAGUES.items()}
-    pl_teams = {m[side]["name"] for m in fixtures["pl"] for side in ("home", "away")}
+    pl_teams = {m[side]["name"] for c in DOMESTIC for m in fixtures[c] for side in ("home", "away")}
     for comp, ms in fixtures.items():
         out[comp] = [
             {
@@ -56,7 +57,7 @@ def finished_matches(season: int) -> dict[str, list[dict]]:
                 f"{m['away']['name']}",
             }
             for m in ms
-            if (comp == "pl" or pl_teams & {m["home"]["name"], m["away"]["name"]})
+            if (comp in DOMESTIC or pl_teams & {m["home"]["name"], m["away"]["name"]})
             and m["status"].get("finished")
             and not m["status"].get("cancelled")
         ]
@@ -81,7 +82,11 @@ def missing_slow_data(season: int, new: list[tuple]) -> list[dict]:
     """New matches whose slow source hasn't published yet: Understat PPDA for the PL,
     UEFA tracking (distance) for the UCL."""
     out = []
-    for comp, field, sub in (("pl", "ppda", ""), ("ucl", "distance_m", "ucl")):
+    for comp, field, sub in (
+        ("pl", "ppda", ""),
+        ("laliga", "ppda", "laliga"),
+        ("ucl", "distance_m", "ucl"),
+    ):
         ids = {m["id"] for c, m in new if c == comp}
         if not ids:
             continue
@@ -182,40 +187,54 @@ def main() -> None:
         return
 
     try:
-        run_step("build_season", "--season", str(args.season))
-        run_step("build_season", "--season", str(args.season), "--competition", "ucl")
+        comps = {c for c, _ in new} or {"pl", "laliga", "ucl"}
+        for comp in ("pl", "laliga", "ucl"):
+            if comp in comps:
+                run_step("build_season", "--season", str(args.season), "--competition", comp)
         late = [m for m in missing_slow_data(args.season, new) if now - _kickoff(m) < MAX_WAIT]
         if late and not args.force:
             log.info("source data not published yet for %s; trying next run", late[0]["label"])
             return
-        run_step("united_profile", "--season", str(args.season))
-        try:
-            run_step("predictions", "--season", str(args.season))
-        except RuntimeError:
-            log.info("predictions failed; publishing without a fresh forecast")
-        try:
-            run_step("previews", "--season", str(args.season))
-        except RuntimeError:
-            log.info("previews failed; publishing the previous match previews")
-        try:
-            run_step("analyse", "--season", str(args.season))
-        except RuntimeError:
-            log.info("analyst failed once; retrying")
-            try:
-                run_step("analyse", "--season", str(args.season))
-            except RuntimeError:
-                # Never ship a read written about older numbers: fall back to the rule-based
-                # verdict on the page until the next successful run.
-                stale = site / "analysis.json"
-                if stale.exists():
-                    stale.rename(site / "analysis.stale.json")
-                log.info("analyst failed twice; publishing without the written read")
+        # Both leagues are re-profiled (UCL results feed both); predictions and previews
+        # refresh for each league so the next round's team news is current.
+        for lg in DOMESTIC:
+            run_step("united_profile", "--season", str(args.season), "--league", lg)
+            for step in ("predictions", "previews"):
+                try:
+                    run_step(step, "--season", str(args.season), "--league", lg)
+                except RuntimeError:
+                    log.info("%s failed for %s; publishing the previous version", step, lg)
+        if not comps & {"pl", "ucl"} and not args.force:
+            log.info("only La Liga changed; keeping the analyst's read")
+        else:
+            run_analyst(site)
         run_step("build_site", "--season", str(args.season))
     except Exception as e:
         log.exception("update failed")
-        notify("United page update failed", str(e)[:120])
+        notify("Site update failed", str(e)[:120])
         raise SystemExit(1) from e
+    _finish(args, site, state, state_path, new, labels, now)
 
+
+def run_analyst(site: Path) -> None:
+    """United's written read (Premier League focus team only)."""
+    season = site.name
+    try:
+        run_step("analyse", "--season", season)
+    except RuntimeError:
+        log.info("analyst failed once; retrying")
+        try:
+            run_step("analyse", "--season", season)
+        except RuntimeError:
+            # Never ship a read written about older numbers: the page shows none until
+            # the next successful run.
+            stale = site / "analysis.json"
+            if stale.exists():
+                stale.rename(site / "analysis.stale.json")
+            log.info("analyst failed twice; publishing without the written read")
+
+
+def _finish(args, site: Path, state: dict, state_path: Path, new, labels, now) -> None:
     page = site / "index.html"
     digest = hashlib.sha256(page.read_bytes()).hexdigest()
     for comp, m in new:
@@ -228,9 +247,9 @@ def main() -> None:
             page, f"After {labels[-1]}", state.get("publish_session")
         )
         state_path.write_text(json.dumps(state, indent=1))
-        notify("United page updated", f"After {labels[-1]} — publishing to claude.ai")
+        notify("Site updated", f"After {labels[-1]} — publishing to claude.ai")
     else:
-        notify("United page rebuilt", f"After {labels[-1]} (not published)")
+        notify("Site rebuilt", f"After {labels[-1]} (not published)")
     log.info("done")
 
 

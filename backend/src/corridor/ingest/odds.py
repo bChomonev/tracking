@@ -11,7 +11,7 @@ from datetime import datetime
 
 from corridor.ingest.http import fetch_text
 
-URL = "https://football-data.co.uk/mmz4281/{code}/E0.csv"
+URL = "https://football-data.co.uk/mmz4281/{season}/{code}.csv"
 # Pre-match average odds (collected before the weekend) and closing odds: Pinnacle's where
 # available, else the market average at close. Older files name the average "BbAv".
 BOOKS = {
@@ -26,10 +26,12 @@ def _code(season_start: int) -> str:
     return f"{season_start % 100:02d}{(season_start + 1) % 100:02d}"
 
 
-def season_odds(season_start: int, *, current: bool = False) -> list[dict]:
+def season_odds(season_start: int, *, current: bool = False, code: str = "E0") -> list[dict]:
     """[{date, home, away, odds: {book: (pH, pD, pA)}}] with the bookmaker margin removed."""
     text = fetch_text(
-        "football_data", URL.format(code=_code(season_start)), max_age_h=24 if current else None
+        "football_data",
+        URL.format(season=_code(season_start), code=code),
+        max_age_h=24 if current else None,
     )
     out = []
     for r in csv.DictReader(io.StringIO(text)):
@@ -67,6 +69,29 @@ ALIAS = {
     "Sheffield United": "Sheffield United",
     "QPR": "Queens Park Rangers",
     "Newcastle": "Newcastle United",
+    # La Liga
+    "Ath Madrid": "Atletico Madrid",
+    "Ath Bilbao": "Athletic Club",
+    "Betis": "Real Betis",
+    "Sociedad": "Real Sociedad",
+    "Celta": "Celta Vigo",
+    "Espanol": "Espanyol",
+    "Vallecano": "Rayo Vallecano",
+    "La Coruna": "Deportivo La Coruna",
+    "Sp Gijon": "Sporting Gijon",
+    "Las Palmas": "Las Palmas",
+    "Leganes": "Leganes",
+    "Alaves": "Alaves",
+    "Cadiz": "Cadiz",
+    "Almeria": "Almeria",
+    "Malaga": "Malaga",
+    "Huesca": "SD Huesca",
+    "Eibar": "Eibar",
+    "Granada": "Granada",
+    "Mallorca": "Mallorca",
+    "Valladolid": "Real Valladolid",
+    "Oviedo": "Real Oviedo",
+    "Santander": "Racing Santander",
 }
 
 

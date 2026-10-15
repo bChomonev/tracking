@@ -21,7 +21,13 @@ uv run python -m corridor.scripts.united_profile  # profile all 20 teams + overv
 uv run python -m corridor.scripts.analyse         # LLM analyst writes + a critic checks the season read (needs backend/.env, ~4 min)
 uv run python -m corridor.scripts.predictions     # next round + season simulation + running record (D-023)
 uv run python -m corridor.scripts.previews        # team news, line-ups, shooters, corners per fixture (D-024)
-uv run python -m corridor.scripts.build_site      # render data/site/2026/index.html (overview + team pages) from web/united.html
+uv run python -m corridor.scripts.build_site      # render data/site/2026/index.html (both leagues) from web/united.html
+
+# La Liga (D-029): the same steps with --league / --competition laliga (no analyst)
+uv run python -m corridor.scripts.build_season --competition laliga [--season 2025|2024]
+uv run python -m corridor.scripts.united_profile --league laliga
+uv run python -m corridor.scripts.predictions --league laliga
+uv run python -m corridor.scripts.previews --league laliga
 ```
 
 **Automatic updates after each match:** `./ops/launchd/install.sh` installs a launchd job

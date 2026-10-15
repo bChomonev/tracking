@@ -54,9 +54,10 @@ class Params:
 # ---------------------------------------------------------------------------- data
 
 
-def season_matches(season: int, *, refresh: bool = False) -> list[dict]:
-    """All fixtures of one Understat EPL season; played ones carry both teams' stats."""
-    data = understat.league_data("EPL", season, refresh=refresh)
+def season_matches(season: int, *, refresh: bool = False, league: str = "EPL") -> list[dict]:
+    """All fixtures of one Understat season (``league`` = Understat slug); played ones carry
+    both teams' stats."""
+    data = understat.league_data(league, season, refresh=refresh)
     rows = {(r["team"], r["kickoff"]): r for r in understat.team_matches(data)}
     out = []
     for d in data["dates"]:
@@ -78,10 +79,12 @@ def season_matches(season: int, *, refresh: bool = False) -> list[dict]:
     return sorted(out, key=lambda m: m["kickoff"])
 
 
-def load_history(first: int, last: int, *, refresh_last: bool = False) -> list[dict]:
+def load_history(
+    first: int, last: int, *, refresh_last: bool = False, league: str = "EPL"
+) -> list[dict]:
     out: list[dict] = []
     for s in range(first, last + 1):
-        out += season_matches(s, refresh=refresh_last and s == last)
+        out += season_matches(s, refresh=refresh_last and s == last, league=league)
     return out
 
 
@@ -457,11 +460,13 @@ def base_rates(ms: Iterable[dict]) -> np.ndarray:
     return np.array([rs.count(o) / len(rs) for o in OUTCOMES])
 
 
-def attach_odds(ms: list[dict], seasons: Iterable[int], current: int | None = None) -> None:
+def attach_odds(
+    ms: list[dict], seasons: Iterable[int], current: int | None = None, code: str = "E0"
+) -> None:
     """Add bookmaker probabilities (margin removed) to played matches, where available."""
     for s in seasons:
         try:
-            rows = odds_src.season_odds(s, current=s == current)
+            rows = odds_src.season_odds(s, current=s == current, code=code)
         except Exception:  # noqa: BLE001 — the benchmark is optional
             continue
         ours = {t for m in ms if m["season"] == s for t in (m["home"], m["away"])}

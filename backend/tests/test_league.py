@@ -55,3 +55,36 @@ def test_odds_name_map_never_guesses_a_wrong_team():
     got = name_map({"Wolves", "West Ham", "Leeds", "West Brom", "Man United"}, ours)
     assert got["Wolves"] == "Wolverhampton Wanderers" and got["West Brom"] == "West Bromwich Albion"
     assert len(set(got.values())) == len(got)
+
+
+def test_leagues_keep_their_data_apart():
+    from corridor.leagues import LEAGUES, processed_dir, site_dir
+
+    pl, es = LEAGUES["pl"], LEAGUES["laliga"]
+    assert processed_dir(2026, pl) != processed_dir(2026, es)
+    assert site_dir(2026, es).name == "laliga" and es.focus_team is None
+    assert pl.focus_team == "Manchester United"
+
+
+def test_spanish_odds_names_map_to_understat_names():
+    from corridor.ingest.odds import name_map
+
+    ours = {
+        "Atletico Madrid",
+        "Athletic Club",
+        "Real Madrid",
+        "Real Betis",
+        "Real Sociedad",
+        "Racing Santander",
+    }
+    got = name_map(
+        {"Ath Madrid", "Ath Bilbao", "Real Madrid", "Betis", "Sociedad", "Santander"}, ours
+    )
+    assert got == {
+        "Ath Madrid": "Atletico Madrid",
+        "Ath Bilbao": "Athletic Club",
+        "Real Madrid": "Real Madrid",
+        "Betis": "Real Betis",
+        "Sociedad": "Real Sociedad",
+        "Santander": "Racing Santander",
+    }

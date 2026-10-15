@@ -18,7 +18,8 @@ from corridor import absences as AB
 from corridor import predict as P
 from corridor.ingest import fotmob
 from corridor.ingest.fotmob import BASE
-from corridor.ingest.http import DATA_DIR, fetch_json
+from corridor.ingest.http import fetch_json
+from corridor.leagues import LEAGUES, processed_dir, site_dir
 from corridor.scripts.build_season import _name_map
 
 # Frozen after tuning on 2016-17 … 2019-20 (D-023). Re-tune only deliberately, never to
@@ -34,6 +35,88 @@ FEATURE_WORDS = {
 }
 
 
+def _label(y: int) -> str:
+    return f"{y}-{(y + 1) % 100:02d}"
+
+
+def team_news_test(league, scored: list[dict], season: int) -> dict | None:
+    """Out-of-sample test of the frozen team-news weight (fitted on the Premier League,
+    D-026) on another league's own matches: RPS with and without the adjustment."""
+    seasons = []
+    for s in range(season - 2, season + 1):
+        d = processed_dir(s, league)
+        if (d / "team_matches.json").exists():
+            seasons.append(
+                (
+                    s,
+                    json.loads((d / "team_matches.json").read_text()),
+                    json.loads((d / "player_matches.json").read_text()),
+                )
+            )
+    if len(seasons) < 2:
+        return None
+    absn = AB.history(seasons)
+    base_p = {}
+    for s, *_ in seasons:
+        train = [m for m in scored if FIRST_TRAIN <= m["season"] < s and m["played"]]
+        test = [m for m in scored if m["season"] == s and m["played"]]
+        if train and test:
+            for m, p in zip(test, P.Model(PARAMS).fit(train).predict(test), strict=True):
+                base_p[m["id"]] = p
+    rows = []
+    for s, *_ in seasons:
+        fm = fotmob.league_matches(f"{s}/{s + 1}", league.fotmob_id)
+        us = [m for m in scored if m["season"] == s and m["played"]]
+        nm = _name_map(
+            fm,
+            [
+                {"datetime": m["kickoff"], "h": {"title": m["home"]}, "a": {"title": m["away"]}}
+                for m in us
+            ],
+        )
+        idx = {(a["home_team"], a["away_team"], a["kickoff"][:10]): a for a in absn.values()}
+        for m in us:
+            a = idx.get((nm.get(m["home"]), nm.get(m["away"]), m["kickoff"][:10]))
+            if a and m["id"] in base_p:
+                rows.append((m, a))
+    if not rows:
+        return None
+    base = [P.rps(base_p[m["id"]], m["result"]) for m, _ in rows]
+    adj_p = [
+        AB.adjust(base_p[m["id"]], a["home"]["minutes"], a["away"]["minutes"]) for m, a in rows
+    ]
+    adj = [P.rps(p, m["result"]) for p, (m, _) in zip(adj_p, rows, strict=True)]
+    big = [
+        (m, a, p)
+        for (m, a), p in zip(rows, adj_p, strict=True)
+        if a["home"]["minutes"] - a["away"]["minutes"] >= 0.12
+    ]
+    label = f"{_label(seasons[0][0])} to {_label(seasons[-1][0])}"
+    return {
+        "matches": len(rows),
+        "fits": [
+            {
+                "fit_on": "Premier League (frozen, not refitted)",
+                "tested_on": f"{league.name} {label}",
+                "n": len(rows),
+                "k": AB.K_MINUTES,
+                "rps_base": float(np.mean(base)),
+                "rps_adjusted": float(np.mean(adj)),
+            }
+        ],
+        "big_gap": {
+            "n": len(big),
+            "base_home_win": float(np.mean([base_p[m["id"]][0] for m, _, _ in big]))
+            if big
+            else None,
+            "adjusted_home_win": float(np.mean([p[0] for _, _, p in big])) if big else None,
+            "actual_home_win": float(np.mean([m["result"] == "H" for m, _, _ in big]))
+            if big
+            else None,
+        },
+    }
+
+
 def _pct(x: float) -> float:
     return round(100 * x, 1)
 
@@ -41,13 +124,15 @@ def _pct(x: float) -> float:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2026)
+    ap.add_argument("--league", choices=tuple(LEAGUES), default="pl")
     args = ap.parse_args()
+    league = LEAGUES[args.league]
     season = args.season
     now = datetime.now(UTC).replace(tzinfo=None)
 
-    hist = P.load_history(2014, season)
+    hist = P.load_history(2014, season, league=league.understat)
     scored, ratings = P.walk(hist, PARAMS)
-    P.attach_odds(scored, range(FIRST_TRAIN, season + 1), current=season)
+    P.attach_odds(scored, range(FIRST_TRAIN, season + 1), current=season, code=league.odds_code)
 
     # 1. Backtest: walk-forward on the held-out seasons (tuning used earlier seasons only).
     ev = P.evaluate(scored, PARAMS, range(FIRST_TEST, season + 1), FIRST_TRAIN)
@@ -59,7 +144,7 @@ def main() -> None:
     goals = P.GoalsModel().fit(train)
 
     # Understat → FotMob names, so predictions link to the team pages.
-    fm_fix = fotmob.league_matches(f"{season}/{season + 1}")
+    fm_fix = fotmob.league_matches(f"{season}/{season + 1}", league.fotmob_id)
     us_dates = [
         {"datetime": m["kickoff"], "h": {"title": m["home"]}, "a": {"title": m["away"]}}
         for m in scored
@@ -100,7 +185,7 @@ def main() -> None:
     # Team news (D-026): FotMob's unavailable lists for the next round, weighted by each
     # absent player's share of the team's minutes; a one-parameter shift of the odds.
     def _players(s: int) -> list[dict]:
-        p = DATA_DIR / "processed" / str(s) / "player_matches.json"
+        p = processed_dir(s, league) / "player_matches.json"
         return json.loads(p.read_text()) if p.exists() else []
 
     contrib = AB.current_contributions(_players(season - 1), _players(season))
@@ -171,7 +256,8 @@ def main() -> None:
 
     # 4. Running record: freeze the latest pre-kickoff prediction of every fixture, then
     #    score it once the result is in.
-    out_dir = DATA_DIR / "site" / str(season)
+    out_dir = site_dir(season, league)
+    out_dir.mkdir(parents=True, exist_ok=True)
     log_path = out_dir / "predictions_log.json"
     log = json.loads(log_path.read_text()) if log_path.exists() else {}
     made_at = datetime.now(UTC).isoformat()
@@ -215,7 +301,7 @@ def main() -> None:
         "projection": projection,
         "backtest": ev,
         "backtest_goals": ev_goals,
-        "team_news_test": AB.TEST,
+        "team_news_test": AB.TEST if league.key == "pl" else team_news_test(league, scored, season),
         "record": record,
         "trained_on": len(train),
     }
