@@ -40,3 +40,18 @@ def test_expected_points_average_the_two_histories():
     assert abs(_expected_points(x) - ((1.8 + 0.2) + (0.6 + 0.4)) / 2) < 1e-9
     empty = {"best_weighted": {"history": None}, "worst_weighted": {"history": {"n": 0}}}
     assert _expected_points(empty) is None
+
+
+def test_odds_name_map_never_guesses_a_wrong_team():
+    from corridor.ingest.odds import name_map
+
+    ours = {
+        "Wolverhampton Wanderers",
+        "West Ham",
+        "Leeds",
+        "West Bromwich Albion",
+        "Manchester United",
+    }
+    got = name_map({"Wolves", "West Ham", "Leeds", "West Brom", "Man United"}, ours)
+    assert got["Wolves"] == "Wolverhampton Wanderers" and got["West Brom"] == "West Bromwich Albion"
+    assert len(set(got.values())) == len(got)

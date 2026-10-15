@@ -8,6 +8,29 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-023 — Stage 4: pre-match predictions, honestly tested · 2026-10-15 · accepted
+**Ratings** (`corridor.predict`): every team carries exponentially weighted Understat
+non-penalty xG for/against, goals for/against and the share of the 5 core elite / worst
+lines reached (lines from the previous season). Each match is **opponent-adjusted** before
+it updates a rating (1.5 npxG against a side that concedes 2.0 counts as below par).
+Ratings update only *after* a match; summer carry-over and a promoted-team prior (the
+relegated teams' ratings) handle new seasons. **Model:** multinomial logistic regression
+(scikit-learn, L2) on rating differences → P(home/draw/away).
+**Protocol:** settings (half-life, carry-over, opponent adjustment, feature set, L2) tuned
+on 2016-17…2019-20 only, then **frozen** (`PARAMS` in `scripts/predictions.py`: 24-match
+half-life, full carry-over, opponent-adjusted, xG+goals+lines, C=0.05). Held-out
+2020-21…now, each season trained only on earlier ones: **RPS 0.205** vs base rates 0.234
+and bookmakers 0.198 (pre-match average) / 0.197 (closing); favourite won 53% vs the
+market's 54%. Calibrated, slightly over-confident above ~65%. The line features add almost
+nothing beyond xG + goals (honest result, kept because tuning chose them). A wider grid
+fit the tuning seasons better but not the held-out ones, so we stopped tuning there.
+**Live:** after every build, the next round is predicted, the rest of the season simulated
+(20,000 runs from fixed ratings: projected points, title / top-4 / relegation odds), and
+each prediction is **frozen at its last pre-kickoff version** in `predictions_log.json` and
+scored after the match against the market. Known limit: ratings move slowly, so early in a
+season they lean on last season (e.g. United 41% to win at Leeds after a poor start).
+Odds come from football-data.co.uk and are used only as a benchmark (DATA_SOURCES.md).
+
 ## D-022 — Premier League overview + a breakdown for every team · 2026-10-15 · accepted
 The site now opens on a Premier League overview; every team gets the same breakdown United
 has (focus tiers, proof, match table, stacks, players, UCL tab if they play in it). The

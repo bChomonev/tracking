@@ -72,6 +72,15 @@ StatsBomb open data: full event data but no current PL season.
   in the **same season** from the same provider.
 - Low-volume, personal use only; scraping these sites for a public product is legally weak.
 
+## Betting odds (benchmark only, added 2026-10-15)
+**football-data.co.uk** publishes free season CSVs (`mmz4281/{yy}{yy}/E0.csv`) of PL
+results with bookmaker odds: pre-match averages (`AvgH/D/A`, older files `BbAv*`) and
+closing odds (Pinnacle `PSC*`, else market average `AvgC*`). We download one file per
+season (current season refreshed at most daily), remove the margin, and use the odds only
+to score our predictions against the market. Odds are never shown or republished on the
+page, only aggregate scores. Team names differ ("Man United", "Wolves"); mapped by alias +
+a strict unique similarity match.
+
 ## Paid options (prices 2026-10-14)
 | Provider | What it adds | Price | Notes |
 | --- | --- | --- | --- |

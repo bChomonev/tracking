@@ -12,7 +12,7 @@ entry whenever you make a design call.**
 - `uv run alembic upgrade head` · `uv run alembic check` (must report no drift)
 - `uv run python -m corridor.scripts.seed_synthetic` — seed synthetic history + calibrate
 
-- Site (PL overview + every team; analyst for United only, D-022): `build_season` (+ `--competition ucl`) → `united_profile` → `analyse` → `build_site` (see README); `update` automates it after each match (D-018). Never commit `data/` or `backend/.env`.
+- Site (PL overview + every team; analyst for United only, D-022): `build_season` (+ `--competition ucl`) → `united_profile` → `predictions` → `analyse` → `build_site` (see README); `update` automates it after each match (D-018). Never commit `data/` or `backend/.env`.
 
 ## Rules
 1. Vectors are `halfvec(12)` in SQL and `np.float16` in Python. Dimension order, weights and

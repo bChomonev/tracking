@@ -209,6 +209,26 @@ tr.typical td { background: var(--track); font-weight: 600; }
 .ov-chart .axis text { font: 400 11px var(--body); fill: var(--muted); }
 .ov-chart .quad { font: 600 11px var(--body); fill: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 
+/* Predictions */
+.fixtures { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 12px; }
+.fx { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.fx.me { border-color: var(--red); box-shadow: inset 4px 0 0 var(--red); }
+.fx-when { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.fx-teams { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: baseline; font: 600 1.15rem/1.15 var(--display); text-transform: uppercase; }
+.fx-teams a { color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+.fx-teams a:hover { text-decoration: underline; }
+.fx-teams .away { text-align: right; }
+.fx-teams small { font: 400 .8rem/1 var(--body); color: var(--muted); text-transform: none; }
+.pbar3 { display: flex; height: 26px; border-radius: 4px; overflow: hidden; font: 600 .8rem/26px var(--mono); }
+.pbar3 span { text-align: center; color: #fff; min-width: 0; white-space: nowrap; overflow: hidden; }
+.pbar3 .h { background: var(--good); } .pbar3 .d { background: var(--muted); } .pbar3 .a { background: var(--ink); }
+:root:not([data-theme="light"]) .pbar3 span { color: var(--bg); }
+.pbar3-legend { display: flex; justify-content: space-between; font-size: .75rem; color: var(--muted); }
+.fx-why { font-size: .82rem; color: var(--muted); margin: 0; }
+.pj-bar { display: inline-block; height: 10px; border-radius: 2px; vertical-align: 0; margin-right: 6px; }
+#team-next .fx { max-width: 560px; }
+#team-next h3 { font-size: 1.05rem; text-transform: uppercase; margin: 0 0 8px; letter-spacing: .04em; }
+
 /* Hero */
 .hero { display: grid; gap: 20px; border-bottom: 3px solid var(--red); padding-bottom: 28px; }
 .hero h1 { font-size: clamp(2.6rem, 7vw, 4.6rem); text-transform: uppercase; }
@@ -323,6 +343,23 @@ th[aria-sort] button::after { content: " ▾"; }
       <div class="table-wrap"><table id="ov-table" class="ov-table"></table></div>
     </section>
 
+    <section aria-labelledby="pr-title" id="pr-sec" hidden>
+      <div class="section-head">
+        <h2 id="pr-title">Next round</h2>
+        <p id="pr-sub"></p>
+      </div>
+      <div class="fixtures" id="pr-fixtures"></div>
+      <p class="bl-foot" id="pr-record"></p>
+    </section>
+
+    <section aria-labelledby="pj-title" id="pj-sec" hidden>
+      <div class="section-head">
+        <h2 id="pj-title">Where the season is heading</h2>
+        <p id="pj-sub"></p>
+      </div>
+      <div class="table-wrap"><table id="pj-table"></table></div>
+    </section>
+
     <section aria-labelledby="ovs-title">
       <div class="section-head">
         <h2 id="ovs-title">Who plays like a top team?</h2>
@@ -339,6 +376,20 @@ th[aria-sort] button::after { content: " ▾"; }
       <figure class="ov-chart" id="ov-luck"></figure>
     </section>
 
+    <section aria-labelledby="bt-title" id="bt-sec" hidden>
+      <div class="section-head">
+        <h2 id="bt-title">How good are the predictions?</h2>
+        <p id="bt-sub"></p>
+      </div>
+      <div class="proof-grid">
+        <figure class="proof-chart" id="bt-scores"></figure>
+        <figure class="proof-chart" id="bt-calib"></figure>
+      </div>
+      <h3 class="proof-h">This season, prediction by prediction</h3>
+      <div class="table-wrap"><table id="bt-record"></table></div>
+      <p class="bl-foot" id="bt-foot"></p>
+    </section>
+
     <footer class="notes" id="ov-notes"></footer>
   </div>
 
@@ -349,6 +400,7 @@ th[aria-sort] button::after { content: " ▾"; }
     <p class="freshness" id="freshness"></p>
     <h1 id="title">Why are United <span>struggling?</span></h1>
     <div class="record" id="record"></div>
+    <div id="team-next"></div>
   </section>
 
   <section aria-labelledby="focus-title" id="focus-sec" hidden>
@@ -454,6 +506,7 @@ th[aria-sort] button::after { content: " ▾"; }
   P.generated_at = L.generated_at;
   if (L.proof && P.proof) P.proof = { ...L.proof, ...P.proof };
   const isFocus = P.team === L.focus_team;
+  teamNext(P);
   const TN = nick(P.team);
   const metricBy = Object.fromEntries(P.metrics.map((m) => [m.key, m]));
   $("season-label").textContent = `Premier League ${P.season} · after ${P.record.played} matches`;
@@ -711,6 +764,78 @@ th[aria-sort] button::after { content: " ▾"; }
   ].filter(Boolean).map((t) => `<p>${esc(t)}</p>`).join("");
   };
 
+  // ===== Predictions (D-023): next round, season projection, track record =====
+  const PRD = L.predictions;
+  const pc = (x, d = 0) => (x == null ? "—" : (100 * x).toFixed(d) + "%");
+  const fxWhen = (iso) => new Date(iso.replace(" ", "T") + "Z").toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const teamLink = (t) => (bySlug[slug(t)] ? `<a href="#team/${slug(t)}">${esc(short(t))}</a>` : esc(short(t)));
+  const fixtureCard = (f) => {
+    const [h, d, a] = f.p, lab = (x) => (x >= 0.12 ? Math.round(100 * x) + "%" : "");
+    const fav = h >= a ? [f.home, h] : [f.away, a];
+    const why = (f.drivers || []).map((x) => `${x.feature} (${esc(short(x.favours === "home" ? f.home : f.away))})`).join(", ");
+    return `<article class="fx${f.home === L.focus_team || f.away === L.focus_team ? " me" : ""}">
+      <div class="fx-when">${esc(fxWhen(f.kickoff))}</div>
+      <div class="fx-teams"><span>${teamLink(f.home)}</span><small>v</small><span class="away">${teamLink(f.away)}</span></div>
+      <div class="pbar3" role="img" aria-label="Home win ${pc(h)}, draw ${pc(d)}, away win ${pc(a)}"><span class="h" style="width:${100 * h}%">${lab(h)}</span><span class="d" style="width:${100 * d}%">${lab(d)}</span><span class="a" style="width:${100 * a}%">${lab(a)}</span></div>
+      <div class="pbar3-legend"><span>Home win ${pc(h)}</span><span>Draw ${pc(d)}</span><span>Away win ${pc(a)}</span></div>
+      <p class="fx-why">Expected chance quality <span class="num">${f.exp_home.toFixed(2)}–${f.exp_away.toFixed(2)}</span>. ${Math.max(h, a) < 0.45 ? "Close to a coin toss." : `Leans ${esc(short(fav[0]))}.`}${why ? ` Biggest factors: ${why}.` : ""}</p>
+    </article>`;
+  };
+  const renderPredictions = () => {
+    if (!PRD) return;
+    const nx = PRD.next_round || [];
+    $("pr-sec").hidden = !nx.length;
+    if (nx.length) {
+      $("pr-sub").textContent = `Home win, draw and away win chances for every fixture, from each team's rolling ratings (chance quality created and conceded, goal difference, elite and worst lines; opponent-adjusted, recent matches weigh most). Ratings change slowly: early in a season they still lean on last season.`;
+      $("pr-fixtures").innerHTML = nx.map(fixtureCard).join("");
+      const R = PRD.record;
+      $("pr-record").textContent = R.scored
+        ? `Record this season: ${R.scored} predictions scored, ${R.hits} favourites won (${pc(R.hits / R.scored)}). Average RPS ${R.rps.toFixed(3)}${R.avg_rps != null ? ` vs the bookmakers' ${R.avg_rps.toFixed(3)}` : ""} (lower is better).`
+        : `Every prediction is saved before kickoff and scored after the match — the record starts with this round.`;
+    }
+    const pj = PRD.projection || [];
+    $("pj-sec").hidden = !pj.length;
+    if (pj.length) {
+      $("pj-sub").textContent = `${(20000).toLocaleString()} simulations of the remaining fixtures, each match drawn from its predicted chances, starting from the current points. Ratings stay fixed at today's, so the further away, the rougher.`;
+      const bar = (x, c) => `<span class="pj-bar" style="width:${Math.round(x * 60)}px;background:var(--${c})"></span>${pc(x, x > 0 && x < 0.01 ? 1 : 0)}`;
+      $("pj-table").innerHTML = `<thead><tr><th>#</th><th class="l">Team</th><th>Pts now</th><th>Projected pts</th><th>Range (80%)</th><th class="l">Title</th><th class="l">Top 4</th><th class="l">Relegation</th></tr></thead><tbody>` +
+        pj.map((r, i) => `<tr class="${r.team === L.focus_team ? "me" : ""}"><td class="cell">${i + 1}</td><td class="l">${teamLink(r.team)}</td><td class="cell">${r.points_now}</td><td class="cell"><b>${r.points.toFixed(0)}</b></td><td class="cell">${r.points_p10.toFixed(0)}–${r.points_p90.toFixed(0)}</td>
+          <td class="l cell">${bar(r.title, "good")}</td><td class="l cell">${bar(r.top4, "good")}</td><td class="l cell">${bar(r.relegation, "bad")}</td></tr>`).join("") + "</tbody>";
+      $("pj-table").classList.add("ov-table");
+    }
+    // How good are they? Walk-forward backtest + calibration + this season's log.
+    const BT = PRD.backtest, pooled = BT.pooled;
+    $("bt-sec").hidden = false;
+    const seasons = BT.seasons.map((r) => r.season);
+    const lbl = (y) => `${y}-${String((y + 1) % 100).padStart(2, "0")}`;
+    $("bt-sub").textContent = `Tested the honest way: settings chosen on 2016-17 to 2019-20 and then frozen; for every season from ${lbl(seasons[0])} to ${lbl(seasons[seasons.length - 1])}, the model is trained only on earlier seasons and every match is predicted with what was known before kickoff. ${pooled.model.n.toLocaleString()} matches. Score: RPS (ranked probability score) — 0 is perfect, lower is better; it rewards putting probability near the right result.`;
+    const rows = [["Our model", pooled.model, "ink"], ["Base rates (home/draw/away frequency)", pooled.base, "muted"], ["Bookmakers, pre-match average", pooled.avg, "good"], ["Bookmakers, closing (sharpest)", pooled.closing, "good"]].filter((r) => r[1]);
+    const lo = 0.18, hi = 0.24;
+    $("bt-scores").innerHTML = `<figcaption>Average RPS, ${lbl(seasons[0])} onward<small>Shorter is better. The bookmakers see team news and line-ups we don't.</small></figcaption>` +
+      rows.map(([name, s, c]) => `<div class="pbar" style="grid-template-columns: 13em minmax(0,1fr) 4.2em"><small>${name}</small><div class="track"><span style="width:${(100 * (s.rps - lo)) / (hi - lo)}%;background:var(--${c})"></span></div><b>${s.rps.toFixed(3)}</b></div><div class="pbar" style="grid-template-columns: 13em minmax(0,1fr) 4.2em"><span></span><small>favourite won ${pc(s.hit_rate)}</small><span></span></div>`).join("");
+    const cal = BT.calibration, W = 360, H = 240, pad = 34;
+    const X = (v) => pad + (W - pad - 10) * v, Y = (v) => H - pad - (H - pad - 10) * v;
+    $("bt-calib").innerHTML = `<figcaption>Calibration<small>When the model says 30%, does it happen 30% of the time? Dots on the diagonal = honest probabilities.</small></figcaption>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Predicted against observed frequency">
+        <line x1="${X(0)}" y1="${Y(0)}" x2="${X(1)}" y2="${Y(1)}" stroke="var(--rule)" stroke-dasharray="4 4"></line>
+        ${[0, 0.25, 0.5, 0.75, 1].map((t) => `<text x="${X(t)}" y="${H - pad + 16}" text-anchor="${t === 1 ? "end" : "middle"}" style="font:11px var(--body);fill:var(--muted)">${t * 100}%</text><text x="${pad - 6}" y="${Y(t) + 4}" text-anchor="end" style="font:11px var(--body);fill:var(--muted)">${t * 100}%</text>`).join("")}
+        <polyline fill="none" stroke="var(--ink)" stroke-width="1.5" points="${cal.map((c) => `${X(c.predicted).toFixed(1)},${Y(c.observed).toFixed(1)}`).join(" ")}"></polyline>
+        ${cal.map((c) => `<circle cx="${X(c.predicted).toFixed(1)}" cy="${Y(c.observed).toFixed(1)}" r="${Math.max(3, Math.min(8, Math.sqrt(c.n) / 6)).toFixed(1)}" fill="var(--red)"><title>predicted ${pc(c.predicted)}, happened ${pc(c.observed)} (${c.n})</title></circle>`).join("")}
+        <text x="${(W + pad) / 2}" y="${H - 4}" text-anchor="middle" style="font:11px var(--body);fill:var(--muted)">predicted</text>
+      </svg>`;
+    const R = PRD.record;
+    $("bt-record").innerHTML = R.matches.length
+      ? `<thead><tr><th class="l">Match</th><th>Result</th><th>Home</th><th>Draw</th><th>Away</th><th>RPS</th><th>Bookmakers RPS</th></tr></thead><tbody>` +
+        R.matches.map((e) => `<tr><td class="l">${esc(short(e.home))} v ${esc(short(e.away))}</td><td class="cell">${esc(e.score)}</td>${e.p.map((x, i) => `<td class="cell ${"HDA"[i] === e.result ? "h-good" : ""}">${pc(x)}</td>`).join("")}<td class="cell">${e.rps.toFixed(3)}</td><td class="cell">${e.avg_rps != null ? e.avg_rps.toFixed(3) : "—"}</td></tr>`).join("") + "</tbody>"
+      : `<tbody><tr><td class="l">No predictions scored yet. The first ones, for the next round, were saved on ${esc(when(PRD.generated_at, true))}.</td></tr></tbody>`;
+    $("bt-foot").textContent = `What the ratings use: Understat non-penalty xG created and conceded, goals, and the share of the 5 core elite and worst lines reached, each match opponent-adjusted and weighted so the last ~24 matches count half. Honest result: the line features add very little on top of xG and goals, and the model trails the bookmakers by about ${((pooled.model.rps - (pooled.avg?.rps ?? pooled.model.rps))).toFixed(3)} RPS — they also know injuries and line-ups. Bookmaker odds (football-data.co.uk) are used only as this benchmark.`;
+  };
+  const teamNext = (P) => {
+    const nx = (PRD?.next_round || []).find((f) => f.home === P.team || f.away === P.team);
+    const pj = (PRD?.projection || []).find((r) => r.team === P.team);
+    $("team-next").innerHTML = nx || pj ? `${nx ? `<h3>Next match</h3>${fixtureCard(nx)}` : ""}${pj ? `<p class="fx-why" style="margin-top:8px">Season projection: <b class="num">${pj.points.toFixed(0)}</b> points (80% range ${pj.points_p10.toFixed(0)}–${pj.points_p90.toFixed(0)}) · top 4 ${pc(pj.top4)} · relegation ${pc(pj.relegation, pj.relegation > 0 && pj.relegation < 0.01 ? 1 : 0)} · <a href="#" class="back">see all predictions</a></p>` : ""}` : "";
+  };
+
   // ===== Overview: every Premier League team on what decides matches =====
   const ME = L.focus_team;
   const T = L.table;
@@ -855,6 +980,7 @@ th[aria-sort] button::after { content: " ▾"; }
     $("ov-table-sub").textContent = `Every team, on the ${n} metrics that decide matches (tested on later seasons), next to the points they have. Click a column to sort, a team for its full breakdown. Hover a heading for what it means.`;
     renderOvTable();
     renderScatter();
+    renderPredictions();
     renderLuck();
     $("ov-notes").innerHTML = [
       `Elite line: last season's top four in their league wins; worst line: the bottom four in their defeats. Scores weight each line by how much it decided matches on later seasons (see "How we know" in any team's breakdown).`,

@@ -3,7 +3,7 @@ the analyst's read for the focus team.
 
     uv run python -m corridor.scripts.build_site [--season 2026]
 
-Reads data/site/{season}/league.json (+ analysis.json if present) and writes
+Reads data/site/{season}/league.json (+ predictions.json and analysis.json if present) and writes
 data/site/{season}/index.html (gitignored).
 """
 
@@ -24,6 +24,9 @@ def main() -> None:
     out = DATA_DIR / "site" / str(args.season)
     league = json.loads((out / "league.json").read_text())
     league["generated_at"] = datetime.now(UTC).isoformat()
+    pred_path = out / "predictions.json"
+    if pred_path.exists():
+        league["predictions"] = json.loads(pred_path.read_text())
     analysis_path = out / "analysis.json"
     analysis = json.loads(analysis_path.read_text()) if analysis_path.exists() else None
 

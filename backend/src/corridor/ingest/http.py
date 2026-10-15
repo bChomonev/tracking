@@ -28,6 +28,27 @@ def _cache_path(source: str, url: str) -> Path:
     return RAW_DIR / source / f"{slug}_{digest}.json"
 
 
+def fetch_text(source: str, url: str, *, max_age_h: float | None = None) -> str:
+    """Like fetch_json for plain-text files (CSV). ``max_age_h``: refetch a cached copy older
+    than this (for files the source keeps updating, e.g. the current season's odds)."""
+    global _last_request
+    path = _cache_path(source, url).with_suffix(".txt")
+    if path.exists() and (
+        max_age_h is None or time.time() - path.stat().st_mtime < max_age_h * 3600
+    ):
+        return path.read_text()
+    wait = MIN_INTERVAL_S - (time.monotonic() - _last_request)
+    if wait > 0:
+        time.sleep(wait)
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        body = resp.read().decode("utf-8-sig", errors="replace")
+    _last_request = time.monotonic()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body)
+    return body
+
+
 def fetch_json(
     source: str, url: str, *, headers: dict[str, str] | None = None, refresh: bool = False
 ) -> Any:
