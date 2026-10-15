@@ -155,6 +155,12 @@ th .tip { cursor: help; text-decoration: underline dotted; text-underline-offset
 .score-cell { font-family: var(--mono); }
 .score-cell small { display: block; font: 400 .74rem/1.2 var(--body); color: var(--muted); }
 tr.typical td { background: var(--track); font-weight: 600; }
+tr.ref td { font-size: .8rem; color: var(--muted); padding-block: 5px; border-bottom-style: dashed; }
+tr.ref.elite td.cell { color: var(--good); } tr.ref.worst td.cell { color: var(--bad); }
+tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.key { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 10px; font-size: .84rem; color: var(--muted); }
+.key .sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--rule); background: var(--panel); margin-left: 6px; }
+.key .sw.h-good { background: var(--good-bg); } .key .sw.h-bad { background: var(--bad-bg); }
 @media (max-width: 640px) {
   .f-row { grid-template-columns: minmax(0, 1fr) auto; }
   .f-row .f-gauge { grid-column: 1 / -1; grid-row: 2; }
@@ -539,6 +545,7 @@ th[aria-sort] button::after { content: " ▾"; }
       <h2 id="matches-title">Match by match</h2>
       <p id="matches-sub"></p>
     </div>
+    <p class="key" id="matches-key"></p>
     <div class="table-wrap"><table id="matches"></table></div>
     <p class="goal-types" id="goal-types" hidden></p>
   </section>
@@ -794,10 +801,24 @@ th[aria-sort] button::after { content: " ▾"; }
     return hit(m.best_line, "best") ? "good" : hit(m.worst_line, "worst") ? "bad" : "";
   };
   const cellTxt = (m, v) => (SIGNED.has(m.key) ? signed(v, m.decimals) : fmt(v, m.decimals));
+  // Why a cell has its colour, in words (hover / long-press).
+  const why = (m, v, pct) => {
+    if (v == null) return "";
+    const val = `${m.label} ${showVal(m, v)}`;
+    if (withLines) {
+      const t = lineTier(m, v), bl = m.best_line, wl = m.worst_line;
+      const better = m.direction > 0 ? "above" : "below", worse = m.direction > 0 ? "below" : "above";
+      if (t === "good") return `${val}: at or ${better} the elite line (${showVal(m, bl.value)}) — what last season's top four had in a typical win.`;
+      if (t === "bad") return `${val}: at or ${worse} the worst line (${showVal(m, wl.value)}) — relegation level.`;
+      return `${val}: between the worst line (${wl ? showVal(m, wl.value) : "—"}) and the elite line (${bl ? showVal(m, bl.value) : "—"}).`;
+    }
+    return pct == null ? val : `${val}: better than ${Math.round(pct)}% of ${C.competition} team-matches this season (${pct >= 67 ? "top third → green" : pct < 34 ? "bottom third → red" : "middle third"}).`;
+  };
+  const refRow = (label, cls, f) => `<tr class="ref ${cls}"><td class="l">${label}</td><td></td>${withLines ? "<td></td><td></td><td></td><td></td>" : ""}${cols.map((k) => { const m = metricBy[k], v = f(m); return `<td class="cell">${v == null ? "—" : cellTxt(m, v)}</td>`; }).join("")}</tr>`;
   const scoreCells = (x) => x ? `<td class="score-cell">${Math.round(100 * x.best_weighted.share)}<small>won ${pctTxt(x.best_weighted.history?.W)}</small></td><td class="score-cell">${Math.round(100 * x.worst_weighted.share)}<small>lost ${pctTxt(x.worst_weighted.history?.L)}</small></td>` : "";
   $("matches-sub").textContent = withLines
-    ? `Elite lines / worst lines: how many of the ${cols.length} metrics that decide matches reached the elite line or sank to the worst line (small: out of all tested lines). Elite score: share of the elite lines a match reached, each line weighted by how much it decides matches (0–100), with how often teams with that score won. Danger score: the same for the worst lines, and how often those teams lost. Then the ${cols.length} metrics that decide matches: green = at or above the elite line, red = at or below the worst line.`
-    : `Cell colour = how that single performance ranks against every team-match in the Champions League this season (green top third, red bottom third). No elite or worst lines here: they are built from Premier League data.`;
+    ? `Elite lines / worst lines: how many of the ${cols.length} metrics that decide matches reached the elite line or sank to the worst line (small: out of all tested lines). Elite score: share of the elite lines a match reached, each line weighted by how much it decides matches (0–100), with how often teams with that score won. Danger score: the same for the worst lines, and how often those teams lost. Then the ${cols.length} metrics that decide matches.`
+    : `How each performance compares with every team-match in the ${C.competition} this season. No elite or worst lines here: those are built from league data.`;
   const TW = withLines && P.proof.typical_weighted;
   // Lines hit: the decisive ones (bold) and all tested lines (small).
   const nDec = cols.length;
@@ -808,13 +829,19 @@ th[aria-sort] button::after { content: " ▾"; }
   };
   const tested = C.metrics.filter((m) => m.impact && m.best_line && m.worst_line);
   const typicalAll = { best: tested.filter((m) => m.best_line.typical_hits).length, worst: tested.filter((m) => m.worst_line.typical_hits).length, of: tested.length };
+  $("matches-key").innerHTML = withLines
+    ? `<span class="sw h-good"></span> reached the elite line (top-four level in a win) <span class="sw"></span> in between <span class="sw h-bad"></span> at the worst line (relegation level) · the two reference rows show each line's value · hover a number for why`
+    : `<span class="sw h-good"></span> top third of all ${esc(C.competition)} team-matches this season <span class="sw"></span> middle third <span class="sw h-bad"></span> bottom third · the first row is the ${esc(C.competition)} average · hover a number for its percentile`;
   $("matches").innerHTML = `<thead><tr><th class="l">Match</th><th>Score</th>${withLines ? `<th><span class="tip below" tabindex="0" data-tip="Elite lines reached: of the ${nDec} metrics that decide matches (big number), and of all tested lines (small).">Elite lines</span></th><th><span class="tip below" tabindex="0" data-tip="Worst lines hit (relegation level): of the ${nDec} metrics that decide matches (big number), and of all tested lines (small).">Worst lines</span></th><th>Elite score</th><th>Danger score</th>` : ""}${cols.map((k, i) => `<th><span class="tip below${i >= cols.length - 3 ? " end" : ""}" tabindex="0" data-tip="${esc(metricBy[k].label + ": " + tipOf(metricBy[k]))}">${colLabel[k] || esc(metricBy[k].label)}</span></th>`).join("")}</tr></thead><tbody>` +
-    (withLines ? `<tr class="typical"><td class="l">Typical match</td><td></td>${countCells((k) => metricBy[k].value, typicalAll)}<td class="score-cell">${Math.round(100 * TW.best.share)}<small>won ${pctTxt(TW.best.history?.W)}</small></td><td class="score-cell">${Math.round(100 * TW.worst.share)}<small>lost ${pctTxt(TW.worst.history?.L)}</small></td>${cols.map((k) => { const m = metricBy[k]; return `<td class="cell h-${lineTier(m, m.value)}">${cellTxt(m, m.value)}</td>`; }).join("")}</tr>` : "") +
+    (withLines
+      ? refRow("Elite line", "elite", (m) => m.best_line?.value) + refRow("Worst line", "worst", (m) => m.worst_line?.value)
+      : refRow(`${C.competition} average`, "avg", (m) => m.league_avg)) +
+    (withLines ? `<tr class="typical"><td class="l">Typical match</td><td></td>${countCells((k) => metricBy[k].value, typicalAll)}<td class="score-cell">${Math.round(100 * TW.best.share)}<small>won ${pctTxt(TW.best.history?.W)}</small></td><td class="score-cell">${Math.round(100 * TW.worst.share)}<small>lost ${pctTxt(TW.worst.history?.L)}</small></td>${cols.map((k) => { const m = metricBy[k]; return `<td class="cell h-${lineTier(m, m.value)}" title="${esc(why(m, m.value))}">${cellTxt(m, m.value)}</td>`; }).join("")}</tr>` : "") +
     C.matches.map((mt, i) => `<tr><td class="l"><span class="pos">${mt.kickoff_utc.slice(5, 10).split("-").reverse().join("/")} ${mt.is_home ? "H" : "A"}</span> ${esc(short(mt.opponent))}</td>
       <td><span class="res ${mt.result}">${mt.result}</span> <span class="num">${mt.goals_for}–${mt.goals_against}</span></td>
       ${withLines ? countCells((k) => metricBy[k].matches[i].value, { best: P.proof.matches[i].best.hits, worst: P.proof.matches[i].worst.hits, of: P.proof.matches[i].best.of }) + scoreCells(P.proof.matches[i]) : ""}
       ${cols.map((k) => { const m = metricBy[k], c = m.matches[i]; const t = withLines ? lineTier(m, c.value) : tier(c.percentile);
-        return `<td class="cell h-${t}" title="${c.percentile ?? "—"}th percentile">${cellTxt(m, c.value)}</td>`; }).join("")}</tr>`).join("") + "</tbody>";
+        return `<td class="cell h-${t}" title="${esc(why(m, c.value, c.percentile))}">${cellTxt(m, c.value)}</td>`; }).join("")}</tr>`).join("") + "</tbody>";
 
   // ---- How the goals came (shot map)
   const gt = C.context && C.context.goals_by_type;
