@@ -23,7 +23,8 @@ uv run python -m corridor.scripts.predictions     # next round + season simulati
 uv run python -m corridor.scripts.previews        # team news, line-ups, shooters, corners per fixture (D-024)
 uv run python -m corridor.scripts.build_site      # render data/site/2026/index.html (both leagues) from web/united.html
 
-# La Liga (D-029): the same steps with --league / --competition laliga (no analyst)
+# Other leagues (La Liga D-029, Serie A / Bundesliga D-032): the same steps with
+# --league / --competition laliga|seriea|bundesliga (no analyst)
 uv run python -m corridor.scripts.build_season --competition laliga [--season 2025|2024]
 uv run python -m corridor.scripts.united_profile --league laliga
 uv run python -m corridor.scripts.predictions --league laliga

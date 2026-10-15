@@ -8,6 +8,21 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-032 — Serie A and Bundesliga, same method · 2026-10-15 · accepted
+Added through `corridor.leagues` only (FotMob 55 / 54, Understat `Serie_A` / `Bundesliga`,
+odds `I1` / `D1` with aliases; an alias falls back to the plain name for other eras). The
+updater now derives its league list from the config. Each league's lines, proof, tiers and
+team-news test use its own matches; prediction settings stay PL-frozen. **Results:** the
+six metrics that decide matches in *every* league are chance quality created and conceded,
+big chances created and conceded, and shot quality at both ends; extras: PL distance vs
+opponent, La Liga counter-attack chances / shots conceded, Bundesliga shots conceded / box
+touches. Predictions RPS vs bookmakers — PL 0.205/0.198, La Liga 0.194/0.192, Serie A
+0.193/0.190, Bundesliga 0.201/0.198. Team news helps in the PL and Bundesliga, slightly
+hurts in La Liga and Serie A (819 matches: 0.193 → 0.194) — applied per league (D-031).
+The Bundesliga has 18 teams (projection shows "bottom 3 incl. play-off"). `next_round` now
+ends when a team would appear twice (it had pulled in the next Bundesliga round's first
+fixture). The single page is ~6.4 MB with four leagues.
+
 ## D-031 — Team news only where its own test shows a gain; La Liga live · 2026-10-15 · accepted
 The clean test of the PL-frozen team-news weight on 837 La Liga matches made predictions
 slightly worse (RPS 0.1934 → 0.1942) and pointed the wrong way in big-gap matches (home
