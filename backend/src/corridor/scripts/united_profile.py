@@ -1,8 +1,10 @@
-"""Build the team season profile + player profiles and print a terminal summary.
+"""Build season profiles for every Premier League team (lines, proof placement, focus
+tiers, players, UCL) plus the overview table, and print a summary for the focus team.
 
     uv run python -m corridor.scripts.united_profile [--season 2026] [--team "Manchester United"]
 
-Writes data/site/{season}/profile.json (gitignored).
+Writes data/site/{season}/league.json (all teams + overview) and profile.json (the focus
+team with the shared proof, read by the analyst). Both gitignored.
 """
 
 import argparse
@@ -23,9 +25,8 @@ def _label(y: int) -> str:
     return f"{y}-{(y + 1) % 100:02d}"
 
 
-def _proof(season: int, team: str, prof: dict) -> dict:
-    """Stage 3: out-of-sample test of the lines on every team-match, then place each of the
-    team's matches on that record (D-020)."""
+def proof_record(season: int) -> dict:
+    """Stage 3 proof, computed once per build and shared by every team (D-020, D-021)."""
     fot = [
         (_label(y), json.loads(p.read_text()))
         for y in range(season - 2, season + 1)
@@ -37,10 +38,6 @@ def _proof(season: int, team: str, prof: dict) -> dict:
         for y in range(2014, season + 1)
     ]
     us = proof.evaluate(us_seasons, proof.UNDERSTAT_METRICS, proof.UNDERSTAT_BINS)
-
-    # Place each match: FotMob share over the latest pair's proven metrics, against this
-    # season's lines (already on the profile); Understat share over the 5 core metrics.
-    keys = fm["pairs"][-1]["metrics"]
     us_lines = {
         side: build_line(
             us_seasons[-2][1],
@@ -52,11 +49,38 @@ def _proof(season: int, team: str, prof: dict) -> dict:
         )
         for side in ("best", "worst")
     }
-    us_mine = {r["kickoff_utc"][:10]: r for r in us_seasons[-1][1] if r["team"] == team}
+    return {"fotmob": fm, "understat": us, "us_lines": us_lines, "us_rows": us_seasons[-1][1]}
+
+
+def _understat_row(rec: dict, fm_row: dict) -> dict | None:
+    """The Understat row for a FotMob team-match: same day, same score, and the same
+    Understat PPDA and deep completions for/against (joined into FotMob rows at build
+    time). A draw on the same day can share a score, so the score alone is not enough."""
+    day = fm_row["kickoff_utc"][:10]
+    for r in rec["us_rows"]:
+        if (
+            r["kickoff_utc"][:10] == day
+            and r["goals_for"] == fm_row["goals_for"]
+            and r["goals_against"] == fm_row["goals_against"]
+            and r["deep_completions"] == fm_row.get("deep_completions")
+            and r["deep_allowed"] == fm_row.get("deep_allowed")
+            and fm_row.get("ppda") is not None
+            and abs(r["ppda"] - fm_row["ppda"]) < 1e-6
+        ):
+            return r
+    return None
+
+
+def place(prof: dict, rows: list[dict], rec: dict) -> dict:
+    """Place each of a team's matches (and its typical match) on the proof record."""
+    fm, us = rec["fotmob"], rec["understat"]
+    keys = fm["pairs"][-1]["metrics"]
     weights = fm["weighted"]["weights"]
+    by_id = {r["match_id"]: r for r in rows if r["team"] == prof["team"]}
     placed = []
     for i, mt in enumerate(prof["matches"]):
-        rec: dict = {"match_id": mt["match_id"]}
+        out: dict = {"match_id": mt["match_id"]}
+        ur = _understat_row(rec, by_id[mt["match_id"]]) if mt["match_id"] in by_id else None
         for side in ("best", "worst"):
             by = {}
             for m in prof["metrics"]:
@@ -67,33 +91,32 @@ def _proof(season: int, team: str, prof: dict) -> dict:
                         by[m["key"]] = h
             hit, n = sum(by.values()), len(by)
             share = hit / n if n else None
-            rec[side] = {
+            out[side] = {
                 "hits": hit,
                 "of": n,
                 "share": share,
                 "history": proof.place(share, fm[side]),
             }
             ws = proof.weighted_share(by, weights[side])
-            rec[f"{side}_weighted"] = {
+            out[f"{side}_weighted"] = {
                 "share": ws,
                 "history": proof.place(ws, {"bins": fm["weighted"]["bins"][side]}),
             }
-            ur = us_mine.get(mt["kickoff_utc"][:10])
             if ur:
                 uh, un = proof.score(
                     ur,
-                    us_lines[side],
+                    rec["us_lines"][side],
                     proof.UNDERSTAT_METRICS,
                     [m.key for m in proof.UNDERSTAT_METRICS],
                 )
                 ushare = uh / un if un else None
-                rec[f"{side}_core"] = {
+                out[f"{side}_core"] = {
                     "hits": uh,
                     "of": un,
                     "share": ushare,
                     "history": proof.place(ushare, us[side]),
                 }
-        placed.append(rec)
+        placed.append(out)
     typical = {}
     for side in ("best", "worst"):
         by = {
@@ -106,13 +129,13 @@ def _proof(season: int, team: str, prof: dict) -> dict:
             "share": ws,
             "history": proof.place(ws, {"bins": fm["weighted"]["bins"][side]}),
         }
-    return {"fotmob": fm, "understat": us, "matches": placed, "typical_weighted": typical}
+    return {"matches": placed, "typical_weighted": typical}
 
 
-def _focus(prof: dict) -> dict:
+def focus(prof: dict, fm: dict) -> dict:
     """Tag every metric with its proven impact and count where the team stands on each tier
     (D-021): does it win the things that decide matches, or the things that don't?"""
-    imp = proof.impact(prof["proof"]["fotmob"])
+    imp = proof.impact(fm)
     for comp in (prof, prof.get("ucl")):
         for m in comp["metrics"] if comp else []:
             if m["key"] in imp:
@@ -138,6 +161,76 @@ def _focus(prof: dict) -> dict:
     return {"tiers": tiers, "untested": untested}
 
 
+def build_team(
+    team: str, ctx: dict, rec: dict | None, lines: dict, ucl_rows: list[dict] | None
+) -> dict:
+    prof = team_profile(ctx["rows"], team)
+    prof["players"] = player_profiles(ctx["players"], team)
+    prof["season"] = ctx["season"]
+    prof["competition"] = "Premier League"
+    for line in lines.values():
+        compare(prof, line)
+    if rec and "best_line" in prof:
+        prof["proof"] = place(prof, ctx["rows"], rec)
+        prof["focus"] = focus(prof, rec["fotmob"])
+    if ucl_rows and any(r["team"] == team for r in ucl_rows):
+        # Separate pool, separate providers: ranked only against other UCL team-matches.
+        ucl = team_profile(ucl_rows, team)
+        prof["ucl"] = ucl | {"competition": "Champions League", "season": prof["season"]}
+        if "focus" in prof:
+            imp = {m["key"]: m["impact"] for m in prof["metrics"] if "impact" in m}
+            for m in prof["ucl"]["metrics"]:
+                if m["key"] in imp:
+                    m["impact"] = imp[m["key"]]
+    return prof
+
+
+def _expected_points(x: dict) -> float | None:
+    """Points a match's performance 'deserved': the average of the W/D rates of past
+    team-matches with the same elite score and with the same danger score."""
+    hs = [x[k]["history"] for k in ("best_weighted", "worst_weighted") if x[k].get("history")]
+    hs = [h for h in hs if h["n"]]
+    if not hs:
+        return None
+    return sum(3 * h["W"] + h["D"] for h in hs) / len(hs)
+
+
+def table_row(prof: dict) -> dict:
+    """One overview row: results, xG, and where the team stands on what decides matches."""
+    ms = prof["matches"]
+    row = {
+        "team": prof["team"],
+        "position": prof["record"]["league_position"],
+        "played": len(ms),
+        "w": sum(m["result"] == "W" for m in ms),
+        "d": sum(m["result"] == "D" for m in ms),
+        "l": sum(m["result"] == "L" for m in ms),
+        "gf": sum(m["goals_for"] for m in ms),
+        "ga": sum(m["goals_against"] for m in ms),
+        "points": prof["record"]["points"],
+        "xg": sum(m["xg"] or 0 for m in ms),
+        "xga": sum(m["xg_conceded"] or 0 for m in ms),
+        "understat_xpts": sum(m["us_xpts"] or 0 for m in ms)
+        if all(m.get("us_xpts") is not None for m in ms)
+        else None,
+        "stacks": {st["id"]: st["score"] for st in prof["stacks"]},
+        "form": [m["result"] for m in ms[-5:]],
+    }
+    if "focus" in prof:
+        pr, dec = prof["proof"], prof["focus"]["tiers"]["decisive"]
+        xp = [_expected_points(x) for x in pr["matches"]]
+        row |= {
+            "decisive": {k: dec[k] for k in ("best", "between", "worst")}
+            | {"of": len(dec["metrics"])},
+            "elite_score": pr["typical_weighted"]["best"]["share"],
+            "danger_score": pr["typical_weighted"]["worst"]["share"],
+            "elite_score_matches": [x["best_weighted"]["share"] for x in pr["matches"]],
+            "danger_score_matches": [x["worst_weighted"]["share"] for x in pr["matches"]],
+            "deserved_points": sum(v for v in xp if v is not None) if xp else None,
+        }
+    return row
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2026)
@@ -145,33 +238,45 @@ def main() -> None:
     args = ap.parse_args()
 
     src = DATA_DIR / "processed" / str(args.season)
-    teams = json.loads((src / "team_matches.json").read_text())
-    players = json.loads((src / "player_matches.json").read_text())
-    prof = team_profile(teams, args.team)
-    prof["players"] = player_profiles(players, args.team)
-    prof["season"] = f"{args.season}-{(args.season + 1) % 100:02d}"
-    prof["competition"] = "Premier League"
+    rows = json.loads((src / "team_matches.json").read_text())
+    ctx = {
+        "rows": rows,
+        "players": json.loads((src / "player_matches.json").read_text()),
+        "season": _label(args.season),
+    }
+    lines: dict = {}
     prev = DATA_DIR / "processed" / str(args.season - 1) / "team_matches.json"
     if prev.exists():
         # Stages 2-3: last season's top-4 wins / bottom-4 losses define this season's
-        # best and worst lines (PL only).
+        # best and worst lines (PL only), the same lines for every team.
         prev_rows = json.loads(prev.read_text())
-        label = f"{args.season - 1}-{args.season % 100:02d}"
-        for side in ("best", "worst"):
-            compare(prof, build_line(prev_rows, label, teams, side=side))
-    if "best_line" in prof:
-        prof["proof"] = _proof(args.season, args.team, prof)
+        lines = {
+            side: build_line(prev_rows, _label(args.season - 1), rows, side=side)
+            for side in ("best", "worst")
+        }
+    rec = proof_record(args.season) if lines else None
     ucl_src = src / "ucl" / "team_matches.json"
-    if ucl_src.exists():
-        # Separate pool, separate providers: ranked only against other UCL team-matches.
-        ucl = team_profile(json.loads(ucl_src.read_text()), args.team)
-        prof["ucl"] = ucl | {"competition": "Champions League", "season": prof["season"]}
-    if "proof" in prof:
-        prof["focus"] = _focus(prof)
+    ucl_rows = json.loads(ucl_src.read_text()) if ucl_src.exists() else None
 
+    names = sorted({r["team"] for r in rows})
+    teams = {t: build_team(t, ctx, rec, lines, ucl_rows) for t in names}
+    prof = teams[args.team]
     out = DATA_DIR / "site" / str(args.season)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "profile.json").write_text(json.dumps(prof, indent=1))
+    shared = {"fotmob": rec["fotmob"], "understat": rec["understat"]} if rec else None
+    # The focus team's file carries the shared proof too: the analyst reads it.
+    focus_prof = prof | ({"proof": prof["proof"] | shared} if shared else {})
+    (out / "profile.json").write_text(json.dumps(focus_prof, indent=1))
+    league = {
+        "season": ctx["season"],
+        "competition": "Premier League",
+        "focus_team": args.team,
+        "proof": shared,
+        "table": sorted((table_row(p) for p in teams.values()), key=lambda r: r["position"]),
+        "teams": teams,
+    }
+    (out / "league.json").write_text(json.dumps(league, separators=(",", ":")))
+    prof = focus_prof
 
     rec = prof["record"]
     print(
@@ -233,7 +338,7 @@ def main() -> None:
             f"({_fmt(ms['sprints']['percentile'], 0)}) rec {_fmt(ms['recoveries']['value'], 1)} "
             f"({_fmt(ms['recoveries']['percentile'], 0)})"
         )
-    print(f"\nwrote {out / 'profile.json'}")
+    print(f"\nwrote {out / 'profile.json'} and league.json ({len(teams)} teams)")
 
 
 if __name__ == "__main__":

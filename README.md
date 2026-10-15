@@ -17,9 +17,9 @@ uv run python -m corridor.scripts.build_season    # fetch PL 2026-27 from FotMob
 uv run python -m corridor.scripts.build_season --competition ucl  # UCL: FotMob events + UEFA running data
 uv run python -m corridor.scripts.build_season --season 2025  # once per season: last season = best/worst lines
 uv run python -m corridor.scripts.build_season --season 2024  # once: the season before, for the proof
-uv run python -m corridor.scripts.united_profile  # rank United vs the league + lines + historical proof
+uv run python -m corridor.scripts.united_profile  # profile all 20 teams + overview (league.json) + lines + proof
 uv run python -m corridor.scripts.analyse         # LLM analyst writes + a critic checks the season read (needs backend/.env, ~4 min)
-uv run python -m corridor.scripts.build_site      # render data/site/2026/index.html from web/united.html
+uv run python -m corridor.scripts.build_site      # render data/site/2026/index.html (overview + team pages) from web/united.html
 ```
 
 **Automatic updates after each match:** `./ops/launchd/install.sh` installs a launchd job

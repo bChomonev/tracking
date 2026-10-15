@@ -8,6 +8,24 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-022 — Premier League overview + a breakdown for every team · 2026-10-15 · accepted
+The site now opens on a Premier League overview; every team gets the same breakdown United
+has (focus tiers, proof, match table, stacks, players, UCL tab if they play in it). The
+**analyst stays United-only** (the user's team; it costs ~3 min / ~200k tokens a run).
+`united_profile` builds all 20 teams in one pass (lines and proof computed once, placed per
+team) and writes `league.json` (all teams + overview table) next to `profile.json` (focus
+team + shared proof, still the analyst's input). Understat rows are joined to FotMob
+team-matches by day + score + Understat PPDA + deep completions for/against — score and
+deep completions alone mixed up two 2-2 draws on the same day.
+**Overview:** a table sorted by any column — points, **deserved points**, points minus
+deserved, xG, the 7 decisive metrics (elite / between / relegation level), elite and danger
+scores, stack percentiles, form — plus an elite-vs-danger scatter and a points-vs-
+performance chart. **Deserved points** per match = mean of 3·W + D over the historical
+bins for the match's elite score and its danger score (FotMob weighted record); it
+describes performances, it is not yet a prediction. Hash routing (`#team/<slug>`) keeps it
+one static page (~1.5 MB). **Automation:** `update` now rebuilds after any finished PL
+match and any UCL match involving a PL team, not just United's.
+
 ## D-021 — Page refocused on what decides matches; impact-weighted lines · 2026-10-15 · accepted
 The page listed 29 metrics with equal weight, so United's strengths (territory, PPDA,
 passes into the final third) visually balanced weaknesses that matter far more. Each

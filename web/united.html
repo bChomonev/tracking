@@ -1,4 +1,4 @@
-<title>United Explained</title>
+<title>Premier League Explained</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -46,7 +46,7 @@ body {
   padding-block: 28px 48px;
 }
 main { max-width: 1120px; margin: 0 auto; display: grid; gap: 40px; }
-main > * { min-width: 0; } /* let wide tables scroll inside .table-wrap instead of widening the page */
+main > *, #overview > *, #team-view > * { min-width: 0; } /* let wide tables scroll inside .table-wrap instead of widening the page */
 [hidden] { display: none !important; }
 h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.05; margin: 0; text-wrap: balance; }
 h2 { font-size: 1.9rem; text-transform: uppercase; letter-spacing: .02em; }
@@ -171,6 +171,44 @@ tr.typical td { background: var(--track); font-weight: 600; }
 .lines-cell.e b { color: var(--good); } .lines-cell.w b { color: var(--bad); }
 .lines-cell small { display: block; font: 400 .74rem/1.2 var(--body); color: var(--muted); }
 
+/* Overview */
+#overview, #team-view { display: contents; }
+.back { font: 600 .9rem/1 var(--body); color: var(--muted); text-decoration: none; }
+.back:hover { color: var(--ink); }
+.hero > p:has(.back) { margin: -8px 0 0; }
+.cta { display: inline-block; font: 600 1rem/1 var(--body); color: #fff; background: var(--red); padding: 12px 16px; border-radius: 999px; text-decoration: none; }
+:root:not([data-theme="light"]) .cta { color: var(--bg); }
+.cta:hover { filter: brightness(1.08); }
+.cta:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.ov-lede { display: grid; gap: 8px; max-width: 75ch; font-size: 1.08rem; }
+.ov-lede p { margin: 0; }
+.ov-table td.l a { color: var(--ink); font-weight: 600; text-decoration: none; }
+.ov-table td.l a:hover { text-decoration: underline; }
+.ov-table tr.me td { background: color-mix(in srgb, var(--red) 7%, var(--panel)); }
+.ov-table tr.me td.l a { color: var(--red); }
+.ov-table th button { all: unset; cursor: pointer; }
+.ov-table th button:focus-visible { outline: 2px solid var(--red); }
+.ov-table th[aria-sort] button::after { content: " ▾"; }
+.ov-table th[aria-sort="ascending"] button::after { content: " ▴"; }
+.seg7 { display: inline-flex; gap: 2px; vertical-align: middle; }
+.seg7 i { width: 9px; height: 14px; border-radius: 2px; background: var(--track); }
+.seg7 i.e { background: var(--good); } .seg7 i.w { background: var(--bad); }
+.seg7 + small { margin-left: 6px; color: var(--muted); font-family: var(--mono); font-size: .8rem; }
+.diff.up { color: var(--good); } .diff.down { color: var(--bad); }
+.diff { font-size: .8rem; margin-left: 4px; }
+.pct-chip { display: inline-block; min-width: 2.4em; text-align: center; padding: 3px 4px; border-radius: 3px; font-family: var(--mono); font-size: .82rem; }
+.form { display: inline-flex; gap: 2px; }
+.form .res { width: 1.3em; font-size: .7rem; padding: 3px 0; }
+.ov-chart { margin: 0; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; }
+.ov-chart { overflow-x: auto; }
+.ov-chart svg { display: block; width: 100%; min-width: 640px; height: auto; }
+.ov-chart a { cursor: pointer; }
+.ov-chart a:hover circle, .ov-chart a:focus circle { stroke: var(--ink); stroke-width: 2; }
+.ov-chart a:focus { outline: none; }
+.ov-chart text { font: 600 12px var(--body); fill: var(--ink); }
+.ov-chart .axis text { font: 400 11px var(--body); fill: var(--muted); }
+.ov-chart .quad { font: 600 11px var(--body); fill: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+
 /* Hero */
 .hero { display: grid; gap: 20px; border-bottom: 3px solid var(--red); padding-bottom: 28px; }
 .hero h1 { font-size: clamp(2.6rem, 7vw, 4.6rem); text-transform: uppercase; }
@@ -268,7 +306,45 @@ th[aria-sort] button::after { content: " ▾"; }
 </style>
 
 <main>
+  <div id="overview" hidden>
+    <section class="hero" aria-labelledby="ov-title">
+      <p class="eyebrow" id="ov-season"></p>
+      <p class="freshness" id="ov-fresh"></p>
+      <h1 id="ov-title">The Premier League, <span>by what decides matches</span></h1>
+      <div class="ov-lede" id="ov-lede"></div>
+      <p><a class="cta" id="ov-cta" href="#"></a></p>
+    </section>
+
+    <section aria-labelledby="ovt-title">
+      <div class="section-head">
+        <h2 id="ovt-title">The table that matters</h2>
+        <p id="ov-table-sub"></p>
+      </div>
+      <div class="table-wrap"><table id="ov-table" class="ov-table"></table></div>
+    </section>
+
+    <section aria-labelledby="ovs-title">
+      <div class="section-head">
+        <h2 id="ovs-title">Who plays like a top team?</h2>
+        <p>Each team's typical match: elite score (share of the elite lines reached, weighted by how much each decides matches) against danger score (the same for the worst lines). Top right plays like last season's top four winning; bottom left like the bottom four losing. Click a team.</p>
+      </div>
+      <figure class="ov-chart" id="ov-scatter"></figure>
+    </section>
+
+    <section aria-labelledby="ovl-title">
+      <div class="section-head">
+        <h2 id="ovl-title">Points vs performances</h2>
+        <p id="ov-luck-sub"></p>
+      </div>
+      <figure class="ov-chart" id="ov-luck"></figure>
+    </section>
+
+    <footer class="notes" id="ov-notes"></footer>
+  </div>
+
+  <div id="team-view" hidden>
   <section class="hero" aria-labelledby="title">
+    <p><a class="back" href="#">← Premier League overview</a></p>
     <p class="eyebrow" id="season-label">Premier League</p>
     <p class="freshness" id="freshness"></p>
     <h1 id="title">Why are United <span>struggling?</span></h1>
@@ -335,39 +411,59 @@ th[aria-sort] button::after { content: " ▾"; }
   </section>
 
   <footer class="notes" id="notes"></footer>
+  </div>
 </main>
 
 <script type="application/json" id="profile-data">/*__PROFILE__*/null</script>
 <script type="application/json" id="analysis-data">/*__ANALYSIS__*/null</script>
 <script>
 (() => {
-  const P = JSON.parse(document.getElementById("profile-data").textContent.replace("/*__PROFILE__*/", ""));
-  if (!P) return;
+  const L = JSON.parse(document.getElementById("profile-data").textContent.replace("/*__PROFILE__*/", ""));
+  if (!L) return;
+  const A = JSON.parse(document.getElementById("analysis-data").textContent.replace("/*__ANALYSIS__*/", ""));
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d) => (v == null ? "—" : (d === 0 ? Math.round(v).toString() : v.toFixed(d)));
   const signed = (v, d) => (v == null ? "—" : (v > 0 ? "+" : "") + v.toFixed(d));
   const tier = (p) => (p == null ? "" : p >= 67 ? "good" : p >= 34 ? "mid" : "bad");
   const ord = (n) => n + (["th", "st", "nd", "rd"][(n % 100 > 10 && n % 100 < 14) ? 0 : (n % 10 < 4 ? n % 10 : 0)] || "th");
-  const short = (t) => t.replace("Hotspur", "").replace("& Hove Albion", "").replace("Wolverhampton Wanderers", "Wolves").trim();
-  const metricBy = Object.fromEntries(P.metrics.map((m) => [m.key, m]));
+  const short = (t) => t.replace("Hotspur", "").replace("& Hove Albion", "").replace("Wolverhampton Wanderers", "Wolves").replace("AFC ", "").trim();
+  const nick = (t) => ({ "Manchester United": "United", "Manchester City": "City" })[t] || short(t);
   const SIGNED = new Set(["distance_gap_km", "sprints_gap", "finishing_delta"]);
   const showVal = (m, v) => (SIGNED.has(m.key) ? signed(v, m.decimals) : fmt(v, m.decimals)) + (m.unit && v != null ? " " + m.unit : "");
 
-  // ---- Hero
-  $("season-label").textContent = `Premier League ${P.season} · after ${P.record.played} matches`;
-
-  // What data am I looking at? Build time + the latest match in each competition.
   const when = (iso, time) => new Date(iso).toLocaleString(undefined, time
     ? { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }
     : { weekday: "short", day: "numeric", month: "short" });
   const ago = (iso) => { const d = Math.floor((Date.now() - new Date(iso)) / 864e5); return d <= 0 ? "today" : d === 1 ? "yesterday" : `${d} days ago`; };
+  const pctTxt = (x) => (x == null ? "—" : Math.round(x * 100) + "%");
+  const TIER = {
+    decisive: ["Decides matches", "Reaching the elite line here moved the win rate (and sinking to the worst line the loss rate) by 20+ points on average."],
+    helps: ["Helps a little", "A 10–20 point effect on results."],
+    no_effect: ["Doesn't decide matches", "Under 10 points: teams win about as often whether they reach these lines or not."],
+  };
+  const tipOf = (m) => m.explain + (m.direction < 0 ? " Lower is better." : " Higher is better.");
+  const STATUS = { best: "Elite level", between: "In between", worst: "Relegation level" };
+  const slug = (t) => t.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const bySlug = Object.fromEntries(Object.keys(L.teams).map((t) => [slug(t), t]));
+  const fresh = (Date.now() - new Date(L.generated_at)) / 864e5 < 8;
+  const updated = `<span><i class="dot${fresh ? "" : " old"}"></i>Updated <b>${esc(when(L.generated_at, true))}</b> (${ago(L.generated_at)})</span>`;
+
+  // ===== Team view (one team; the analyst only for the focus team) =====
+  const renderTeam = (P) => {
+  P.generated_at = L.generated_at;
+  if (L.proof && P.proof) P.proof = { ...L.proof, ...P.proof };
+  const isFocus = P.team === L.focus_team;
+  const TN = nick(P.team);
+  const metricBy = Object.fromEntries(P.metrics.map((m) => [m.key, m]));
+  $("season-label").textContent = `Premier League ${P.season} · after ${P.record.played} matches`;
+  $("title").innerHTML = isFocus ? `Why are ${esc(TN)} <span>struggling?</span>` : `How good are <span>${esc(TN)}</span> really?`;
+  document.title = isFocus ? "United Explained" : `${short(P.team)} · Premier League Explained`;
   const lastOf = (C) => C && C.matches.length ? C.matches[C.matches.length - 1] : null;
   const matchTxt = (mt) => `${short(mt.opponent)} (${mt.is_home ? "H" : "A"}) ${mt.goals_for}–${mt.goals_against}, ${when(mt.kickoff_utc)}`;
   const lastPL = lastOf(P), lastUCL = lastOf(P.ucl);
-  const fresh = (Date.now() - new Date(P.generated_at)) / 864e5 < 8;
   $("freshness").innerHTML = [
-    `<span><i class="dot${fresh ? "" : " old"}"></i>Updated <b>${esc(when(P.generated_at, true))}</b> (${ago(P.generated_at)})</span>`,
+    updated,
     lastPL && `<span>Latest PL match: <b>${esc(matchTxt(lastPL))}</b></span>`,
     lastUCL && `<span>Latest UCL match: <b>${esc(matchTxt(lastUCL))}</b></span>`,
   ].filter(Boolean).join("");
@@ -383,30 +479,23 @@ th[aria-sort] button::after { content: " ▾"; }
   ].map(([b, s]) => `<div><b class="num">${esc(b)}</b><small>${esc(s)}</small></div>`).join("");
 
   // ---- What decides matches (PL only: tiers come from the out-of-sample proof, D-021)
-  const pctTxt = (x) => (x == null ? "—" : Math.round(x * 100) + "%");
-  const TIER = {
-    decisive: ["Decides matches", "Reaching the elite line here moved the win rate (and sinking to the worst line the loss rate) by 20+ points on average."],
-    helps: ["Helps a little", "A 10–20 point effect on results."],
-    no_effect: ["Doesn't decide matches", "Under 10 points: teams win about as often whether they reach these lines or not."],
-  };
-  const tipOf = (m) => m.explain + (m.direction < 0 ? " Lower is better." : " Higher is better.");
-  const STATUS = { best: "Elite level", between: "In between", worst: "Relegation level" };
   const F = P.focus;
+  $("focus-sec").hidden = !F;
   if (F) {
     const plBy = Object.fromEntries(P.metrics.map((m) => [m.key, m]));
     const dec = F.tiers.decisive, ne = F.tiers.no_effect;
     const names = (t, st) => t.metrics.filter((k, i) => t.status[i] === st).map((k) => plBy[k].label.replace(/ \(.*\)$/, "").toLowerCase());
     const list = (xs) => xs.length <= 1 ? xs.join("") : xs.slice(0, -1).join(", ") + " and " + xs[xs.length - 1];
-    $("focus-lede").innerHTML = `On the ${dec.metrics.length} things that decide matches, United's typical match reaches the elite line on <strong>${dec.best}</strong> and sinks to relegation level on <em>${dec.worst}</em>. ` +
+    $("focus-lede").innerHTML = `On the ${dec.metrics.length} things that decide matches, ${esc(TN)}'s typical match reaches the elite line on <strong>${dec.best}</strong> and sinks to relegation level on <em>${dec.worst}</em>. ` +
       (ne.best ? `Their elite numbers (${esc(list(names(ne, "best")))}) are on things that don't decide matches.` : "");
-    $("focus-sub").textContent = `Every metric, ranked by how much it changed results when tested on later seasons, with United's typical (median) match placed between two lines: the worst line (last season's bottom four in defeat) and the elite line (the top four in victory).`;
+    $("focus-sub").textContent = `Every metric, ranked by how much it changed results when tested on later seasons, with ${esc(TN)}'s typical (median) match placed between two lines: the worst line (last season's bottom four in defeat) and the elite line (the top four in victory).`;
     const row = (k, st) => {
       const m = plBy[k], im = m.impact, bl = m.best_line, wl = m.worst_line;
       let gauge = "";
       if (bl && wl && bl.value !== wl.value) {
         const t = Math.max(-0.12, Math.min(1.12, (m.value - wl.value) / (bl.value - wl.value)));
         gauge = `<div class="gauge" aria-hidden="true"><span class="lw"></span><span class="lb"></span><i style="left:${(12 + 76 * t).toFixed(1)}%"></i></div>
-          <div class="gauge-legend"><span>worst <span class="num">${esc(showVal(m, wl.value))}</span></span><span>United <span class="num">${esc(showVal(m, m.value))}</span></span><span>elite <span class="num">${esc(showVal(m, bl.value))}</span></span></div>`;
+          <div class="gauge-legend"><span>worst <span class="num">${esc(showVal(m, wl.value))}</span></span><span>${esc(TN)} <span class="num">${esc(showVal(m, m.value))}</span></span><span>elite <span class="num">${esc(showVal(m, bl.value))}</span></span></div>`;
       }
       return `<li class="f-row"><div class="f-name"><button type="button" class="chip-link tip" data-tip="${esc(tipOf(m))}" data-metric="${esc(k)}">${esc(m.label)}</button>${im.provisional ? `<span class="prov" title="Running data only exists this season: tested on ${im.n} matches">provisional</span>` : ""}
           <span class="f-explain">${esc(tipOf(m))}</span><small>Won ${pctTxt(im.won_when_reached)} when reaching the elite line, ${pctTxt(im.won_when_not)} when not${im.lost_when_at_worst != null ? ` · lost ${pctTxt(im.lost_when_at_worst)} at the worst line` : ""}</small></div>
@@ -414,7 +503,7 @@ th[aria-sort] button::after { content: " ▾"; }
     };
     $("focus-tiers").innerHTML = Object.entries(F.tiers).map(([tier, t]) => {
       const head = `<h3>${TIER[tier][0]} <span class="num">(${t.metrics.length})</span><small>${TIER[tier][1]}</small></h3>
-        <span class="tally">United: <b class="g">${t.best}</b> elite · <b>${t.between}</b> between · <b class="r">${t.worst}</b> relegation level</span>`;
+        <span class="tally">${esc(TN)}: <b class="g">${t.best}</b> elite · <b>${t.between}</b> between · <b class="r">${t.worst}</b> relegation level</span>`;
       const rows = `<ul class="f-rows">${t.metrics.map((k, i) => row(k, t.status[i])).join("")}</ul>`;
       return tier === "no_effect"
         ? `<details class="tier ${tier}"><summary>${head}</summary>${rows}</details>`
@@ -428,10 +517,11 @@ th[aria-sort] button::after { content: " ▾"; }
     $("focus-sec").hidden = false;
   }
 
-  // ---- Analyst's read (LLM-written, number-checked at build time)
-  const A = JSON.parse(document.getElementById("analysis-data").textContent.replace("/*__ANALYSIS__*/", ""));
+  // ---- Analyst's read (LLM-written, number-checked at build time) — focus team only
   const kindLabel = { problem: "Problem", strength: "Strength", watch: "Watch" };
-  if (A) {
+  $("analyst-sec").hidden = true;
+  $("player-notes").hidden = true;
+  if (A && isFocus) {
     $("analyst-lede").textContent = A.headline;
     $("analyst").innerHTML = `<p class="summary">${esc(A.summary)}</p>
       <ul class="findings">${A.findings.map((f) => `<li class="finding ${esc(f.kind)}">
@@ -451,6 +541,7 @@ th[aria-sort] button::after { content: " ▾"; }
 
   // ---- How we know (PL only)
   const PR = P.proof;
+  $("proof-sec").hidden = !PR;
   if (PR) {
     const US = PR.understat, FM = PR.fotmob;
     const seasons = `${US.pairs[0].tested_on}–${US.pairs[US.pairs.length - 1].tested_on}`;
@@ -467,7 +558,7 @@ th[aria-sort] button::after { content: " ▾"; }
     const plBy = Object.fromEntries(P.metrics.map((m) => [m.key, m]));
     const keys = P.metrics.filter((m) => m.impact).sort((a, b) => b.impact.impact - a.impact.impact).map((m) => m.key);
     $("proof-metrics-note").textContent = `For each line: how often teams won when they reached the elite line vs when they didn't, and how often they lost at the worst line vs when they didn't. A big gap means the line separates wins from defeats.`;
-    $("proof-metrics").innerHTML = `<thead><tr><th class="l">Line</th><th>Won · reached elite</th><th>Won · didn't</th><th>Lost · at worst</th><th>Lost · not</th><th>United typical</th></tr></thead><tbody>` +
+    $("proof-metrics").innerHTML = `<thead><tr><th class="l">Line</th><th>Won · reached elite</th><th>Won · didn't</th><th>Lost · at worst</th><th>Lost · not</th><th>${esc(TN)} typical</th></tr></thead><tbody>` +
       keys.map((k) => { const m = plBy[k], im = m.impact;
         const st = m.best_line?.typical_hits ? "best" : m.worst_line?.typical_hits ? "worst" : "between";
         return `<tr><td class="l"><span class="lift-bar" style="width:${Math.round(Math.max(0, im.impact) * 60)}px"></span><span class="tip below" tabindex="0" data-tip="${esc(tipOf(m))}">${esc(m.label)}</span> <span class="imp-tag ${im.tier}">${TIER[im.tier][0]}</span>${im.provisional ? ` <small>(this season only, ${im.n} matches)</small>` : ""}</td>
@@ -485,7 +576,7 @@ th[aria-sort] button::after { content: " ▾"; }
   const renderComp = (C) => {
   const metricBy = Object.fromEntries(C.metrics.map((m) => [m.key, m]));
   const n = C.metrics[0]?.of;
-  $("stacks-sub").textContent = `Each bar is United's percentile among all ${n} ${C.competition} teams, comparing every team's typical (median) match so one freak game can't carry a season. 100 = best. Within each stack, metrics are ordered by how much they decide matches. Tap a metric for detail.`;
+  $("stacks-sub").textContent = `Each bar is ${TN}'s percentile among all ${n} ${C.competition} teams, comparing every team's typical (median) match so one freak game can't carry a season. 100 = best. Within each stack, metrics are ordered by how much they decide matches. Tap a metric for detail.`;
   $("goal-types").hidden = true;
   // ---- Stacks
   const spark = (m) => {
@@ -581,31 +672,18 @@ th[aria-sort] button::after { content: " ▾"; }
   }
 
   };
+  $("comp-switch").hidden = COMPS.length < 2;
   if (COMPS.length > 1) {
     $("comp-switch").innerHTML = COMPS.map((C, i) => `<button type="button" role="tab" aria-selected="${i === 0}" data-i="${i}">${esc(C.competition)} <small>${C.record.played} matches</small></button>`).join("");
     $("comp-switch").hidden = false;
-    $("comp-switch").addEventListener("click", (e) => {
+    $("comp-switch").onclick = (e) => {
       const b = e.target.closest("button[data-i]");
       if (!b) return;
       $("comp-switch").querySelectorAll("button").forEach((x) => x.setAttribute("aria-selected", x === b));
       renderComp(COMPS[+b.dataset.i]);
-    });
+    };
   }
   renderComp(P);
-
-  document.addEventListener("click", (e) => {
-    const chip = e.target.closest(".chip[data-metric], .chip-link[data-metric]");
-    if (!chip) return;
-    // Analyst chips cite Premier League metrics: switch back to that view first.
-    const tab = document.querySelector('#comp-switch button[data-i="0"]');
-    if (tab && tab.getAttribute("aria-selected") !== "true") tab.click();
-    const el = document.getElementById("m-" + chip.dataset.metric);
-    if (!el) return;
-    el.open = true;
-    el.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
-    el.classList.add("flash");
-    setTimeout(() => el.classList.remove("flash"), 1600);
-  });
 
   // ---- Players table (sortable)
   const pCols = [["effort", "Effort pct"], ["distance_m", "Km"], ["sprints", "Sprints"], ["recoveries", "Recov."], ["duels_won", "Duels won"], ["line_breaking_passes", "Line-break"], ["box_touches", "Box touches"], ["xg_xa", "xG+xA"]];
@@ -625,11 +703,192 @@ th[aria-sort] button::after { content: " ▾"; }
   // ---- Notes
   $("notes").innerHTML = [
     `Data: match stats, running data and player stats from FotMob; PPDA and deep completions from Understat. Each metric uses one provider, so comparisons are like-for-like.`,
-    `Champions League: match stats from FotMob, running data from UEFA's tracking. UCL numbers are ranked only against the other ${P.ucl ? P.ucl.metrics[0].of : 36} UCL teams and never compared with Premier League numbers (different providers measure running differently).`,
+    P.ucl && `Champions League: match stats from FotMob, running data from UEFA's tracking. UCL numbers are ranked only against the other ${P.ucl.metrics[0].of} UCL teams and never compared with Premier League numbers (different providers measure running differently).`,
     `Ranks compare each team's typical (median) match. A metric marked "skewed" has one match that moves the season average by several places; the detail names it.`,
     `Small sample: ${P.record.played} Premier League${P.ucl ? ` and ${P.ucl.record.played} Champions League` : ""} matches. Expect these ranks to move.`,
     `A player's role is the position they started in most often this season, taken from FotMob's line-ups.`,
     `Generated ${new Date(P.generated_at).toUTCString().slice(5, 22)} UTC.`,
-  ].map((t) => `<p>${esc(t)}</p>`).join("");
+  ].filter(Boolean).map((t) => `<p>${esc(t)}</p>`).join("");
+  };
+
+  // ===== Overview: every Premier League team on what decides matches =====
+  const ME = L.focus_team;
+  const T = L.table;
+  const pct100 = (x) => (x == null ? "—" : Math.round(100 * x));
+  const seg7 = (d) => `<span class="seg7" aria-label="${d.best} elite, ${d.between} between, ${d.worst} relegation level">${
+    [...Array(d.best).fill("e"), ...Array(d.between).fill("b"), ...Array(d.worst).fill("w")].map((c) => `<i class="${c}"></i>`).join("")}</span><small>${d.best}·${d.worst}</small>`;
+  const chipBg = (p) => (p == null ? "" : `tier-${tier(p)}`);
+  const luck = (r) => r.points - r.deserved_points;
+  const OV_COLS = [
+    ["position", "Pos", (r) => r.position, 1],
+    ["team", "Team", null],
+    ["played", "P", (r) => r.played],
+    ["points", "Pts", (r) => r.points],
+    ["deserved", "Deserved", (r) => r.deserved_points],
+    ["luck", "Pts − deserved", (r) => luck(r)],
+    ["xg", "xG–xGA", (r) => r.xg - r.xga],
+    ["decisive", "Decides matches", (r) => r.decisive.best - r.decisive.worst + r.decisive.between * 0.01],
+    ["elite", "Elite score", (r) => r.elite_score],
+    ["danger", "Danger score", (r) => r.danger_score, 1],
+    ["work", "Work", (r) => r.stacks.work],
+    ["progression", "Prog.", (r) => r.stacks.progression],
+    ["attack", "Attack", (r) => r.stacks.attack],
+    ["defence", "Defence", (r) => r.stacks.defence],
+    ["form", "Form", null],
+  ];
+  const OV_TIPS = {
+    deserved: "Points the performances deserved: for each match, how many points past teams averaged with the same elite score and the same danger score.",
+    luck: "Actual points minus deserved points. Positive = results better than the performances; negative = worse.",
+    decisive: "The 7 metrics that decide matches: green = typical match at the elite line, red = at relegation level, grey = in between. Numbers: elite · relegation.",
+    elite: "Share of the elite lines the typical match reaches, each weighted by how much it decides matches (0–100).",
+    danger: "Share of the worst (relegation) lines the typical match sinks to, weighted the same way (0–100). Lower is better.",
+    work: "Average percentile of the work-rate & press metrics.", progression: "Average percentile of the progression & territory metrics.",
+    attack: "Average percentile of the attack metrics.", defence: "Average percentile of the defence metrics.",
+  };
+  let ovSort = ["position", 1];
+  const teamHref = (t) => `#team/${slug(t)}`;
+  const renderOvTable = () => {
+    const [key, dir] = ovSort;
+    const col = OV_COLS.find((c) => c[0] === key);
+    const rows = [...T].sort((a, b) => dir * ((col[2](a) ?? -1e9) - (col[2](b) ?? -1e9)) || a.position - b.position);
+    $("ov-table").innerHTML = `<thead><tr>${OV_COLS.map(([k, label, f], i) => {
+      const lab = OV_TIPS[k] ? `<span class="tip below${i > 9 ? " end" : ""}" data-tip="${esc(OV_TIPS[k])}">${label}</span>` : label;
+      return `<th class="${k === "team" ? "l" : ""}"${k === key ? ` aria-sort="${dir > 0 ? "ascending" : "descending"}"` : ""}>${f ? `<button type="button" data-k="${k}">${lab}</button>` : lab}</th>`;
+    }).join("")}</tr></thead><tbody>` + rows.map((r) => {
+      const l = luck(r);
+      return `<tr class="${r.team === ME ? "me" : ""}"><td class="cell">${r.position}</td>
+        <td class="l"><a href="${teamHref(r.team)}">${esc(short(r.team))}</a></td>
+        <td class="cell">${r.played}</td><td class="cell"><b>${r.points}</b></td>
+        <td class="cell">${r.deserved_points.toFixed(1)}</td>
+        <td class="cell diff ${l >= 1.5 ? "up" : l <= -1.5 ? "down" : ""}">${signed(l, 1)}</td>
+        <td class="cell">${r.xg.toFixed(1)}–${r.xga.toFixed(1)}</td>
+        <td class="l">${seg7(r.decisive)}</td>
+        <td class="cell">${pct100(r.elite_score)}</td><td class="cell">${pct100(r.danger_score)}</td>
+        ${["work", "progression", "attack", "defence"].map((k) => `<td class="cell"><span class="pct-chip ${chipBg(r.stacks[k])}">${r.stacks[k] ?? "—"}</span></td>`).join("")}
+        <td><span class="form">${r.form.map((x) => `<span class="res ${x}">${x}</span>`).join("")}</span></td></tr>`;
+    }).join("") + "</tbody>";
+    $("ov-table").querySelectorAll("th button").forEach((b) => b.addEventListener("click", () => {
+      const k = b.dataset.k, asc = OV_COLS.find((c) => c[0] === k)[3] === 1;
+      ovSort = ovSort[0] === k ? [k, -ovSort[1]] : [k, asc ? 1 : -1];
+      renderOvTable();
+    }));
+  };
+
+  const renderScatter = () => {
+    const W = 820, H = 470, pl = 52, pr = 18, pt = 18, pb = 44;
+    const xs = T.map((r) => r.elite_score), ys = T.map((r) => r.danger_score);
+    const xmax = Math.min(1, Math.max(...xs) + 0.08), ymax = Math.min(1, Math.max(...ys) + 0.08);
+    const X = (v) => pl + (W - pl - pr) * (v / xmax), Y = (v) => pt + (H - pt - pb) * (v / ymax); // danger: low at top
+    const ticks = (max) => [0, 0.2, 0.4, 0.6, 0.8, 1].filter((t) => t <= max + 1e-9);
+    const mx = X(xmax / 2), my = Y(ymax / 2);
+    $("ov-scatter").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Elite score against danger score for every team">
+      <rect x="${mx}" y="${pt}" width="${W - pr - mx}" height="${my - pt}" fill="var(--good-bg)" opacity=".55"></rect>
+      <rect x="${pl}" y="${my}" width="${mx - pl}" height="${H - pb - my}" fill="var(--bad-bg)" opacity=".55"></rect>
+      <text class="quad" x="${W - pr - 8}" y="${pt + 16}" text-anchor="end">Plays like a top team</text>
+      <text class="quad" x="${pl + 8}" y="${H - pb - 10}">Plays like a bottom team</text>
+      <g class="axis">${ticks(xmax).map((t) => `<line x1="${X(t)}" x2="${X(t)}" y1="${pt}" y2="${H - pb}" stroke="var(--rule)"></line><text x="${X(t)}" y="${H - pb + 16}" text-anchor="middle">${Math.round(t * 100)}</text>`).join("")}
+        ${ticks(ymax).map((t) => `<line x1="${pl}" x2="${W - pr}" y1="${Y(t)}" y2="${Y(t)}" stroke="var(--rule)"></line><text x="${pl - 8}" y="${Y(t) + 4}" text-anchor="end">${Math.round(t * 100)}</text>`).join("")}
+        <text x="${(pl + W - pr) / 2}" y="${H - 6}" text-anchor="middle">Elite score →</text>
+        <text transform="translate(14 ${(pt + H - pb) / 2}) rotate(-90)" text-anchor="middle">← Danger score (lower is better)</text></g>
+      ${(() => {
+        // Labels: try right, left, above, below the dot; take the first spot that overlaps
+        // no other label or dot (fallback: right).
+        const dots = T.map((r) => [X(r.elite_score), Y(r.danger_score)]);
+        const placed = [];
+        const hit = (b) => placed.some((p) => b.x0 < p.x1 && p.x0 < b.x1 && b.y0 < p.y1 && p.y0 < b.y1) ||
+          dots.some(([dx, dy]) => dx > b.x0 - 6 && dx < b.x1 + 6 && dy > b.y0 - 6 && dy < b.y1 + 6) ||
+          b.x0 < pl || b.x1 > W - pr;
+        return [...T].sort((a, b) => a.danger_score - b.danger_score).map((r) => {
+          const cx = X(r.elite_score), cy = Y(r.danger_score), me = r.team === ME;
+          const w = short(r.team).length * 7.6 + 2, h = 13;
+          const opts = [
+            { x: cx + 10, y: cy + 4, a: "start", b: { x0: cx + 10, x1: cx + 10 + w, y0: cy - 7, y1: cy + 6 } },
+            { x: cx - 10, y: cy + 4, a: "end", b: { x0: cx - 10 - w, x1: cx - 10, y0: cy - 7, y1: cy + 6 } },
+            { x: cx, y: cy - 11, a: "middle", b: { x0: cx - w / 2, x1: cx + w / 2, y0: cy - 11 - h + 3, y1: cy - 8 } },
+            { x: cx, y: cy + 21, a: "middle", b: { x0: cx - w / 2, x1: cx + w / 2, y0: cy + 9, y1: cy + 9 + h } },
+          ];
+          const o = opts.find((c) => !hit(c.b)) || opts[cx > W - 150 ? 1 : 0];
+          placed.push(o.b);
+          return `<a href="${teamHref(r.team)}" aria-label="${esc(short(r.team))}: elite ${pct100(r.elite_score)}, danger ${pct100(r.danger_score)}"><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${me ? 8 : 6}" fill="${me ? "var(--red)" : "var(--ink)"}" opacity="${me ? 1 : 0.75}"></circle>
+          <text x="${o.x.toFixed(1)}" y="${o.y.toFixed(1)}" text-anchor="${o.a}"${me ? ' fill="var(--red)"' : ""}>${esc(short(r.team))}</text></a>`;
+        }).join("");
+      })()}
+    </svg>`;
+  };
+
+  const renderLuck = () => {
+    const rows = [...T].sort((a, b) => luck(b) - luck(a));
+    const W = 820, rowH = 22, H = rows.length * rowH + 30, mid = 470, lab = 150;
+    const m = Math.max(...rows.map((r) => Math.abs(luck(r)))) || 1, scale = (W - mid - 70) / m;
+    $("ov-luck-sub").textContent = `Actual points minus the points the performances deserved. Deserved points: for each match, how many points past team-matches with the same elite and danger scores averaged. Far right = results running ahead of the performances (expect them to drop); far left = performing better than the table says.`;
+    $("ov-luck").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Points minus deserved points per team">
+      <line x1="${mid}" x2="${mid}" y1="0" y2="${H - 24}" stroke="var(--muted)"></line>
+      ${rows.map((r, i) => { const l = luck(r), y = 6 + i * rowH, w = Math.abs(l) * scale, me = r.team === ME;
+        return `<a href="${teamHref(r.team)}"><text x="${lab}" y="${y + 13}" text-anchor="end"${me ? ' fill="var(--red)"' : ""}>${esc(short(r.team))}</text>
+          <text class="axis" x="${lab + 12}" y="${y + 13}" style="font:400 11px var(--mono);fill:var(--muted)">${r.points} vs ${r.deserved_points.toFixed(1)}</text>
+          <rect x="${(l >= 0 ? mid : mid - w).toFixed(1)}" y="${y + 2}" width="${Math.max(1, w).toFixed(1)}" height="${rowH - 6}" rx="2" fill="var(--${l >= 0 ? "good" : "bad"})" opacity="${me ? 1 : 0.8}"></rect>
+          <text x="${(l >= 0 ? mid + w + 6 : mid - w - 6).toFixed(1)}" y="${y + 13}" text-anchor="${l >= 0 ? "start" : "end"}" style="font:500 11px var(--mono)">${signed(l, 1)}</text></a>`; }).join("")}
+      <g class="axis"><text x="${mid - 8}" y="${H - 6}" text-anchor="end">← fewer points than deserved</text><text x="${mid + 8}" y="${H - 6}">more points than deserved →</text></g>
+    </svg>`;
+  };
+
+  let ovDone = false;
+  const renderOverview = () => {
+    document.title = "Premier League Explained";
+    if (ovDone) return;
+    ovDone = true;
+    const played = Math.max(...T.map((r) => r.played));
+    $("ov-season").textContent = `Premier League ${L.season} · after ${played} rounds`;
+    $("ov-fresh").innerHTML = updated;
+    const byGap = [...T].sort((a, b) => (b.elite_score - b.danger_score) - (a.elite_score - a.danger_score));
+    const best = byGap[0], worst = byGap[byGap.length - 1];
+    const lucky = [...T].sort((a, b) => luck(b) - luck(a))[0], unlucky = [...T].sort((a, b) => luck(a) - luck(b))[0];
+    const me = T.find((r) => r.team === ME);
+    const n = best.decisive.of;
+    $("ov-lede").innerHTML = [
+      `<b>${esc(short(best.team))}</b> play most like a top team: their typical match is at the elite line on ${best.decisive.best} of the ${n} things that decide matches and at relegation level on ${best.decisive.worst}. <b>${esc(short(worst.team))}</b> are furthest the other way (${worst.decisive.best} elite, ${worst.decisive.worst} relegation level).`,
+      `<b>${esc(short(lucky.team))}</b> have ${lucky.points} points from performances worth ${lucky.deserved_points.toFixed(1)} — the most ahead of their football. <b>${esc(short(unlucky.team))}</b> have ${unlucky.points} from ${unlucky.deserved_points.toFixed(1)} — the unluckiest.`,
+      me && `<b>${esc(short(me.team))}</b>: ${ord(me.position)}, ${me.points} points from performances worth ${me.deserved_points.toFixed(1)}; elite on ${me.decisive.best} and relegation level on ${me.decisive.worst} of the ${n}.`,
+    ].filter(Boolean).map((t) => `<p>${t}</p>`).join("");
+    $("ov-cta").textContent = `${short(ME)}: the full breakdown →`;
+    $("ov-cta").href = teamHref(ME);
+    $("ov-table-sub").textContent = `Every team, on the ${n} metrics that decide matches (tested on later seasons), next to the points they have. Click a column to sort, a team for its full breakdown. Hover a heading for what it means.`;
+    renderOvTable();
+    renderScatter();
+    renderLuck();
+    $("ov-notes").innerHTML = [
+      `Elite line: last season's top four in their league wins; worst line: the bottom four in their defeats. Scores weight each line by how much it decided matches on later seasons (see "How we know" in any team's breakdown).`,
+      `Deserved points use the historical record of past Premier League team-matches with the same scores. It is a description of the performances, not a prediction, and partly shaped by game state (a team 2–0 up may sit back).`,
+      `Small sample: ${played} rounds. Data: FotMob (match, running and player stats) and Understat (PPDA, deep completions).`,
+    ].map((t) => `<p>${esc(t)}</p>`).join("");
+  };
+
+  // ===== Router: #team/<slug> → team view; anything else → overview =====
+  let current = null;
+  const route = () => {
+    const m = location.hash.match(/^#\/?team\/([a-z0-9-]+)/);
+    const t = m && bySlug[m[1]];
+    $("overview").hidden = !!t;
+    $("team-view").hidden = !t;
+    if (t) { if (t !== current) renderTeam(L.teams[t]); current = t; } else renderOverview();
+    window.scrollTo(0, 0);
+  };
+  addEventListener("hashchange", route);
+  route();
+
+  document.addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip[data-metric], .chip-link[data-metric]");
+    if (!chip) return;
+    // Analyst chips cite Premier League metrics: switch back to that view first.
+    const tab = document.querySelector('#comp-switch button[data-i="0"]');
+    if (tab && tab.getAttribute("aria-selected") !== "true") tab.click();
+    const el = document.getElementById("m-" + chip.dataset.metric);
+    if (!el) return;
+    el.open = true;
+    el.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+    el.classList.add("flash");
+    setTimeout(() => el.classList.remove("flash"), 1600);
+  });
+
 })();
 </script>
