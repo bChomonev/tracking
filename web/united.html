@@ -389,13 +389,6 @@ th[aria-sort] button::after { content: " ▾"; }
     </section>
 
 
-    <section aria-labelledby="pj-title" id="pj-sec" hidden>
-      <div class="section-head">
-        <h2 id="pj-title">Where the season is heading</h2>
-        <p id="pj-sub"></p>
-      </div>
-      <div class="table-wrap"><table id="pj-table"></table></div>
-    </section>
 
     <section aria-labelledby="ovs-title">
       <div class="section-head">
@@ -919,16 +912,6 @@ th[aria-sort] button::after { content: " ▾"; }
         ? `Record this season: ${R.scored} predictions scored, ${R.hits} favourites won (${pc(R.hits / R.scored)}). Average RPS ${R.rps.toFixed(3)}${R.rps_base != null ? ` (${R.rps_base.toFixed(3)} without team news)` : ""}${R.avg_rps != null ? ` vs the bookmakers' ${R.avg_rps.toFixed(3)}` : ""} (lower is better).`
         : `Every prediction is saved before kickoff and scored after the match — the record starts with this round.`;
       $("pr-record").insertAdjacentHTML("beforeend", ` <a href="#how" data-jump="bt-sec">How good are these predictions? →</a>`);
-    }
-    const pj = PRD.projection || [];
-    $("pj-sec").hidden = !pj.length;
-    if (pj.length) {
-      $("pj-sub").textContent = `${(20000).toLocaleString()} simulations of the remaining fixtures, each match drawn from its predicted chances, starting from the current points. Ratings stay fixed at today's, so the further away, the rougher.`;
-      const bar = (x, c) => `<span class="pj-bar" style="width:${Math.round(x * 60)}px;background:var(--${c})"></span>${pc(x, x > 0 && x < 0.01 ? 1 : 0)}`;
-      $("pj-table").innerHTML = `<thead><tr><th>#</th><th class="l">Team</th><th>Pts now</th><th>Projected pts</th><th>Range (80%)</th><th class="l">Title</th><th class="l">Top 4</th><th class="l">${pj.length === 18 ? "Bottom 3 (incl. play-off)" : "Relegation"}</th></tr></thead><tbody>` +
-        pj.map((r, i) => `<tr class="${r.team === L.focus_team ? "me" : ""}"><td class="cell">${i + 1}</td><td class="l">${teamLink(r.team)}</td><td class="cell">${r.points_now}</td><td class="cell"><b>${r.points.toFixed(0)}</b></td><td class="cell">${r.points_p10.toFixed(0)}–${r.points_p90.toFixed(0)}</td>
-          <td class="l cell">${bar(r.title, "good")}</td><td class="l cell">${bar(r.top4, "good")}</td><td class="l cell">${bar(r.relegation, "bad")}</td></tr>`).join("") + "</tbody>";
-      $("pj-table").classList.add("ov-table");
     }
   };
   const teamNext = (P) => {
