@@ -38,17 +38,18 @@ def test_table_and_elite_exclude_red_card_wins():
     table = final_table(rows)
     assert table[0] == "B" and set(table[:4]) == {"B", "C", "D", "E"}  # A loses on GD
     line = build_line(rows, "2025-26")
-    assert set(line["elite"]) == {"B", "C", "D", "E"}
+    assert set(line["teams"]) == {"B", "C", "D", "E"}
     assert line["excluded"] and "10 men from 30'" in line["excluded"][0]["why"]
     assert line["metrics"]["npxg"]["n"] == 48  # 4 teams x 12 wins, red-card win excluded
 
 
 def test_compare_counts_matches_at_the_line():
     line = {
+        "side": "best",
         "season": "2025-26",
-        "elite": ["A"],
-        "wins": 20,
-        "wins_by_team": {"A": 20},
+        "teams": ["A"],
+        "games": 20,
+        "games_by_team": {"A": 20},
         "excluded": [],
         "metrics": {
             "npxg": {"value": 1.5, "p25": 1.2, "p75": 2.0, "n": 20},
@@ -74,12 +75,12 @@ def test_compare_counts_matches_at_the_line():
     }
     s = compare(profile, line)
     npxg, conc = (m["best_line"] for m in profile["metrics"])
-    assert npxg["matches_reached"] == 1 and npxg["matches_counted"] == 2
-    assert not npxg["typical_reaches"] and npxg["typical_in_range"]  # 1.3 >= p25 1.2
+    assert npxg["matches_hit"] == 1 and npxg["matches_counted"] == 2
+    assert not npxg["typical_hits"] and npxg["typical_in_range"]  # 1.3 >= p25 1.2
     assert npxg["gap"] == pytest.approx(-0.2)
     assert conc["weak_end"] == 1.1 and conc["typical_in_range"]  # lower is better
-    assert conc["matches_reached"] == 2  # 0.7 and 0.8 are at or under 0.8
-    assert [p["reached"] for p in s["per_match"]] == [2, 0, 1]
+    assert conc["matches_hit"] == 2  # 0.7 and 0.8 are at or under 0.8
+    assert [p["hits"] for p in s["per_match"]] == [2, 0, 1]
 
 
 def test_metric_whose_definition_changed_gets_no_line():
@@ -88,3 +89,12 @@ def test_metric_whose_definition_changed_gets_no_line():
     line = build_line(prev, "2025-26", cur)
     assert "npxg" in line["not_comparable"] and "npxg" not in line["metrics"]
     assert "npxg" in build_line(prev, "2025-26", prev)["metrics"]
+
+
+def test_worst_line_uses_bottom_four_losses_and_own_red_cards():
+    rows = _season()
+    rows.append(_r("Z", "A", 0, 4, 0.1, 998) | {"red_card_min": 20})
+    line = build_line(rows, "2025-26", side="worst")
+    assert "Z" in line["teams"] and line["side"] == "worst"
+    assert any("Z down to 10 men from 20'" in e["why"] for e in line["excluded"])
+    assert line["metrics"]["npxg"]["value"] == 0.3  # the minnow's typical defeat

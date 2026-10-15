@@ -55,17 +55,32 @@ h2 { font-size: 1.9rem; text-transform: uppercase; letter-spacing: .02em; }
 .section-head p { margin: 0; color: var(--muted); max-width: 60ch; }
 .goal-types { margin: 12px 0 0; color: var(--muted); font-size: .9rem; }
 .goal-types b { color: var(--ink); }
-.bl-grid { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 20px; align-items: center; }
-@media (max-width: 640px) { .bl-grid, .bl-lists { grid-template-columns: minmax(0, 1fr) !important; } }
+.bl-scores { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px 28px; margin-bottom: 16px; }
 .bl-score b { display: block; font: 700 3.2rem/1 var(--display); }
+.bl-score.good b { color: var(--good); } .bl-score.bad b { color: var(--bad); }
 .bl-score small { color: var(--muted); }
+.bl-match .w { color: var(--bad); }
+.proof-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 20px; }
+.proof-chart { margin: 0; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+.proof-chart figcaption { font: 600 1.05rem/1.2 var(--display); text-transform: uppercase; margin-bottom: 10px; }
+.proof-chart figcaption small { display: block; font: 400 .85rem/1.35 var(--body); text-transform: none; color: var(--muted); margin-top: 4px; }
+.pbar { display: grid; grid-template-columns: 5.2em minmax(0, 1fr) 3.4em; gap: 8px; align-items: center; font-size: .86rem; padding: 3px 0; }
+.pbar .track { height: 14px; background: var(--track); border-radius: 3px; overflow: hidden; display: flex; }
+.pbar .track span { height: 100%; }
+.pbar b { text-align: right; font-family: var(--mono); font-weight: 500; }
+.pbar small { color: var(--muted); }
+.proof-h { font-size: 1.15rem; text-transform: uppercase; margin: 22px 0 6px; }
+.proof-note { color: var(--muted); font-size: .9rem; margin: 0 0 10px; max-width: 75ch; }
+td.l small { color: var(--muted); }
+.proof-table td.l { white-space: normal; min-width: 11em; }
+.lift-bar { display: inline-block; height: 8px; border-radius: 2px; vertical-align: 1px; margin-right: 6px; background: var(--good); }
 .bl-matches { display: flex; flex-wrap: wrap; gap: 8px; }
 .bl-match { border: 1px solid var(--rule); background: var(--panel); border-radius: 6px; padding: 8px 10px; min-width: 96px; }
 .bl-match small { display: block; color: var(--muted); font-size: .78rem; }
 .bl-match b { font: 600 1.15rem/1.2 var(--display); }
 .bl-match i { display: block; height: 4px; border-radius: 2px; background: var(--rule); margin-top: 6px; overflow: hidden; }
 .bl-match i span { display: block; height: 100%; }
-.bl-lists { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; margin-top: 20px; }
+.bl-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 24px; margin-top: 20px; }
 .bl-lists h3 { font-size: 1.05rem; margin-bottom: 8px; text-transform: uppercase; }
 .bl-list { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
 .bl-list button { all: unset; cursor: pointer; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
@@ -198,18 +213,37 @@ th[aria-sort] button::after { content: " ▾"; }
 
   <section aria-labelledby="bestline-title" id="bestline-sec" hidden>
     <div class="section-head">
-      <h2 id="bestline-title">Against the best line</h2>
+      <h2 id="bestline-title">Against the lines</h2>
       <p id="bestline-sub"></p>
     </div>
-    <div class="bl-grid">
-      <div class="bl-score"><b class="num" id="bl-count"></b><small id="bl-count-sub"></small></div>
-      <div class="bl-matches" id="bl-matches"></div>
+    <div class="bl-scores">
+      <div class="bl-score good"><b class="num" id="bl-count"></b><small id="bl-count-sub"></small></div>
+      <div class="bl-score bad"><b class="num" id="wl-count"></b><small id="wl-count-sub"></small></div>
     </div>
+    <div class="bl-matches" id="bl-matches"></div>
     <div class="bl-lists">
-      <div><h3>Furthest below the line</h3><ol class="bl-list" id="bl-below"></ol></div>
-      <div><h3>At or above the line</h3><ol class="bl-list" id="bl-above"></ol></div>
+      <div><h3>Furthest below the best line</h3><ol class="bl-list" id="bl-below"></ol></div>
+      <div><h3>At relegation level</h3><ol class="bl-list" id="wl-hit"></ol></div>
+      <div><h3>At or above the best line</h3><ol class="bl-list" id="bl-above"></ol></div>
     </div>
     <p class="bl-foot" id="bl-foot"></p>
+  </section>
+
+  <section aria-labelledby="proof-title" id="proof-sec" hidden>
+    <div class="section-head">
+      <h2 id="proof-title">The proof</h2>
+      <p id="proof-sub"></p>
+    </div>
+    <div class="proof-grid">
+      <figure class="proof-chart" id="proof-best"></figure>
+      <figure class="proof-chart" id="proof-worst"></figure>
+    </div>
+    <h3 class="proof-h">Which lines decide matches</h3>
+    <p class="proof-note" id="proof-metrics-note"></p>
+    <div class="table-wrap"><table id="proof-metrics" class="proof-table"></table></div>
+    <h3 class="proof-h">United's matches on that record</h3>
+    <div class="table-wrap"><table id="proof-matches"></table></div>
+    <p class="bl-foot" id="proof-foot"></p>
   </section>
 
   <section aria-labelledby="stacks-title">
@@ -324,31 +358,70 @@ th[aria-sort] button::after { content: " ▾"; }
   const n = C.metrics[0]?.of;
   $("stacks-sub").textContent = `Each bar is United's percentile among all ${n} ${C.competition} teams, comparing every team's typical (median) match so one freak game can't carry a season. 100 = best. Tap a metric for the season average and match-by-match detail.`;
   $("goal-types").hidden = true;
-  // ---- Best line (PL only: built from last season's PL data)
-  const BL = C.best_line;
+  // ---- Best / worst lines (PL only: built from last season's PL data)
+  const BL = C.best_line, WL = C.worst_line;
   $("bestline-sec").hidden = !BL;
   if (BL) {
+    const pctTxt = (x) => (x == null ? "—" : Math.round(x * 100) + "%");
+    const teams = (L) => L.teams.map((t) => `${short(t)} (${L.games_by_team[t]})`).join(", ");
+    $("bestline-sub").textContent = `Best line: what last season's top four looked like when they won — the middle value of each metric across their ${BL.games} league wins in ${BL.season} (${teams(BL)}). Worst line: what the bottom four looked like when they lost — ${WL ? `${WL.games} defeats (${teams(WL)})` : "—"}. Games played 20+ minutes with 10 men are left out.`;
+    $("bl-count").textContent = `${BL.typical_hits} of ${BL.metrics_compared}`;
+    $("bl-count-sub").textContent = "metrics where United's typical match reaches the best line";
+    if (WL) { $("wl-count").textContent = `${WL.typical_hits} of ${WL.metrics_compared}`; $("wl-count-sub").textContent = "metrics where it is at or below the worst line — relegation level in defeat"; }
+    $("bl-matches").innerHTML = C.matches.map((mt, i) => { const r = BL.per_match[i], w = WL && WL.per_match[i]; const pct = r.of ? (100 * r.hits) / r.of : 0;
+      return `<div class="bl-match"><small>${esc(short(mt.opponent))} (${mt.is_home ? "H" : "A"}) ${mt.goals_for}–${mt.goals_against}</small><b class="num">${r.hits}/${r.of}</b> <small>best</small>${w ? `<small class="w">${w.hits}/${w.of} at worst</small>` : ""}<i><span style="width:${pct}%;background:var(--${pct >= 50 ? "good" : pct >= 34 ? "mid" : "bad"})"></span></i></div>`; }).join("");
+    const item = (m, L, word) => `<li><button type="button" class="chip-link" data-metric="${esc(m.key)}">${esc(m.label)}</button> <small><span class="num">${esc(showVal(m, m.value))}</span> vs ${word} <span class="num">${esc(showVal(m, L.value))}</span></small></li>`;
     const withLine = C.metrics.filter((m) => m.best_line);
-    const elite = BL.elite.map((t) => `${short(t)} (${BL.wins_by_team[t]})`).join(", ");
-    $("bestline-sub").textContent = `What last season's top four looked like when they won: the middle value of each metric across their ${BL.wins} league wins in ${BL.season} — ${elite}. ${BL.excluded.length} wins against 10 men (sent off before the 70th minute) are left out.`;
-    $("bl-count").textContent = `${BL.typical_at_or_above_line} of ${BL.metrics_compared}`;
-    $("bl-count-sub").textContent = "metrics where United's typical match reaches the line";
-    $("bl-matches").innerHTML = C.matches.map((mt, i) => { const r = BL.per_match[i]; const pct = r.of ? (100 * r.reached) / r.of : 0;
-      return `<div class="bl-match"><small>${esc(short(mt.opponent))} (${mt.is_home ? "H" : "A"}) ${mt.goals_for}–${mt.goals_against}</small><b class="num">${r.reached}/${r.of}</b><i><span style="width:${pct}%;background:var(--${pct >= 50 ? "good" : pct >= 34 ? "mid" : "bad"})"></span></i></div>`; }).join("");
-    const item = (m) => `<li><button type="button" class="chip-link" data-metric="${esc(m.key)}">${esc(m.label)}</button> <small><span class="num">${esc(showVal(m, m.value))}</span> vs line <span class="num">${esc(showVal(m, m.best_line.value))}</span></small></li>`;
     const sorted = [...withLine].sort((a, b) => a.best_line.gap_in_ranges - b.best_line.gap_in_ranges);
-    $("bl-below").innerHTML = sorted.filter((m) => !m.best_line.typical_reaches).slice(0, 7).map(item).join("");
-    $("bl-above").innerHTML = sorted.filter((m) => m.best_line.typical_reaches).reverse().map(item).join("");
+    $("bl-below").innerHTML = sorted.filter((m) => !m.best_line.typical_hits).slice(0, 7).map((m) => item(m, m.best_line, "line")).join("");
+    $("bl-above").innerHTML = sorted.filter((m) => m.best_line.typical_hits).reverse().map((m) => item(m, m.best_line, "line")).join("");
+    $("wl-hit").innerHTML = C.metrics.filter((m) => m.worst_line?.typical_hits).sort((a, b) => a.worst_line.gap_in_ranges - b.worst_line.gap_in_ranges).map((m) => item(m, m.worst_line, "worst line")).join("") || "<li>None</li>";
     const nc = Object.keys(BL.not_comparable || {}).map((k) => C.metrics.find((m) => m.key === k)?.label || k);
-    $("bl-foot").textContent = `The line is fixed for the season and rebuilt each summer. Running metrics use the ${C.metrics.find((m) => m.key === "distance_km")?.best_line?.n ?? "—"} wins that had tracking data. ${nc.length ? `No line for ${nc.join(", ")}: the data provider changed how it counts this between seasons, so last season's numbers don't compare.` : ""}`;
-  }
+    $("bl-foot").textContent = `Lines are fixed for the season and rebuilt each summer. Running metrics use only the games that had tracking data (from December 2025). ${nc.length ? `No line for ${nc.join(", ")}: the data provider changed how it counts this between seasons, so last season's numbers don't compare.` : ""}`;
+
+    // ---- The proof
+    const PR = C.proof;
+    $("proof-sec").hidden = !PR;
+    if (PR) {
+      const US = PR.understat, FM = PR.fotmob;
+      const seasons = `${US.pairs[0].tested_on}–${US.pairs[US.pairs.length - 1].tested_on}`;
+      $("proof-sub").textContent = `Do the lines decide matches? Each season's lines are built from the season before and tested on every Premier League team-match of the next — never on the games they came from. Long record: ${US.team_matches.toLocaleString()} team-matches, ${seasons}, on the 5 core metrics Understat has for every season. Detailed record: ${FM.team_matches} team-matches since 2025-26 on all FotMob metrics.`;
+      const chart = (el, S, word, colour, title) => {
+        const rows = S.bins.map((b, i) => { const k = Math.round(b.from * 5 + (i ? 0.5 : 0)); return { k, ...b }; });
+        $(el).innerHTML = `<figcaption>${title}<small>${word === "won" ? `Baseline: ${pctTxt(US.baseline.W)} of all team-matches are wins.` : `Baseline: ${pctTxt(US.baseline.L)} are defeats.`}</small></figcaption>` +
+          rows.map((b) => { const v = b[word === "won" ? "W" : "L"]; return `<div class="pbar"><small>${b.k} of 5</small><div class="track"><span style="width:${(v || 0) * 100}%;background:var(--${colour})"></span></div><b>${pctTxt(v)}</b></div><div class="pbar"><span></span><small>${b.n.toLocaleString()} matches</small><span></span></div>`; }).join("");
+      };
+      chart("proof-best", US.best, "won", "good", "Best lines reached → share won");
+      chart("proof-worst", US.worst, "lost", "bad", "Worst lines hit → share lost");
+      const bestM = Object.fromEntries(FM.best.by_metric.map((x) => [x.key, x]));
+      const worstM = Object.fromEntries(FM.worst.by_metric.map((x) => [x.key, x]));
+      const keys = FM.best.by_metric.map((x) => x.key);
+      $("proof-metrics-note").textContent = `Detailed record. For each line: how often teams won when they reached it vs when they didn't, and how often they lost when they sank to the worst line. A big gap means the line separates wins from defeats; no gap means it doesn't decide matches. Goals prevented, finishing and big chances missed are left out because they partly contain the result.`;
+      $("proof-metrics").innerHTML = `<thead><tr><th class="l">Line</th><th>Won · reached best</th><th>Won · didn't</th><th>Lost · at worst</th><th>Lost · not</th><th>United typical</th></tr></thead><tbody>` +
+        keys.map((k) => { const b = bestM[k], w = worstM[k], m = C.metrics.find((x) => x.key === k); const small = b.n_hit + b.n_not < 300;
+          const lift = Math.max(0, b.lift);
+          return `<tr><td class="l"><span class="lift-bar" style="width:${Math.round(lift * 60)}px"></span>${esc(b.label)}${small ? ` <small>(this season only, ${b.n_hit + b.n_not} matches)</small>` : ""}</td>
+            <td class="cell">${pctTxt(b.rate_when_hit)}</td><td class="cell">${pctTxt(b.rate_when_not)}</td>
+            <td class="cell">${w ? pctTxt(w.rate_when_hit) : "—"}</td><td class="cell">${w ? pctTxt(w.rate_when_not) : "—"}</td>
+            <td class="cell ${m?.best_line?.typical_hits ? "h-good" : m?.worst_line?.typical_hits ? "h-bad" : ""}">${m?.best_line?.typical_hits ? "best" : m?.worst_line?.typical_hits ? "worst" : "between"}</td></tr>`; }).join("") + "</tbody>";
+      $("proof-matches").innerHTML = `<thead><tr><th class="l">Match</th><th>Core best</th><th>Teams like that won</th><th>Core worst</th><th>Teams like that lost</th><th>All lines: best</th><th>Won</th></tr></thead><tbody>` +
+        C.matches.map((mt, i) => { const x = PR.matches[i], bc = x.best_core, wc = x.worst_core;
+          return `<tr><td class="l">${esc(short(mt.opponent))} (${mt.is_home ? "H" : "A"}) <span class="res ${mt.result}">${mt.result}</span> <span class="num">${mt.goals_for}–${mt.goals_against}</span></td>
+            <td class="cell">${bc ? `${bc.hits}/${bc.of}` : "—"}</td><td class="cell">${bc?.history ? pctTxt(bc.history.W) : "—"}</td>
+            <td class="cell">${wc ? `${wc.hits}/${wc.of}` : "—"}</td><td class="cell">${wc?.history ? pctTxt(wc.history.L) : "—"}</td>
+            <td class="cell">${x.best.hits}/${x.best.of}</td><td class="cell">${x.best.history ? pctTxt(x.best.history.W) : "—"}</td></tr>`; }).join("") + "</tbody>";
+      const t = US.worst.threshold, tb = US.best.threshold, top = US.best.bins[US.best.bins.length - 1];
+      $("proof-foot").textContent = `What this shows: reaching all 5 core best lines won ${pctTxt(top.W)} of ${top.n} matches${tb ? "" : " — close to, but not, the 90% target"}; hitting all 5 worst lines lost ${pctTxt(US.worst.bins[US.worst.bins.length - 1].L)}${t ? " — the 85% target holds" : ""}. Caveat: these are whole-match numbers, so they are partly shaped by the score (a team 2–0 up may sit back). It is a strong association measured out of sample, not a controlled experiment.`;
+    }
+  } else { $("proof-sec").hidden = true; }
   // ---- Stacks
   const spark = (m) => {
     const vals = m.matches.map((x) => x.value).filter((v) => v != null);
     if (!vals.length) return "";
     const W = 320, H = 70, padX = 6, padY = 10;
     const bl = m.best_line;
-    const all = [...vals, m.league_avg, ...(bl ? [bl.value] : [])];
+    const wl = m.worst_line;
+    const all = [...vals, m.league_avg, ...(bl ? [bl.value] : []), ...(wl ? [wl.value] : [])];
     let lo = Math.min(...all), hi = Math.max(...all);
     if (hi === lo) { hi += 1; lo -= 1; }
     const x = (i) => padX + (i * (W - 2 * padX)) / Math.max(1, m.matches.length - 1);
@@ -359,8 +432,9 @@ th[aria-sort] button::after { content: " ▾"; }
       `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="4" fill="var(--${tier(p.percentile) || "muted"})"></circle>`).join("");
     const avgY = y(m.league_avg).toFixed(1);
     const lineSvg = bl ? `<line x1="0" x2="${W}" y1="${y(bl.value).toFixed(1)}" y2="${y(bl.value).toFixed(1)}" stroke="var(--good)" stroke-width="1.5" vector-effect="non-scaling-stroke"></line>` : "";
+    const wlSvg = wl ? `<line x1="0" x2="${W}" y1="${y(wl.value).toFixed(1)}" y2="${y(wl.value).toFixed(1)}" stroke="var(--bad)" stroke-width="1.5" vector-effect="non-scaling-stroke"></line>` : "";
     return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(m.label)} per match">
-      <line x1="0" x2="${W}" y1="${avgY}" y2="${avgY}" stroke="var(--muted)" stroke-dasharray="4 4" stroke-width="1"></line>${lineSvg}
+      <line x1="0" x2="${W}" y1="${avgY}" y2="${avgY}" stroke="var(--muted)" stroke-dasharray="4 4" stroke-width="1"></line>${lineSvg}${wlSvg}
       <path d="${path}" fill="none" stroke="var(--ink)" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>${dots}</svg>`;
   };
   const opps = C.matches.map((m) => short(m.opponent));
@@ -379,10 +453,11 @@ th[aria-sort] button::after { content: " ▾"; }
           <p>${esc(m.explain)}${m.direction < 0 ? " Lower is better." : ""}</p>
           <p>Typical match (median) <span class="num">${esc(showVal(m, m.value))}</span> · season average <span class="num">${esc(showVal(m, m.season_average))}</span>${m.rank_by_average !== m.rank ? ` (${ord(m.rank_by_average)} by average)` : ""}</p>
           ${m.skew?.flag ? `<p class="skew">One match skews the average: <b>${esc(oppOf(m.skew.match_id))}</b> <span class="num">${esc(showVal(m, m.skew.match_value))}</span>. Without it the average is <span class="num">${esc(showVal(m, m.skew.average_without))}</span> (${ord(m.skew.rank_without)} of ${m.of}).</p>` : ""}
-          ${m.best_line ? `<p>Elite line <span class="num">${esc(showVal(m, m.best_line.value))}</span> (elite range <span class="num">${esc(showVal(m, m.direction > 0 ? m.best_line.p25 : m.best_line.p75))}</span>–<span class="num">${esc(showVal(m, m.direction > 0 ? m.best_line.p75 : m.best_line.p25))}</span>) · <span class="${m.best_line.typical_reaches ? "line-ok" : "line-miss"}">${m.best_line.typical_reaches ? "typical match reaches it" : "typical match below it"}</span> · reached in ${m.best_line.matches_reached} of ${m.best_line.matches_counted} matches</p>` : ""}
+          ${m.best_line ? `<p>Best line <span class="num">${esc(showVal(m, m.best_line.value))}</span> (elite range <span class="num">${esc(showVal(m, m.direction > 0 ? m.best_line.p25 : m.best_line.p75))}</span>–<span class="num">${esc(showVal(m, m.direction > 0 ? m.best_line.p75 : m.best_line.p25))}</span>) · <span class="${m.best_line.typical_hits ? "line-ok" : "line-miss"}">${m.best_line.typical_hits ? "typical match reaches it" : "typical match below it"}</span> · reached in ${m.best_line.matches_hit} of ${m.best_line.matches_counted} matches</p>` : ""}
+          ${m.worst_line ? `<p>Worst line <span class="num">${esc(showVal(m, m.worst_line.value))}</span> · ${m.worst_line.typical_hits ? '<span class="line-miss">typical match at or below it</span>' : "typical match above it"} · at or below it in ${m.worst_line.matches_hit} of ${m.worst_line.matches_counted} matches</p>` : ""}
           <p>League average <span class="num">${esc(showVal(m, m.league_avg))}</span> · best ${esc(short(m.league_best.team))} <span class="num">${esc(showVal(m, m.league_best.value))}</span> · worst ${esc(short(m.league_worst.team))} <span class="num">${esc(showVal(m, m.league_worst.value))}</span></p>
           ${spark(m)}
-          <div class="legend">${m.matches.map((x, i) => `<span>${esc(opps[i])} <span class="num">${esc(showVal(m, x.value))}</span></span>`).join("")}<span>- - league avg</span>${m.best_line ? '<span class="line-ok">— elite line</span>' : ""}</div>
+          <div class="legend">${m.matches.map((x, i) => `<span>${esc(opps[i])} <span class="num">${esc(showVal(m, x.value))}</span></span>`).join("")}<span>- - league avg</span>${m.best_line ? '<span class="line-ok">— best line</span>' : ""}${m.worst_line ? '<span class="line-miss">— worst line</span>' : ""}</div>
         </div>
       </details>`).join("")}
     </article>`;

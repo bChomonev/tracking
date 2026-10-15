@@ -8,6 +8,29 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-020 — Stage 3: worst line + out-of-sample proof · 2026-10-15 · accepted
+**Worst line** mirrors D-019: median of every metric over the previous season's bottom
+four's league *defeats*, minus defeats where they were down to 10 men before the 70th
+minute (2025-26: Spurs, West Ham, Burnley, Wolves; 76 defeats, 8 excluded). Hitting it =
+relegation level. `best_line.py` is now generic (`side="best"|"worst"`, any rows/metrics).
+**Proof** (`corridor.proof`): for each pair of consecutive seasons, lines from season N are
+tested on *every* team-match of N+1 (never on the games that built them). Per match: share
+of lines reached / sunk to → outcome rates by share bin, the share needed for the 90% W /
+85% L targets (min 30 matches), and each line's lift (win rate when reached − when not).
+Two datasets, never mixed: Understat 2014-15→now on 5 core metrics (8,480 team-matches)
+and FotMob 2024-25→now on the profile metrics (880). Goals prevented, finishing (xGOT−xG)
+and big chances missed are excluded from the proof — they partly contain the result.
+Running lines can only be tested on 2026-27 (no tracking before Dec 2025).
+**Findings (honest):** the 90% win target is *not* met: all 5 core best lines → 85% won
+(164). The 85% loss target *is* met: all 5 core worst lines → 85.2% lost (378). Lines differ
+hugely in what they predict: chance quality for/against, big chances, shot quality and
+distance vs opponent separate wins; territory, passes into the final third, PPDA, sprints
+and recoveries barely do. Caveat on the page: whole-match numbers are partly shaped by the
+score (game state), so this is association, not cause. This replaces TDP's single npxGD
+corridor (D-009) as the user-facing proof; the pgvector engine stays unused for now.
+Possible next step: weight lines by out-of-sample lift (select on early seasons, test on
+later ones) instead of counting them equally.
+
 ## D-019 — Stage 2 best line: last season's top-4 wins, median per metric · 2026-10-15 · accepted
 Chosen with the user. **Elite** = the previous season's final top four (2025-26: Arsenal,
 Man City, Man United, Villa — United's own 3rd place included). **Best games** = their

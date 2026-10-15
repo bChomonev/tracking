@@ -30,7 +30,11 @@ a metric has one_match_effect, say which match distorts the average instead of q
 the average as if it were typical.
 - Use the best line (each metric's elite_line, and best_line) to say how far United are \
 from what last season's top four looked like when winning, and which gaps are biggest. \
-Note that United were one of those four, so the line includes their own 2025-26 wins.
+Note that United were one of those four, so the line includes their own 2025-26 wins. \
+The worst_line is the bottom four in defeat: being at or below it is relegation level.
+- Use "proof" to say which lines actually decide matches (and which don't), and what \
+happened historically to teams with a match like United's. Quote its percentages exactly; \
+say it is association measured on past seasons, not certainty.
 - Look for the story *across* metrics, e.g. a team that dominates territory but takes poor \
 shots, or concedes few shots but very good ones. Explain what the combination means.
 - Keep facts and interpretation apart: "text" contains only what the data shows; \
@@ -199,7 +203,12 @@ def write_analysis(
     rejected: list[list[str]] = []
     t0 = time.monotonic()
     for attempt in range(1, max_attempts + 1):
-        text, u = _complete(client, model, messages)
+        # The model's own reasoning counts against max_tokens; a large fact sheet can need
+        # most of the 32k output budget. If it still overruns, retry with less reasoning.
+        try:
+            text, u = _complete(client, model, messages, 32000)
+        except TruncatedError:
+            text, u = _complete(client, model, messages, 32000, reasoning_effort="medium")
         usage.append(u)
         flags: list[dict] = []
         try:

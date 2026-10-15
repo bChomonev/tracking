@@ -30,17 +30,24 @@ def _skew_fact(m: dict, labels_by_id: dict, dec: int) -> dict | None:
     }
 
 
-def _line_fact(m: dict, dec: int) -> dict | None:
-    b = m.get("best_line")
+def _line_fact(m: dict, dec: int, side: str) -> dict | None:
+    b = m.get(f"{side}_line")
     if not b:
         return None
-    weak, strong = (b["p25"], b["p75"]) if m["direction"] > 0 else (b["p75"], b["p25"])
+    lo, hi = (b["p25"], b["p75"]) if m["direction"] > 0 else (b["p75"], b["p25"])
+    if side == "best":
+        return {
+            "value": _r(b["value"], dec),
+            "elite_range": [_r(lo, dec), _r(hi, dec)],
+            "typical_match_reaches_line": b["typical_hits"],
+            "typical_match_within_elite_range": b["typical_in_range"],
+            "matches_reaching_line": b["matches_hit"],
+            "matches_with_data": b["matches_counted"],
+        }
     return {
         "value": _r(b["value"], dec),
-        "elite_range": [_r(weak, dec), _r(strong, dec)],
-        "typical_match_reaches_line": b["typical_reaches"],
-        "typical_match_within_elite_range": b["typical_in_range"],
-        "matches_reaching_line": b["matches_reached"],
+        "typical_match_at_or_below_worst_line": b["typical_hits"],
+        "matches_at_or_below_worst_line": b["matches_hit"],
         "matches_with_data": b["matches_counted"],
     }
 
@@ -79,7 +86,8 @@ def build_facts(profile: dict) -> dict[str, Any]:
                 "season_average": _r(m["season_average"], dec),
                 "league_rank_by_season_average": m["rank_by_average"],
                 "one_match_effect": _skew_fact(m, labels_by_id, dec),
-                "elite_line": _line_fact(m, dec),
+                "elite_line": _line_fact(m, dec, "best"),
+                "worst_line": _line_fact(m, dec, "worst"),
                 "unit": m["unit"],
                 "league_rank": m["rank"],
                 "teams_ranked": m["of"],
@@ -172,7 +180,9 @@ def build_facts(profile: dict) -> dict[str, Any]:
         ],
         "metrics": metrics,
         "context": profile.get("context"),
-        "best_line": _best_line_summary(profile, labels),
+        "best_line": _line_summary(profile, labels, "best"),
+        "worst_line": _line_summary(profile, labels, "worst"),
+        "proof": _proof_facts(profile, labels),
         "players": players,
         "notes": [
             "typical_match is the team's median match; league_rank, league_percentile and "
@@ -193,24 +203,104 @@ def build_facts(profile: dict) -> dict[str, Any]:
     }
 
 
-def _best_line_summary(profile: dict, labels: list[str]) -> dict | None:
-    bl = profile.get("best_line")
+def _line_summary(profile: dict, labels: list[str], side: str) -> dict | None:
+    bl = profile.get(f"{side}_line")
     if not bl:
         return None
-    return {
-        "what_it_is": (
-            f"Median of each metric across the {bl['wins']} league wins of the {bl['season']} "
-            f"top four ({', '.join(bl['elite'])}); wins against 10 men from before the 70th "
+    if side == "best":
+        what = (
+            f"Median of each metric across the {bl['games']} league wins of the {bl['season']} "
+            f"top four ({', '.join(bl['teams'])}); wins against 10 men from before the 70th "
             "minute excluded. elite_range is the middle half of those wins."
-        ),
-        "wins_by_team": bl["wins_by_team"],
-        "typical_match_reaches_line_on": bl["typical_at_or_above_line"],
+        )
+    else:
+        what = (
+            f"Median of each metric across the {bl['games']} league defeats of the "
+            f"{bl['season']} bottom four ({', '.join(bl['teams'])}); defeats where they were "
+            "down to 10 men from before the 70th minute excluded. Hitting it is bad."
+        )
+    return {
+        "what_it_is": what,
+        "games_by_team": bl["games_by_team"],
+        "typical_match_hits_line_on": bl["typical_hits"],
         "metrics_with_a_line": bl["metrics_compared"],
         "per_match": [
-            {"match": lbl, "metrics_at_or_above_line": p["reached"], "of": p["of"]}
+            {"match": lbl, "metrics_hitting_line": p["hits"], "of": p["of"]}
             for lbl, p in zip(labels, bl["per_match"], strict=True)
         ],
         "no_line_because_definition_changed": sorted(bl.get("not_comparable", {})),
+    }
+
+
+def _pct(x: float | None) -> int | None:
+    return None if x is None else _r(100 * x, 0)
+
+
+def _placement(label: str, x: dict) -> dict:
+    """Where one match sits on the long (5 core lines) record."""
+    out: dict[str, Any] = {"match": label}
+    for side, res, word in (("best", "W", "won"), ("worst", "L", "lost")):
+        core = x.get(f"{side}_core")
+        if not core:
+            continue
+        out[f"core_{side}_lines_hit"] = f"{core['hits']} of {core['of']}"
+        if core.get("history"):
+            out[f"pct_of_such_matches_{word}"] = _pct(core["history"][res])
+    return out
+
+
+def _proof_facts(profile: dict, labels: list[str]) -> dict | None:
+    pr = profile.get("proof")
+    if not pr:
+        return None
+    us, fm = pr["understat"], pr["fotmob"]
+
+    def bins(side: str, res: str) -> list[dict]:
+        word = "won" if res == "W" else "lost"
+        return [
+            {
+                "lines_hit_of_5": i,
+                "matches": b["n"],
+                f"pct_{word}": _pct(b[res]),
+            }
+            for i, b in enumerate(us[side]["bins"])
+        ]
+
+    lines = [
+        {
+            "line": m["label"],
+            "pct_won_when_reached_best_line": _pct(m["rate_when_hit"]),
+            "pct_won_when_not": _pct(m["rate_when_not"]),
+            "matches_tested": m["n_hit"] + m["n_not"],
+        }
+        for m in fm["best"]["by_metric"]
+    ]
+    return {
+        "what_it_is": (
+            "Out-of-sample test: each season's best/worst lines were built from the previous "
+            "season and tested on every Premier League team-match of the next season. Whole-"
+            "match numbers are partly shaped by the scoreline, so this is association, not "
+            "proof of cause."
+        ),
+        "long_record": {
+            "source": "Understat, 5 core metrics: npxG for/against, PPDA, deep completions "
+            "for/against",
+            "team_matches": us["team_matches"],
+            "seasons_tested": f"{us['pairs'][0]['tested_on']} to {us['pairs'][-1]['tested_on']}",
+            "baseline_pct_won": _pct(us["baseline"]["W"]),
+            "baseline_pct_lost": _pct(us["baseline"]["L"]),
+            "best_lines": bins("best", "W"),
+            "worst_lines": bins("worst", "L"),
+        },
+        "detailed_record": {
+            "source": "FotMob, all profile metrics except goals prevented, finishing and big "
+            "chances missed (they partly contain the result)",
+            "team_matches": fm["team_matches"],
+            "lines_ranked_by_how_much_they_separate_wins": lines,
+        },
+        "united_matches": [
+            _placement(lbl, x) for lbl, x in zip(labels, pr["matches"], strict=True)
+        ],
     }
 
 
