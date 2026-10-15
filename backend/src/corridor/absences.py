@@ -95,6 +95,29 @@ def history(seasons: list[tuple[int, list[dict], list[dict]]]) -> dict[int, dict
 
 # Fitted on 2024-25 (1.74) and 2025-26 (1.90) separately; pooled ≈ 1.8 (D-026).
 K_MINUTES = 1.8
+# The frozen out-of-sample test behind K_MINUTES (D-026), shown on the "How we know" page.
+TEST = {
+    "matches": 820,
+    "fits": [
+        {
+            "fit_on": "2024-25",
+            "tested_on": "2025-26 + 2026-27",
+            "n": 440,
+            "k": 1.74,
+            "rps_base": 0.2107,
+            "rps_adjusted": 0.2100,
+        },
+        {
+            "fit_on": "2025-26",
+            "tested_on": "2024-25",
+            "n": 380,
+            "k": 1.90,
+            "rps_base": 0.2033,
+            "rps_adjusted": 0.2010,
+        },
+    ],
+    "big_gap": {"n": 30, "base_home_win": 0.38, "adjusted_home_win": 0.30, "actual_home_win": 0.20},
+}
 
 
 def adjust(p, home_missing_minutes: float, away_missing_minutes: float, k: float = K_MINUTES):

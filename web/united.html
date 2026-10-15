@@ -46,7 +46,7 @@ body {
   padding-block: 28px 48px;
 }
 main { max-width: 1120px; margin: 0 auto; display: grid; gap: 40px; }
-main > *, #overview > *, #team-view > *, #match-view > * { min-width: 0; } /* let wide tables scroll inside .table-wrap instead of widening the page */
+main > *, #overview > *, #team-view > *, #match-view > *, #how-view > * { min-width: 0; } /* let wide tables scroll inside .table-wrap instead of widening the page */
 [hidden] { display: none !important; }
 h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.05; margin: 0; text-wrap: balance; }
 h2 { font-size: 1.9rem; text-transform: uppercase; letter-spacing: .02em; }
@@ -172,7 +172,13 @@ tr.typical td { background: var(--track); font-weight: 600; }
 .lines-cell small { display: block; font: 400 .74rem/1.2 var(--body); color: var(--muted); }
 
 /* Overview */
-#overview, #team-view, #match-view { display: contents; }
+#overview, #team-view, #match-view, #how-view { display: contents; }
+.topnav { display: flex; flex-wrap: wrap; gap: 4px 18px; font: 600 .85rem/1 var(--body); text-transform: uppercase; letter-spacing: .08em; margin-bottom: -16px; }
+.topnav a { color: var(--muted); text-decoration: none; padding: 6px 0; border-bottom: 2px solid transparent; }
+.topnav a:hover { color: var(--ink); }
+.topnav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--red); }
+.how-toc { font-size: .95rem; color: var(--muted); }
+.how-toc a { color: var(--ink); }
 .back { font: 600 .9rem/1 var(--body); color: var(--muted); text-decoration: none; }
 .back:hover { color: var(--ink); }
 .hero > p:has(.back) { margin: -8px 0 0; }
@@ -353,6 +359,7 @@ th[aria-sort] button::after { content: " ▾"; }
 </style>
 
 <main>
+  <nav class="topnav" aria-label="Sections"><a href="#" data-nav="overview">Premier League</a><a href="#" data-nav="focus" id="nav-focus">Manchester United</a><a href="#how" data-nav="how">How we know</a></nav>
   <div id="overview" hidden>
     <section class="hero" aria-labelledby="ov-title">
       <p class="eyebrow" id="ov-season"></p>
@@ -403,7 +410,33 @@ th[aria-sort] button::after { content: " ▾"; }
       <figure class="ov-chart" id="ov-luck"></figure>
     </section>
 
-    <section aria-labelledby="bt-title" id="bt-sec" hidden>
+
+    <footer class="notes" id="ov-notes"></footer>
+  </div>
+
+  <div id="how-view" hidden>
+    <section class="hero" aria-labelledby="how-h">
+      <p class="eyebrow">Method, tests and data</p>
+      <h1 id="how-h">How we <span>know</span></h1>
+      <p class="ov-lede" id="how-lede"></p>
+      <p class="how-toc"><a href="#how" data-jump="proof-sec">The lines</a> · <a href="#how" data-jump="bt-sec">The predictions</a> · <a href="#how" data-jump="pv-sec">Match previews</a> · <a href="#how" data-jump="data-sec">Data &amp; caveats</a></p>
+    </section>
+    <section aria-labelledby="proof-title" id="proof-sec">
+    <div class="section-head">
+      <h2 id="proof-title">The lines: do they decide matches?</h2>
+      <p id="proof-sub"></p>
+    </div>
+    <div class="proof-grid">
+      <figure class="proof-chart" id="proof-best"></figure>
+      <figure class="proof-chart" id="proof-worst"></figure>
+    </div>
+    <p class="proof-note" id="proof-weighting"></p>
+    <h3 class="proof-h">Every line, by how much it decides matches</h3>
+    <p class="proof-note" id="proof-metrics-note"></p>
+    <div class="table-wrap"><table id="proof-metrics" class="proof-table"></table></div>
+    <p class="bl-foot" id="proof-foot"></p>
+  </section>
+    <section aria-labelledby="bt-title" id="bt-sec">
       <div class="section-head">
         <h2 id="bt-title">How good are the predictions?</h2>
         <p id="bt-sub"></p>
@@ -416,13 +449,18 @@ th[aria-sort] button::after { content: " ▾"; }
       <div class="table-wrap"><table id="bt-record"></table></div>
       <p class="bl-foot" id="bt-foot"></p>
     </section>
-
-    <footer class="notes" id="ov-notes"></footer>
+    <section aria-labelledby="pv-title" id="pv-sec">
+      <div class="section-head"><h2 id="pv-title">Match previews: what was tested</h2><p>Every number below comes from predicting past matches using only what was known before each one.</p></div>
+      <div class="mv-cols" id="pv-cards"></div>
+    </section>
+    <section aria-labelledby="data-title" id="data-sec">
+      <div class="section-head"><h2 id="data-title">Data &amp; caveats</h2></div>
+      <div class="notes" id="how-notes"></div>
+    </section>
   </div>
 
   <div id="match-view" hidden>
     <section class="hero" aria-labelledby="mv-title">
-      <p><a class="back" href="#">← Premier League overview</a></p>
       <p class="eyebrow" id="mv-when"></p>
       <h1 id="mv-title"></h1>
       <div id="mv-pred"></div>
@@ -452,7 +490,6 @@ th[aria-sort] button::after { content: " ▾"; }
 
   <div id="team-view" hidden>
   <section class="hero" aria-labelledby="title">
-    <p><a class="back" href="#">← Premier League overview</a></p>
     <p class="eyebrow" id="season-label">Premier League</p>
     <p class="freshness" id="freshness"></p>
     <h1 id="title">Why are United <span>struggling?</span></h1>
@@ -486,21 +523,6 @@ th[aria-sort] button::after { content: " ▾"; }
     <p class="bl-foot" id="shoot-foot"></p>
   </section>
 
-  <section aria-labelledby="proof-title" id="proof-sec" hidden>
-    <div class="section-head">
-      <h2 id="proof-title">How we know</h2>
-      <p id="proof-sub"></p>
-    </div>
-    <div class="proof-grid">
-      <figure class="proof-chart" id="proof-best"></figure>
-      <figure class="proof-chart" id="proof-worst"></figure>
-    </div>
-    <p class="proof-note" id="proof-weighting"></p>
-    <h3 class="proof-h">Every line, by how much it decides matches</h3>
-    <p class="proof-note" id="proof-metrics-note"></p>
-    <div class="table-wrap"><table id="proof-metrics" class="proof-table"></table></div>
-    <p class="bl-foot" id="proof-foot"></p>
-  </section>
 
   <div class="comp-switch" id="comp-switch" role="tablist" aria-label="Competition" hidden></div>
 
@@ -635,6 +657,7 @@ th[aria-sort] button::after { content: " ▾"; }
     const nc = Object.keys(BL.not_comparable || {}).map((k) => plBy[k]?.label || k);
     const untested = F.untested.map((k) => plBy[k]?.label || k);
     $("focus-foot").textContent = `Elite line: the middle value of each metric across last season's top four's ${BL.games} league wins (${teams(BL)}). Worst line: the bottom four's ${WL.games} defeats (${teams(WL)}). Games played 20+ minutes with 10 men are left out. Lines are fixed for the season. Not ranked here: ${untested.join(", ")}${nc.length ? ` (${nc.join(", ")} changed definition between seasons; the others partly contain the result)` : ""}.`;
+    $("focus-foot").insertAdjacentHTML("beforeend", ` <a href="#how" data-jump="proof-sec">How we know these lines decide matches →</a>`);
     $("focus-sec").hidden = false;
   }
 
@@ -686,37 +709,6 @@ th[aria-sort] button::after { content: " ▾"; }
         <td class="cell">${r.avg_distance_m.toFixed(1)} m</td><td class="cell">${r.outside_pct.toFixed(0)}%</td><td class="cell">${r.blocked_pct.toFixed(0)}%</td><td class="cell diff ${r.quality_gap > 0.2 ? "down" : r.quality_gap < -0.2 ? "up" : ""}">${signed(r.quality_gap, 2)}</td></tr>`).join("") + "</tbody>";
     const err = SH.errors_led_to_goal;
     $("shoot-foot").textContent = `Players with fewer than 3 shots (${SH.others.players} players, ${SH.others.shots} shots) are left out of the list but counted in the total. Defending can't be split by player the same way: the data doesn't say who allowed a chance. ${err.length ? `Errors leading directly to a goal: ${err.map((e) => `${e.name} (${e.errors})`).join(", ")}.` : "No errors leading directly to a goal recorded."}`;
-  }
-
-  // ---- How we know (PL only)
-  const PR = P.proof;
-  $("proof-sec").hidden = !PR;
-  if (PR) {
-    const US = PR.understat, FM = PR.fotmob;
-    const seasons = `${US.pairs[0].tested_on}–${US.pairs[US.pairs.length - 1].tested_on}`;
-    $("proof-sub").textContent = `Each season's lines are built from the season before and tested on every Premier League team-match of the next, never on the games they came from. Long record: ${US.team_matches.toLocaleString()} team-matches, ${seasons}, on the 5 core metrics Understat has for every season. Detailed record: ${FM.team_matches} team-matches since 2025-26 on all FotMob metrics.`;
-    const chart = (el, S, word, colour, title) => {
-      const rows = S.bins.map((b, i) => ({ k: Math.round(b.from * 5 + (i ? 0.5 : 0)), ...b }));
-      $(el).innerHTML = `<figcaption>${title}<small>${word === "won" ? `Baseline: ${pctTxt(US.baseline.W)} of all team-matches are wins.` : `Baseline: ${pctTxt(US.baseline.L)} are defeats.`}</small></figcaption>` +
-        rows.map((b) => { const v = b[word === "won" ? "W" : "L"]; return `<div class="pbar"><small>${b.k} of 5</small><div class="track"><span style="width:${(v || 0) * 100}%;background:var(--${colour})"></span></div><b>${pctTxt(v)}</b></div><div class="pbar"><span></span><small>${b.n.toLocaleString()} matches</small><span></span></div>`; }).join("");
-    };
-    chart("proof-best", US.best, "won", "good", "Elite lines reached → share won");
-    chart("proof-worst", US.worst, "lost", "bad", "Worst lines hit → share lost");
-    const uw = US.weighted.walk_forward.best, fw = FM.weighted.walk_forward.best;
-    if (uw) $("proof-weighting").textContent = `Weighting the lines by impact predicts better than counting them equally. With weights learned only from earlier seasons, the chance that a random win scores higher than a random non-win rose from ${uw.auc_equal.toFixed(2)} to ${uw.auc_weighted.toFixed(2)} over ${uw.n.toLocaleString()} later team-matches (0.5 = coin flip)${fw ? `, and from ${fw.auc_equal.toFixed(2)} to ${fw.auc_weighted.toFixed(2)} on this season's ${fw.n} on all FotMob metrics` : ""}. That's why the match table scores matches by weighted lines.`;
-    const plBy = Object.fromEntries(P.metrics.map((m) => [m.key, m]));
-    const keys = P.metrics.filter((m) => m.impact).sort((a, b) => b.impact.impact - a.impact.impact).map((m) => m.key);
-    $("proof-metrics-note").textContent = `For each line: how often teams won when they reached the elite line vs when they didn't, and how often they lost at the worst line vs when they didn't. A big gap means the line separates wins from defeats.`;
-    $("proof-metrics").innerHTML = `<thead><tr><th class="l">Line</th><th>Won · reached elite</th><th>Won · didn't</th><th>Lost · at worst</th><th>Lost · not</th><th>${esc(TN)} typical</th></tr></thead><tbody>` +
-      keys.map((k) => { const m = plBy[k], im = m.impact;
-        const st = m.best_line?.typical_hits ? "best" : m.worst_line?.typical_hits ? "worst" : "between";
-        return `<tr><td class="l"><span class="lift-bar" style="width:${Math.round(Math.max(0, im.impact) * 60)}px"></span><span class="tip below" tabindex="0" data-tip="${esc(tipOf(m))}">${esc(m.label)}</span> <span class="imp-tag ${im.tier}">${TIER[im.tier][0]}</span>${im.provisional ? ` <small>(this season only, ${im.n} matches)</small>` : ""}</td>
-          <td class="cell">${pctTxt(im.won_when_reached)}</td><td class="cell">${pctTxt(im.won_when_not)}</td>
-          <td class="cell">${pctTxt(im.lost_when_at_worst)}</td><td class="cell">${pctTxt(im.lost_when_not)}</td>
-          <td class="cell ${st === "best" ? "h-good" : st === "worst" ? "h-bad" : ""}">${STATUS[st].toLowerCase()}</td></tr>`; }).join("") + "</tbody>";
-    const tb = US.best.threshold, top = US.best.bins[US.best.bins.length - 1];
-    $("proof-foot").textContent = `Reaching all 5 core elite lines won ${pctTxt(top.W)} of ${top.n} matches${tb ? "" : " — close to, but not, the 90% target"}; hitting all 5 worst lines lost ${pctTxt(US.worst.bins[US.worst.bins.length - 1].L)}${US.worst.threshold ? " — the 85% target holds" : ""}. Goals prevented, finishing and big chances missed are left out because they partly contain the result. Caveat: these are whole-match numbers, partly shaped by the score (a team 2–0 up may sit back). It is a strong association measured on later seasons, not a controlled experiment.`;
-    $("proof-sec").hidden = false;
   }
 
   // ---- Per-competition views (match table, stacks, goals). Each competition is ranked
@@ -897,6 +889,7 @@ th[aria-sort] button::after { content: " ▾"; }
       $("pr-record").textContent = R.scored
         ? `Record this season: ${R.scored} predictions scored, ${R.hits} favourites won (${pc(R.hits / R.scored)}). Average RPS ${R.rps.toFixed(3)}${R.rps_base != null ? ` (${R.rps_base.toFixed(3)} without team news)` : ""}${R.avg_rps != null ? ` vs the bookmakers' ${R.avg_rps.toFixed(3)}` : ""} (lower is better).`
         : `Every prediction is saved before kickoff and scored after the match — the record starts with this round.`;
+      $("pr-record").insertAdjacentHTML("beforeend", ` <a href="#how" data-jump="bt-sec">How good are these predictions? →</a>`);
     }
     const pj = PRD.projection || [];
     $("pj-sec").hidden = !pj.length;
@@ -908,32 +901,6 @@ th[aria-sort] button::after { content: " ▾"; }
           <td class="l cell">${bar(r.title, "good")}</td><td class="l cell">${bar(r.top4, "good")}</td><td class="l cell">${bar(r.relegation, "bad")}</td></tr>`).join("") + "</tbody>";
       $("pj-table").classList.add("ov-table");
     }
-    // How good are they? Walk-forward backtest + calibration + this season's log.
-    const BT = PRD.backtest, pooled = BT.pooled;
-    $("bt-sec").hidden = false;
-    const seasons = BT.seasons.map((r) => r.season);
-    const lbl = (y) => `${y}-${String((y + 1) % 100).padStart(2, "0")}`;
-    $("bt-sub").textContent = `Tested the honest way: settings chosen on 2016-17 to 2019-20 and then frozen; for every season from ${lbl(seasons[0])} to ${lbl(seasons[seasons.length - 1])}, the model is trained only on earlier seasons and every match is predicted with what was known before kickoff. ${pooled.model.n.toLocaleString()} matches. Score: RPS (ranked probability score) — 0 is perfect, lower is better; it rewards putting probability near the right result.`;
-    const rows = [["Our model", pooled.model, "ink"], ["Base rates (home/draw/away frequency)", pooled.base, "muted"], ["Bookmakers, pre-match average", pooled.avg, "good"], ["Bookmakers, closing (sharpest)", pooled.closing, "good"]].filter((r) => r[1]);
-    const lo = 0.18, hi = 0.24;
-    $("bt-scores").innerHTML = `<figcaption>Average RPS, ${lbl(seasons[0])} onward<small>Shorter is better. The bookmakers see team news and line-ups we don't.</small></figcaption>` +
-      rows.map(([name, s, c]) => `<div class="pbar" style="grid-template-columns: 13em minmax(0,1fr) 4.2em"><small>${name}</small><div class="track"><span style="width:${(100 * (s.rps - lo)) / (hi - lo)}%;background:var(--${c})"></span></div><b>${s.rps.toFixed(3)}</b></div><div class="pbar" style="grid-template-columns: 13em minmax(0,1fr) 4.2em"><span></span><small>favourite won ${pc(s.hit_rate)}</small><span></span></div>`).join("");
-    const cal = BT.calibration, W = 360, H = 240, pad = 34;
-    const X = (v) => pad + (W - pad - 10) * v, Y = (v) => H - pad - (H - pad - 10) * v;
-    $("bt-calib").innerHTML = `<figcaption>Calibration<small>When the model says 30%, does it happen 30% of the time? Dots on the diagonal = honest probabilities.</small></figcaption>
-      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Predicted against observed frequency">
-        <line x1="${X(0)}" y1="${Y(0)}" x2="${X(1)}" y2="${Y(1)}" stroke="var(--rule)" stroke-dasharray="4 4"></line>
-        ${[0, 0.25, 0.5, 0.75, 1].map((t) => `<text x="${X(t)}" y="${H - pad + 16}" text-anchor="${t === 1 ? "end" : "middle"}" style="font:11px var(--body);fill:var(--muted)">${t * 100}%</text><text x="${pad - 6}" y="${Y(t) + 4}" text-anchor="end" style="font:11px var(--body);fill:var(--muted)">${t * 100}%</text>`).join("")}
-        <polyline fill="none" stroke="var(--ink)" stroke-width="1.5" points="${cal.map((c) => `${X(c.predicted).toFixed(1)},${Y(c.observed).toFixed(1)}`).join(" ")}"></polyline>
-        ${cal.map((c) => `<circle cx="${X(c.predicted).toFixed(1)}" cy="${Y(c.observed).toFixed(1)}" r="${Math.max(3, Math.min(8, Math.sqrt(c.n) / 6)).toFixed(1)}" fill="var(--red)"><title>predicted ${pc(c.predicted)}, happened ${pc(c.observed)} (${c.n})</title></circle>`).join("")}
-        <text x="${(W + pad) / 2}" y="${H - 4}" text-anchor="middle" style="font:11px var(--body);fill:var(--muted)">predicted</text>
-      </svg>`;
-    const R = PRD.record;
-    $("bt-record").innerHTML = R.matches.length
-      ? `<thead><tr><th class="l">Match</th><th>Result</th><th>Home</th><th>Draw</th><th>Away</th><th>RPS</th><th>Without team news</th><th>Bookmakers RPS</th></tr></thead><tbody>` +
-        R.matches.map((e) => `<tr><td class="l">${esc(short(e.home))} v ${esc(short(e.away))}</td><td class="cell">${esc(e.score)}</td>${e.p.map((x, i) => `<td class="cell ${"HDA"[i] === e.result ? "h-good" : ""}">${pc(x)}</td>`).join("")}<td class="cell">${e.rps.toFixed(3)}</td><td class="cell">${e.rps_base != null ? e.rps_base.toFixed(3) : "—"}</td><td class="cell">${e.avg_rps != null ? e.avg_rps.toFixed(3) : "—"}</td></tr>`).join("") + "</tbody>"
-      : `<tbody><tr><td class="l">No predictions scored yet. The first ones, for the next round, were saved on ${esc(when(PRD.generated_at, true))}.</td></tr></tbody>`;
-    $("bt-foot").textContent = `What the ratings use: Understat non-penalty xG created and conceded, goals, and the share of the 5 core elite and worst lines reached, each match opponent-adjusted and weighted so the last ~24 matches count half. Honest result: the line features add very little on top of xG and goals, and the model trails the bookmakers by about ${((pooled.model.rps - (pooled.avg?.rps ?? pooled.model.rps))).toFixed(3)} RPS — they also know injuries and line-ups. Bookmaker odds (football-data.co.uk) are used only as this benchmark.${PRD.backtest_goals ? ` Scorelines and goal lines come from a separate goals model: over 2.5 goals Brier ${PRD.backtest_goals.over.toFixed(3)} vs ${PRD.backtest_goals.over_base.toFixed(3)} for the league rate and ${PRD.backtest_goals.over_book.toFixed(3)} for the bookmakers.` : ""}`;
   };
   const teamNext = (P) => {
     const nx = (PRD?.next_round || []).find((f) => f.home === P.team || f.away === P.team);
@@ -1155,25 +1122,123 @@ th[aria-sort] button::after { content: " ▾"; }
     renderPredictions();
     renderLuck();
     $("ov-notes").innerHTML = [
-      `Elite line: last season's top four in their league wins; worst line: the bottom four in their defeats. Scores weight each line by how much it decided matches on later seasons (see "How we know" in any team's breakdown).`,
+      `Elite line: last season's top four in their league wins; worst line: the bottom four in their defeats. Scores weight each line by how much it decided matches on later seasons — see "How we know" in the menu.`,
       `Deserved points use the historical record of past Premier League team-matches with the same scores. It is a description of the performances, not a prediction, and partly shaped by game state (a team 2–0 up may sit back).`,
       `Small sample: ${played} rounds. Data: FotMob (match, running and player stats) and Understat (PPDA, deep completions).`,
     ].map((t) => `<p>${esc(t)}</p>`).join("");
   };
 
+  // ===== How we know (D-028): method and tests, shared by every view =====
+  let howDone = false;
+  const renderHow = () => {
+    document.title = "How we know · Premier League Explained";
+    if (howDone) return;
+    howDone = true;
+    $("how-lede").innerHTML = `<p>Everything on this site is measured the same way: build it from the past, then test it on matches it has never seen. Where something didn't work — corner totals, the line features in the prediction, a bigger team-news model — we say so and leave it out.</p>`;
+    // The lines
+    const PR = L.proof, FT = L.teams[L.focus_team];
+    if (PR) {
+      const US = PR.understat, FM = PR.fotmob;
+      const seasons = `${US.pairs[0].tested_on}–${US.pairs[US.pairs.length - 1].tested_on}`;
+      $("proof-sub").textContent = `Each season's lines are built from the season before and tested on every Premier League team-match of the next, never on the games they came from. Long record: ${US.team_matches.toLocaleString()} team-matches, ${seasons}, on the 5 core metrics Understat has for every season. Detailed record: ${FM.team_matches} team-matches since 2025-26 on all FotMob metrics.`;
+      const chart = (el, S, word, colour, title) => {
+        const rows = S.bins.map((b, i) => ({ k: Math.round(b.from * 5 + (i ? 0.5 : 0)), ...b }));
+        $(el).innerHTML = `<figcaption>${title}<small>${word === "won" ? `Baseline: ${pctTxt(US.baseline.W)} of all team-matches are wins.` : `Baseline: ${pctTxt(US.baseline.L)} are defeats.`}</small></figcaption>` +
+          rows.map((b) => { const v = b[word === "won" ? "W" : "L"]; return `<div class="pbar"><small>${b.k} of 5</small><div class="track"><span style="width:${(v || 0) * 100}%;background:var(--${colour})"></span></div><b>${pctTxt(v)}</b></div><div class="pbar"><span></span><small>${b.n.toLocaleString()} matches</small><span></span></div>`; }).join("");
+      };
+      chart("proof-best", US.best, "won", "good", "Elite lines reached → share won");
+      chart("proof-worst", US.worst, "lost", "bad", "Worst lines hit → share lost");
+      const uw = US.weighted.walk_forward.best, fw = FM.weighted.walk_forward.best;
+      if (uw) $("proof-weighting").textContent = `Weighting the lines by impact predicts better than counting them equally. With weights learned only from earlier seasons, the chance that a random win scores higher than a random non-win rose from ${uw.auc_equal.toFixed(2)} to ${uw.auc_weighted.toFixed(2)} over ${uw.n.toLocaleString()} later team-matches (0.5 = coin flip)${fw ? `, and from ${fw.auc_equal.toFixed(2)} to ${fw.auc_weighted.toFixed(2)} on this season's ${fw.n} on all FotMob metrics` : ""}. That's why matches are scored by weighted lines (elite and danger scores).`;
+      const plBy = Object.fromEntries(FT.metrics.map((m) => [m.key, m]));
+      const keys = FT.metrics.filter((m) => m.impact).sort((a, b) => b.impact.impact - a.impact.impact).map((m) => m.key);
+      $("proof-metrics-note").textContent = `For each line: how often teams won when they reached the elite line vs when they didn't, and how often they lost at the worst line vs when they didn't. A big gap means the line separates wins from defeats.`;
+      $("proof-metrics").innerHTML = `<thead><tr><th class="l">Line</th><th>Won · reached elite</th><th>Won · didn't</th><th>Lost · at worst</th><th>Lost · not</th></tr></thead><tbody>` +
+        keys.map((k) => { const m = plBy[k], im = m.impact;
+          return `<tr><td class="l"><span class="lift-bar" style="width:${Math.round(Math.max(0, im.impact) * 60)}px"></span><span class="tip below" tabindex="0" data-tip="${esc(tipOf(m))}">${esc(m.label)}</span> <span class="imp-tag ${im.tier}">${TIER[im.tier][0]}</span>${im.provisional ? ` <small>(this season only, ${im.n} matches)</small>` : ""}</td>
+            <td class="cell">${pctTxt(im.won_when_reached)}</td><td class="cell">${pctTxt(im.won_when_not)}</td>
+            <td class="cell">${pctTxt(im.lost_when_at_worst)}</td><td class="cell">${pctTxt(im.lost_when_not)}</td></tr>`; }).join("") + "</tbody>";
+      const tb = US.best.threshold, top = US.best.bins[US.best.bins.length - 1];
+      $("proof-foot").textContent = `Reaching all 5 core elite lines won ${pctTxt(top.W)} of ${top.n} matches${tb ? "" : " — close to, but not, the 90% target"}; hitting all 5 worst lines lost ${pctTxt(US.worst.bins[US.worst.bins.length - 1].L)}${US.worst.threshold ? " — the 85% target holds" : ""}. Goals prevented, finishing and big chances missed are left out because they partly contain the result. Caveat: these are whole-match numbers, partly shaped by the score (a team 2–0 up may sit back). It is a strong association measured on later seasons, not a controlled experiment.`;
+    }
+
+
+    if (PRD) {
+    // How good are they? Walk-forward backtest + calibration + this season's log.
+      const BT = PRD.backtest, pooled = BT.pooled;
+      const seasons = BT.seasons.map((r) => r.season);
+      const lbl = (y) => `${y}-${String((y + 1) % 100).padStart(2, "0")}`;
+      $("bt-sub").textContent = `Tested the honest way: settings chosen on 2016-17 to 2019-20 and then frozen; for every season from ${lbl(seasons[0])} to ${lbl(seasons[seasons.length - 1])}, the model is trained only on earlier seasons and every match is predicted with what was known before kickoff. ${pooled.model.n.toLocaleString()} matches. Score: RPS (ranked probability score) — 0 is perfect, lower is better; it rewards putting probability near the right result.`;
+      const rows = [["Our model", pooled.model, "ink"], ["Base rates (home/draw/away frequency)", pooled.base, "muted"], ["Bookmakers, pre-match average", pooled.avg, "good"], ["Bookmakers, closing (sharpest)", pooled.closing, "good"]].filter((r) => r[1]);
+      const lo = 0.18, hi = 0.24;
+      $("bt-scores").innerHTML = `<figcaption>Average RPS, ${lbl(seasons[0])} onward<small>Shorter is better. The bookmakers see team news and line-ups we don't.</small></figcaption>` +
+        rows.map(([name, s, c]) => `<div class="pbar" style="grid-template-columns: 13em minmax(0,1fr) 4.2em"><small>${name}</small><div class="track"><span style="width:${(100 * (s.rps - lo)) / (hi - lo)}%;background:var(--${c})"></span></div><b>${s.rps.toFixed(3)}</b></div><div class="pbar" style="grid-template-columns: 13em minmax(0,1fr) 4.2em"><span></span><small>favourite won ${pc(s.hit_rate)}</small><span></span></div>`).join("");
+      const cal = BT.calibration, W = 360, H = 240, pad = 34;
+      const X = (v) => pad + (W - pad - 10) * v, Y = (v) => H - pad - (H - pad - 10) * v;
+      $("bt-calib").innerHTML = `<figcaption>Calibration<small>When the model says 30%, does it happen 30% of the time? Dots on the diagonal = honest probabilities.</small></figcaption>
+        <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Predicted against observed frequency">
+          <line x1="${X(0)}" y1="${Y(0)}" x2="${X(1)}" y2="${Y(1)}" stroke="var(--rule)" stroke-dasharray="4 4"></line>
+          ${[0, 0.25, 0.5, 0.75, 1].map((t) => `<text x="${X(t)}" y="${H - pad + 16}" text-anchor="${t === 1 ? "end" : "middle"}" style="font:11px var(--body);fill:var(--muted)">${t * 100}%</text><text x="${pad - 6}" y="${Y(t) + 4}" text-anchor="end" style="font:11px var(--body);fill:var(--muted)">${t * 100}%</text>`).join("")}
+          <polyline fill="none" stroke="var(--ink)" stroke-width="1.5" points="${cal.map((c) => `${X(c.predicted).toFixed(1)},${Y(c.observed).toFixed(1)}`).join(" ")}"></polyline>
+          ${cal.map((c) => `<circle cx="${X(c.predicted).toFixed(1)}" cy="${Y(c.observed).toFixed(1)}" r="${Math.max(3, Math.min(8, Math.sqrt(c.n) / 6)).toFixed(1)}" fill="var(--red)"><title>predicted ${pc(c.predicted)}, happened ${pc(c.observed)} (${c.n})</title></circle>`).join("")}
+          <text x="${(W + pad) / 2}" y="${H - 4}" text-anchor="middle" style="font:11px var(--body);fill:var(--muted)">predicted</text>
+        </svg>`;
+      const R = PRD.record;
+      $("bt-record").innerHTML = R.matches.length
+        ? `<thead><tr><th class="l">Match</th><th>Result</th><th>Home</th><th>Draw</th><th>Away</th><th>RPS</th><th>Without team news</th><th>Bookmakers RPS</th></tr></thead><tbody>` +
+          R.matches.map((e) => `<tr><td class="l">${esc(short(e.home))} v ${esc(short(e.away))}</td><td class="cell">${esc(e.score)}</td>${e.p.map((x, i) => `<td class="cell ${"HDA"[i] === e.result ? "h-good" : ""}">${pc(x)}</td>`).join("")}<td class="cell">${e.rps.toFixed(3)}</td><td class="cell">${e.rps_base != null ? e.rps_base.toFixed(3) : "—"}</td><td class="cell">${e.avg_rps != null ? e.avg_rps.toFixed(3) : "—"}</td></tr>`).join("") + "</tbody>"
+        : `<tbody><tr><td class="l">No predictions scored yet. The first ones, for the next round, were saved on ${esc(when(PRD.generated_at, true))}.</td></tr></tbody>`;
+      $("bt-foot").textContent = `What the ratings use: Understat non-penalty xG created and conceded, goals, and the share of the 5 core elite and worst lines reached, each match opponent-adjusted and weighted so the last ~24 matches count half. Honest result: the line features add very little on top of xG and goals, and the model trails the bookmakers by about ${((pooled.model.rps - (pooled.avg?.rps ?? pooled.model.rps))).toFixed(3)} RPS — they also know injuries and line-ups. Bookmaker odds (football-data.co.uk) are used only as this benchmark.${PRD.backtest_goals ? ` Scorelines and goal lines come from a separate goals model: over 2.5 goals Brier ${PRD.backtest_goals.over.toFixed(3)} vs ${PRD.backtest_goals.over_base.toFixed(3)} for the league rate and ${PRD.backtest_goals.over_book.toFixed(3)} for the bookmakers.` : ""}`;
+    }
+    // Match previews: what was tested
+    const TT = PRD?.team_news_test, GB = PRD?.backtest_goals, PVB = L.previews?.backtest;
+    const card = (title, body) => `<article class="mv-card"><h3>${title}</h3>${body}</article>`;
+    const sb = PVB?.shooters && PVB.shooters[Object.keys(PVB.shooters).sort()[0]], cb = PVB?.corners;
+    $("pv-cards").innerHTML = [
+      TT && card("Team news", `<p class="fx-why">Each absent player is weighted by his share of the team's usual minutes; one number shifts the odds towards the side missing less. Tested on ${TT.matches} past matches whose FotMob pages list who was out:</p><ul class="mv-list">${TT.fits.map((f) => `<li><span>Fit on ${f.fit_on}, tested on ${f.tested_on}</span><span class="num">${f.rps_base.toFixed(4)} → ${f.rps_adjusted.toFixed(4)}</span><small>RPS without → with team news (lower is better), ${f.n} matches</small></li>`).join("")}</ul><p class="fx-why">Small and not statistically proven, but the right direction: when the home side was missing much more (${TT.big_gap.n} matches) the base model gave it ${pc(TT.big_gap.base_home_win)}, with team news ${pc(TT.big_gap.adjusted_home_win)}; it won ${pc(TT.big_gap.actual_home_win)}. Both versions are logged in the running record.</p>`),
+      GB && card("Scorelines & goal lines", `<p class="fx-why">Poisson goals model on the team ratings, damped (chosen on 2016-17 to 2019-20), with scorelines made to add up to the published win/draw/loss chances.</p><ul class="mv-list"><li><span>Over 2.5 goals (Brier)</span><span class="num">${GB.over.toFixed(4)}</span><small>league rate ${GB.over_base.toFixed(4)} · bookmakers ${GB.over_book.toFixed(4)}</small></li><li><span>Both teams score (Brier)</span><span class="num">${GB.btts.toFixed(4)}</span><small>league rate ${GB.btts_base.toFixed(4)}</small></li></ul><p class="fx-why">${GB.n.toLocaleString()} matches. Goal totals are hard to call; the bookmakers are better at them.</p>`),
+      sb && card("Likely shooters", `<p class="fx-why">Each player's shots and xG per 90, shrunk towards his position's average, × usual minutes × what the opponent concedes; "if he starts".</p><ul class="mv-list"><li><span>At least one shot (Brier)</span><span class="num">${sb.brier_shot.toFixed(3)}</span><small>position-average guess ${sb.brier_shot_naive.toFixed(3)}</small></li><li><span>Non-penalty goal (Brier)</span><span class="num">${sb.brier_goal.toFixed(4)}</span><small>position-average guess ${sb.brier_goal_naive.toFixed(4)}</small></li></ul><p class="fx-why">${sb.starters.toLocaleString()} starts. Goal chances are calibrated: when it says 25%, about a quarter score.</p>`),
+      cb && card("Corners", `<p class="fx-why">Rolling corners won and conceded, opponent-adjusted.</p><ul class="mv-list"><li><span>A side's corners, average miss</span><span class="num">${cb.mae_side.toFixed(2)}</span><small>using the average: ${cb.mae_side_naive.toFixed(2)}</small></li><li><span>Expected "more corners" side got more</span><span class="num">${pc(cb.favourite_more_corners)}</span></li><li><span>Match total vs prediction (correlation)</span><span class="num">${cb.corr_total.toFixed(2)}</span><small>near zero — totals use the league average</small></li></ul><p class="fx-why">${cb.matches} matches.</p>`),
+    ].filter(Boolean).join("");
+    $("how-notes").innerHTML = [
+      `Sources: FotMob (match stats, running data, player stats, shot maps, team news), Understat (xG history since 2014, PPDA, deep completions), UEFA (Champions League running data), football-data.co.uk (bookmaker odds, used only as a benchmark). Each metric uses one provider, so comparisons are like-for-like.`,
+      `Lines: elite = last season's top four in their league wins; worst = the bottom four in their defeats; games with 20+ minutes a man down are left out. Rebuilt each summer.`,
+      `Whole-match numbers are partly shaped by the score (a team 2–0 up may sit back). The proof is a strong association measured on later seasons, not a controlled experiment.`,
+      `Predictions: settings were chosen on 2016-17 to 2019-20 and then frozen; every later season is predicted only from earlier ones. Each live prediction is saved before kickoff and scored after the match.`,
+      `Small samples: a few rounds into a season, ranks and ratings move a lot. The site updates after each match day.`,
+    ].map((t) => `<p>${esc(t)}</p>`).join("");
+  };
+
   // ===== Router: #team/<slug> → team view; anything else → overview =====
   let current = null;
+  $("nav-focus").href = `#team/${slug(L.focus_team)}`;
+  $("nav-focus").textContent = L.focus_team;
+  let jumpTo = null;
   const route = () => {
     const m = location.hash.match(/^#\/?team\/([a-z0-9-]+)/);
     const mm = location.hash.match(/^#\/?match\/([0-9]+)/);
+    const how = /^#\/?how/.test(location.hash);
     const t = m && bySlug[m[1]];
-    $("overview").hidden = !!(t || mm);
+    $("overview").hidden = !!(t || mm || how);
     $("team-view").hidden = !t;
     $("match-view").hidden = !mm;
-    if (mm) renderMatch(mm[1]);
+    $("how-view").hidden = !how;
+    if (how) renderHow();
+    else if (mm) renderMatch(mm[1]);
     else if (t) { if (t !== current) renderTeam(L.teams[t]); current = t; } else renderOverview();
-    window.scrollTo(0, 0);
+    const page = how ? "how" : t === L.focus_team ? "focus" : !t && !mm ? "overview" : "";
+    document.querySelectorAll(".topnav a").forEach((a) => (a.dataset.nav === page ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
+    const target = jumpTo && document.getElementById(jumpTo);
+    jumpTo = null;
+    if (target) target.scrollIntoView({ block: "start" }); else window.scrollTo(0, 0);
   };
+  // Links into a section of "How we know" (data-jump) land on that section.
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("a[data-jump]");
+    if (!a) return;
+    jumpTo = a.dataset.jump;
+    if (location.hash === "#how") { e.preventDefault(); route(); }
+  });
   addEventListener("hashchange", route);
   route();
 

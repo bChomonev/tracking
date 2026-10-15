@@ -8,6 +8,15 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-028 — "How we know" is its own page · 2026-10-15 · accepted
+The proof section sat on every team page although it is league-wide (lines from last
+season's top/bottom four, tested on every PL team-match); only its "United typical" column
+was team-specific, and the team page's tiers already show that. The prediction backtest sat
+at the bottom of the overview. Both now live on `#how`, reachable from a menu on every view
+(Premier League · focus team · How we know), together with how the team-news adjustment,
+shooters, corners and goal lines were tested (frozen team-news test in `absences.TEST`)
+and the data sources and caveats. Team pages and the overview link to the right section.
+
 ## D-027 — Scoreline model for goal lines · 2026-10-15 · accepted (1X2: revisit)
 Poisson goals per side (scikit-learn PoissonRegressor on the same pre-match ratings:
 own npxG / goals for, opponent npxGA / goals against) with a Dixon–Coles low-score

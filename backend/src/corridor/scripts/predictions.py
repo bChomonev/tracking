@@ -215,6 +215,7 @@ def main() -> None:
         "projection": projection,
         "backtest": ev,
         "backtest_goals": ev_goals,
+        "team_news_test": AB.TEST,
         "record": record,
         "trained_on": len(train),
     }
