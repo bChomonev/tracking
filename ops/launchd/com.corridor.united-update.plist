@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Runs the United page update 4x a day. Install: ops/launchd/install.sh
+     Missed runs (Mac asleep) fire once on wake. Logs: data/logs/update.log -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.corridor.united-update</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__UV__</string><string>run</string><string>python</string>
+    <string>-m</string><string>corridor.scripts.update</string><string>--publish</string>
+  </array>
+  <key>WorkingDirectory</key><string>__REPO__/backend</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>7</integer><key>Minute</key><integer>41</integer></dict>
+    <dict><key>Hour</key><integer>12</integer><key>Minute</key><integer>41</integer></dict>
+    <dict><key>Hour</key><integer>18</integer><key>Minute</key><integer>41</integer></dict>
+    <dict><key>Hour</key><integer>23</integer><key>Minute</key><integer>41</integer></dict>
+  </array>
+  <key>StandardOutPath</key><string>__REPO__/data/logs/launchd.out</string>
+  <key>StandardErrorPath</key><string>__REPO__/data/logs/launchd.err</string>
+</dict>
+</plist>

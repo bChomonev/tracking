@@ -8,6 +8,20 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-018 — Post-match updates: local launchd + a background Claude session publishes · 2026-10-15 · accepted
+`corridor.scripts.update` runs 4x a day from a user launchd agent (`ops/launchd/`). It
+refreshes the PL + UCL fixture lists and only rebuilds when United have a new finished
+match that is *ready*: PL 3 h after kickoff (FotMob), and it waits up to 48 h for Understat's
+PPDA; UCL 18 h after kickoff (UEFA tracking). Then build_season (pl, ucl) → united_profile
+→ analyse (one retry; on a second failure the stale read is moved aside so the page never
+shows text about older numbers) → build_site. Publishing needs Claude's Artifact tool, which
+`claude -p` lacks but a `claude --bg` session has: the script starts one with a narrow
+"publish this file to this URL, nothing else" prompt and removes the previous run's
+session. Rejected: a cloud routine (scraped data + LLM key would have to live in the cloud,
+and every run would re-scrape from scratch) and in-session cron (dies with the session,
+7-day cap). Trade-off: the Mac must be on; missed runs fire on wake. State:
+`data/site/{season}/update_state.json`; logs: `data/logs/update.log`.
+
 ## D-017 — Champions League: FotMob events + UEFA tracking, own pool · 2026-10-15 · accepted
 UCL matches are built separately (`build_season --competition ucl` → `data/processed/{season}/ucl/`).
 Event stats and the shot map come from FotMob (league 42, same parser as the PL); physical
