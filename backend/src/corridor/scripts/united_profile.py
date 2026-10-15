@@ -28,6 +28,12 @@ def main() -> None:
     prof = team_profile(teams, args.team)
     prof["players"] = player_profiles(players, args.team)
     prof["season"] = f"{args.season}-{(args.season + 1) % 100:02d}"
+    prof["competition"] = "Premier League"
+    ucl_src = src / "ucl" / "team_matches.json"
+    if ucl_src.exists():
+        # Separate pool, separate providers: ranked only against other UCL team-matches.
+        ucl = team_profile(json.loads(ucl_src.read_text()), args.team)
+        prof["ucl"] = ucl | {"competition": "Champions League", "season": prof["season"]}
 
     out = DATA_DIR / "site" / str(args.season)
     out.mkdir(parents=True, exist_ok=True)
@@ -52,6 +58,17 @@ def main() -> None:
                 f"rank {m['rank']:>2}/{m['of']}  pct {m['percentile']:>3.0f}  "
                 f"(PL avg {_fmt(m['league_avg'], m['decimals'])}, best "
                 f"{m['league_best']['team']} {_fmt(m['league_best']['value'], m['decimals'])})"
+            )
+    if "ucl" in prof:
+        u = prof["ucl"]
+        print(
+            f"\nCHAMPIONS LEAGUE — {u['record']['played']} played "
+            f"(ranked vs {u['metrics'][0]['of']} teams)"
+        )
+        for m in u["metrics"]:
+            print(
+                f"  {m['label']:<34} {_fmt(m['value'], m['decimals']):>7}  "
+                f"rank {m['rank']:>2}/{m['of']}  pct {m['percentile']:>3.0f}"
             )
     print("\nPLAYERS (percentile vs PL players in same position, ≥90 min)")
     for p in prof["players"]:

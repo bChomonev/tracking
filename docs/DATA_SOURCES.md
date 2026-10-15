@@ -35,6 +35,11 @@ except where marked "unverified". Prices were checked on official pages where re
   sprints, top speed…). Available ~17 h after kickoff. Physical history back to ≥ 2019-20
   (distance + top speed only then).
 - Sample (ATM v MUN, 13 Oct 2026, United): 112.2 km, 129 sprints, 726 HI runs, top 35.3 km/h.
+- **In use** (D-017) for UCL physical data: `distance_covered`, `sprints`,
+  `distance_covered_not_in_possession`, `high_intensity_runs`, `ball_possession`. Match list
+  needs `fromDate`/`toDate`; `seasonYear` is the end year (2027 for 2026-27).
+- FotMob also covers the UCL (league id 42) with the same event stats and shot map as the PL,
+  but no physical data.
 
 ### Premier League official API — not useful this season
 - `sdp-prem-prod.premier-league-prod.pulselive.com/api` (`v2/matches`, `v3/matches/{id}/stats`).

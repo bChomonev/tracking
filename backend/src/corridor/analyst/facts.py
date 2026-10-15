@@ -14,12 +14,25 @@ def _r(v: float | None, d: int) -> float | int | None:
     return round(v) if d == 0 else round(v, d)
 
 
+def _skew_fact(m: dict, labels_by_id: dict, dec: int) -> dict | None:
+    s = m.get("skew")
+    if not s or not s["flag"]:
+        return None
+    return {
+        "match": labels_by_id[s["match_id"]],
+        "value_in_that_match": _r(s["match_value"], dec),
+        "season_average_without_it": _r(s["average_without"], dec),
+        "league_rank_by_average_without_it": s["rank_without"],
+    }
+
+
 def build_facts(profile: dict) -> dict[str, Any]:
     matches = profile["matches"]
     labels = [f"{m['opponent']} ({'H' if m['is_home'] else 'A'})" for m in matches]
     w = sum(m["result"] == "W" for m in matches)
     d = sum(m["result"] == "D" for m in matches)
 
+    labels_by_id = {m["match_id"]: lbl for m, lbl in zip(matches, labels, strict=True)}
     metrics = []
     for m in profile["metrics"]:
         dec = m["decimals"]
@@ -43,7 +56,10 @@ def build_facts(profile: dict) -> dict[str, Any]:
                 "stack": m["stack"],
                 "better": "higher" if m["direction"] > 0 else "lower",
                 "meaning": m["explain"],
-                "per_match_average": _r(m["value"], dec),
+                "typical_match": _r(m["value"], dec),
+                "season_average": _r(m["season_average"], dec),
+                "league_rank_by_season_average": m["rank_by_average"],
+                "one_match_effect": _skew_fact(m, labels_by_id, dec),
                 "unit": m["unit"],
                 "league_rank": m["rank"],
                 "teams_ranked": m["of"],
@@ -138,7 +154,11 @@ def build_facts(profile: dict) -> dict[str, Any]:
         "context": profile.get("context"),
         "players": players,
         "notes": [
-            "All metric values are per-match averages unless labelled per_match.",
+            "typical_match is the team's median match; league_rank, league_percentile and "
+            "league_average/best/worst compare every team's median match, so one extreme game "
+            "cannot carry a season. season_average is the plain mean. one_match_effect is set "
+            "when a single match moves the average-based rank a lot; name that match when "
+            "the average is mentioned.",
             "Percentiles: 100 = best in the league, 0 = worst, always oriented so higher is "
             "better.",
             "Player percentiles compare against Premier League players in the same role "

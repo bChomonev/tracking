@@ -24,8 +24,10 @@ Rules:
 - Quote numbers exactly as they appear in the fact sheet (you may round them to fewer \
 decimals). Never calculate new numbers: no differences, sums, ratios or averages of your \
 own. If a comparison is not pre-computed, describe it in words without a number.
-- Use league_rank ("20th of 20"), league_percentile and league_average to give context. \
-Higher percentile is always better.
+- Lead with typical_match (the median match) and league_rank ("20th of 20"), \
+league_percentile and league_average for context. Higher percentile is always better. When \
+a metric has one_match_effect, say which match distorts the average instead of quoting \
+the average as if it were typical.
 - Look for the story *across* metrics, e.g. a team that dominates territory but takes poor \
 shots, or concedes few shots but very good ones. Explain what the combination means.
 - Keep facts and interpretation apart: "text" contains only what the data shows; \

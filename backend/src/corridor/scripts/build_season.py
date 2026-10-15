@@ -1,8 +1,11 @@
-"""Fetch a Premier League season from FotMob + Understat and write clean per-match files.
+"""Fetch a season and write clean per-match files.
 
-    uv run python -m corridor.scripts.build_season [--season 2026]
+    uv run python -m corridor.scripts.build_season [--season 2026] [--competition pl|ucl]
 
-Outputs (gitignored): data/processed/{season}/team_matches.json, player_matches.json
+pl:  FotMob + Understat (PPDA, deep completions)
+ucl: FotMob events + UEFA physical data (distance, sprints, running without the ball)
+
+Outputs (gitignored): data/processed/{season}/[ucl/]team_matches.json, player_matches.json
 """
 
 import argparse
@@ -10,7 +13,7 @@ import difflib
 import json
 from collections import defaultdict
 
-from corridor.ingest import fotmob, understat
+from corridor.ingest import fotmob, uefa, understat
 from corridor.ingest.http import DATA_DIR
 
 
@@ -43,25 +46,68 @@ def _name_map(fm_fixtures: list[dict], us_dates: list[dict]) -> dict[str, str]:
     return mapping
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--season", type=int, default=2026, help="season start year")
-    args = ap.parse_args()
-    season = args.season
-
-    fixtures = fotmob.league_matches(f"{season}/{season + 1}")
+def _fotmob_season(season: int, league_id: int) -> tuple[list[dict], list[dict], list[dict]]:
+    fixtures = fotmob.league_matches(f"{season}/{season + 1}", league_id)
     finished = [
         m for m in fixtures if m["status"].get("finished") and not m["status"].get("cancelled")
     ]
-    print(f"FotMob: {len(finished)} finished PL matches")
-
+    print(f"FotMob: {len(finished)} finished matches (league {league_id})")
     team_rows, player_rows = [], []
     for i, m in enumerate(finished, 1):
         teams, players = fotmob.parse_match(fotmob.match_details(m["id"]))
+        for t in teams:
+            t["fixture"] = m
         team_rows += teams
         player_rows += players
         if i % 10 == 0:
             print(f"  parsed {i}/{len(finished)}")
+    return fixtures, team_rows, player_rows
+
+
+def _join_uefa(season: int, team_rows: list[dict]) -> None:
+    """Replace physical fields with UEFA's tracking data (FotMob has none for the UCL)."""
+    dates = sorted(r["kickoff_utc"][:10] for r in team_rows)
+    matches = uefa.season_matches(season, dates[0], dates[-1])
+    joined = 0
+    for r in team_rows:
+        u = uefa.match_to_fotmob(r["fixture"], matches)
+        if not u:
+            continue
+        stats = uefa.team_stats(u["id"])
+        own, opp = ("homeTeam", "awayTeam") if r["is_home"] else ("awayTeam", "homeTeam")
+        s_own, s_opp = stats.get(str(u[own]["id"])), stats.get(str(u[opp]["id"]))
+        if s_own and s_opp:
+            r.update(uefa.physical(s_own, s_opp))
+            r["uefa_match_id"] = u["id"]
+            joined += 1
+    print(f"UEFA: joined physical data for {joined}/{len(team_rows)} team-matches")
+
+
+def _write(out, team_rows: list[dict], player_rows: list[dict]) -> None:
+    for r in team_rows:
+        r.pop("fixture", None)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "team_matches.json").write_text(json.dumps(team_rows, indent=1))
+    (out / "player_matches.json").write_text(json.dumps(player_rows, indent=1))
+    print(f"wrote {len(team_rows)} team rows, {len(player_rows)} player rows → {out}")
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--season", type=int, default=2026, help="season start year")
+    ap.add_argument("--competition", choices=("pl", "ucl"), default="pl")
+    args = ap.parse_args()
+    season = args.season
+
+    if args.competition == "ucl":
+        _, team_rows, player_rows = _fotmob_season(season, fotmob.CHAMPIONS_LEAGUE)
+        _join_uefa(season, team_rows)
+        for p in player_rows:  # FotMob has no UCL tracking; players stay event-only
+            p["competition"] = "ucl"
+        _write(DATA_DIR / "processed" / str(season) / "ucl", team_rows, player_rows)
+        return
+
+    fixtures, team_rows, player_rows = _fotmob_season(season, fotmob.PREMIER_LEAGUE)
 
     us_data = understat.league_data("EPL", season, refresh=True)
     names = _name_map(fixtures, us_data["dates"])
@@ -87,11 +133,7 @@ def main() -> None:
             joined += 1
     print(f"Understat: joined {joined}/{len(team_rows)} team-matches")
 
-    out = DATA_DIR / "processed" / str(season)
-    out.mkdir(parents=True, exist_ok=True)
-    (out / "team_matches.json").write_text(json.dumps(team_rows, indent=1))
-    (out / "player_matches.json").write_text(json.dumps(player_rows, indent=1))
-    print(f"wrote {len(team_rows)} team rows, {len(player_rows)} player rows → {out}")
+    _write(DATA_DIR / "processed" / str(season), team_rows, player_rows)
 
 
 if __name__ == "__main__":

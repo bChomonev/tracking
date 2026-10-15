@@ -8,6 +8,29 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-017 — Champions League: FotMob events + UEFA tracking, own pool · 2026-10-15 · accepted
+UCL matches are built separately (`build_season --competition ucl` → `data/processed/{season}/ucl/`).
+Event stats and the shot map come from FotMob (league 42, same parser as the PL); physical
+data comes from UEFA's match centre, joined on date + score + team-name similarity. United
+are ranked only against the other UCL team-matches (36 teams), never against PL numbers:
+different tracking providers measure distance and sprints differently. Metrics a
+competition lacks are skipped (no PPDA / deep completions: Understat covers leagues only).
+UCL-only metrics: running without the ball, scaled to 50% opponent possession
+(`km_oop × 50 / opp_possession%`, so possession neither flatters nor punishes it), and
+high-intensity runs. UCL players and a UCL analyst read are not done yet (UEFA player
+stats need a name join; 2 matches is too few for a written read).
+
+## D-016 — Rank on the typical (median) match; flag one-match skew · 2026-10-15 · accepted
+With 6 matches one freak game carries a mean: United's npxG was 5th on average but 13th on
+the median, because of 3.99 vs Ipswich. 84 of 580 team-metric ranks moved ≥5 places
+between mean and median. Every team's season value is now its **median match**, and rank,
+percentile, league average/best/worst and stack scores use it. The mean is kept as
+`season_average` with its own rank. `skew` finds the match whose removal moves the mean
+most and flags the metric when dropping it moves the average-based rank by ≥ max(3,
+teams/5) places (only with ≥4 matches). The page tags such metrics "skewed" and names the
+match; the analyst must name it when it quotes the average. Considered: trimmed mean
+(similar ranks, harder to explain) and pooled totals (worse: weights the big game more).
+
 ## D-015 — Close the analyst's guessing gaps: shot map, context facts, claim critic · 2026-10-14 · accepted
 The number check (D-014) let qualitative guesses through ("shots from distance", "possession
 teams run less", "presses only the big sides"). Three fixes:

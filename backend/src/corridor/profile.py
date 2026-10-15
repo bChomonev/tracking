@@ -6,7 +6,7 @@ completions), so comparisons are always like-for-like.
 
 from collections import defaultdict
 from dataclasses import dataclass
-from statistics import mean
+from statistics import mean, median
 
 import numpy as np
 
@@ -51,6 +51,24 @@ METRICS: tuple[ProfileMetric, ...] = (
         +1,
         "",
         "How many more (or fewer) sprints the team made than its opponent.",
+        0,
+    ),
+    ProfileMetric(
+        "distance_oop_adj_km",
+        "Running without the ball",
+        "work",
+        +1,
+        "km",
+        "Distance covered while the opponent had the ball, scaled to a match where they have "
+        "it half the time, so possession doesn't flatter or punish it (UEFA, UCL only).",
+    ),
+    ProfileMetric(
+        "high_intensity_runs",
+        "High-intensity runs",
+        "work",
+        +1,
+        "",
+        "Runs above high-intensity speed by the whole team (UEFA, UCL only).",
         0,
     ),
     ProfileMetric(
@@ -270,6 +288,8 @@ def derive(r: dict) -> dict:
         if r.get("distance_m") and r.get("opp_distance_m")
         else None
     )
+    oop, opp_poss = r.get("distance_oop_km"), r.get("opp_possession_pct_uefa")
+    d["distance_oop_adj_km"] = oop * 50 / opp_poss if oop is not None and opp_poss else None
     d["sprints_gap"] = (
         r["sprints"] - r["opp_sprints"]
         if r.get("sprints") is not None and r.get("opp_sprints") is not None
@@ -308,6 +328,43 @@ def _avg(rows: list[dict], key: str) -> float | None:
     return mean(vals) if vals else None
 
 
+SKEW_MIN_MATCHES = 4
+
+
+def _med(rows: list[dict], key: str) -> float | None:
+    vals = [r[key] for r in rows if r.get(key) is not None]
+    return median(vals) if vals else None
+
+
+def _order(vals: dict[str, float], direction: int) -> list[str]:
+    """Teams best-first."""
+    return sorted(vals, key=lambda t: vals[t] * direction, reverse=True)
+
+
+def _skew(mine: list[dict], m: ProfileMetric, averages: dict[str, float], team: str) -> dict | None:
+    """Is the season average carried by one match? Finds the match whose removal moves the
+    average most, and flags the metric when dropping it moves the team's average-based rank
+    by at least a fifth of the league (min 3 places)."""
+    vals = [(r, r[m.key]) for r in mine if r.get(m.key) is not None]
+    if len(vals) < SKEW_MIN_MATCHES:
+        return None
+    total = sum(v for _, v in vals)
+    without = {r["match_id"]: (total - v) / (len(vals) - 1) for r, v in vals}
+    driver, value = max(vals, key=lambda rv: abs(without[rv[0]["match_id"]] - averages[team]))
+    rank_with = _order(averages, m.direction).index(team) + 1
+    rank_without = (
+        _order(averages | {team: without[driver["match_id"]]}, m.direction).index(team) + 1
+    )
+    threshold = max(3, round(len(averages) / 5))
+    return {
+        "flag": abs(rank_with - rank_without) >= threshold,
+        "match_id": driver["match_id"],
+        "match_value": value,
+        "average_without": without[driver["match_id"]],
+        "rank_without": rank_without,
+    }
+
+
 def team_profile(rows: list[dict], team: str) -> dict:
     rows = [derive(r) for r in rows]
     by_team: dict[str, list[dict]] = defaultdict(list)
@@ -317,13 +374,17 @@ def team_profile(rows: list[dict], team: str) -> dict:
         raise KeyError(f"{team!r} not found; teams: {sorted(by_team)}")
 
     team_avgs = {t: {m.key: _avg(rs, m.key) for m in METRICS} for t, rs in by_team.items()}
+    team_meds = {t: {m.key: _med(rs, m.key) for m in METRICS} for t, rs in by_team.items()}
     mine = sorted(by_team[team], key=lambda r: r["kickoff_utc"])
 
     metrics = []
     for m in METRICS:
-        season_vals = {t: a[m.key] for t, a in team_avgs.items() if a[m.key] is not None}
-        ordered = sorted(season_vals.items(), key=lambda kv: kv[1] * m.direction, reverse=True)
-        rank = next(i for i, (t, _) in enumerate(ordered, 1) if t == team)
+        # Rank on the typical (median) match so one freak game can't carry a season.
+        typical = {t: a[m.key] for t, a in team_meds.items() if a[m.key] is not None}
+        if team not in typical:
+            continue  # metric not available in this competition
+        ordered = _order(typical, m.direction)
+        averages = {t: a[m.key] for t, a in team_avgs.items() if a[m.key] is not None}
         all_match_vals = [r[m.key] for r in rows if r.get(m.key) is not None]
         metrics.append(
             {
@@ -334,13 +395,16 @@ def team_profile(rows: list[dict], team: str) -> dict:
                 "unit": m.unit,
                 "explain": m.explain,
                 "decimals": m.decimals,
-                "value": season_vals.get(team),
-                "rank": rank,
+                "value": typical[team],
+                "rank": ordered.index(team) + 1,
                 "of": len(ordered),
-                "percentile": _pct(season_vals.get(team), list(season_vals.values()), m.direction),
-                "league_avg": mean(season_vals.values()),
-                "league_best": {"team": ordered[0][0], "value": ordered[0][1]},
-                "league_worst": {"team": ordered[-1][0], "value": ordered[-1][1]},
+                "percentile": _pct(typical[team], list(typical.values()), m.direction),
+                "league_avg": mean(typical.values()),
+                "league_best": {"team": ordered[0], "value": typical[ordered[0]]},
+                "league_worst": {"team": ordered[-1], "value": typical[ordered[-1]]},
+                "season_average": averages[team],
+                "rank_by_average": _order(averages, m.direction).index(team) + 1,
+                "skew": _skew(mine, m, averages, team),
                 "matches": [
                     {
                         "match_id": r["match_id"],

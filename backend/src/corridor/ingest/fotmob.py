@@ -12,6 +12,7 @@ from corridor.ingest.http import fetch_json
 
 BASE = "https://www.fotmob.com/api/data"
 PREMIER_LEAGUE = 47
+CHAMPIONS_LEAGUE = 42
 MAN_UTD = 10260
 POSITION_GROUPS = {0: "GK", 1: "DEF", 2: "MID", 3: "FWD"}
 ROLES = ("GK", "CB", "FB", "CM", "AM", "W", "ST")

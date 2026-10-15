@@ -45,6 +45,8 @@ body {
   padding-block: 28px 48px;
 }
 main { max-width: 1120px; margin: 0 auto; display: grid; gap: 40px; }
+main > * { min-width: 0; } /* let wide tables scroll inside .table-wrap instead of widening the page */
+[hidden] { display: none !important; }
 h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.05; margin: 0; text-wrap: balance; }
 h2 { font-size: 1.9rem; text-transform: uppercase; letter-spacing: .02em; }
 .eyebrow { font: 600 .78rem/1 var(--body); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
@@ -53,6 +55,14 @@ h2 { font-size: 1.9rem; text-transform: uppercase; letter-spacing: .02em; }
 .section-head p { margin: 0; color: var(--muted); max-width: 60ch; }
 .goal-types { margin: 12px 0 0; color: var(--muted); font-size: .9rem; }
 .goal-types b { color: var(--ink); }
+.comp-switch { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 -8px; position: sticky; top: 0; z-index: 2; padding: 8px 0; background: var(--bg); }
+.comp-switch button { font: 600 .9rem/1 var(--body); padding: 10px 14px; border-radius: 999px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); cursor: pointer; }
+.comp-switch button small { font-weight: 400; color: var(--muted); margin-left: 4px; }
+.comp-switch button[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.comp-switch button[aria-selected="true"] small { color: inherit; opacity: .75; }
+.skew { color: var(--muted); }
+.skew b { color: var(--ink); }
+.skew-tag { font: 600 .66rem/1 var(--body); text-transform: uppercase; letter-spacing: .06em; padding: 2px 5px; border-radius: 4px; border: 1px solid var(--muted); color: var(--muted); vertical-align: 2px; margin-left: 4px; }
 
 /* Hero */
 .hero { display: grid; gap: 20px; border-bottom: 3px solid var(--red); padding-bottom: 28px; }
@@ -159,10 +169,12 @@ th[aria-sort] button::after { content: " ▾"; }
     <ul class="verdict" id="verdict"></ul>
   </section>
 
+  <div class="comp-switch" id="comp-switch" role="tablist" aria-label="Competition" hidden></div>
+
   <section aria-labelledby="stacks-title">
     <div class="section-head">
       <h2 id="stacks-title">The four stacks</h2>
-      <p>Each bar is United's percentile among all 20 Premier League teams this season. 100 = best in the league, the tick marks the middle of the pack. Tap a metric for match-by-match detail.</p>
+      <p id="stacks-sub"></p>
     </div>
     <div class="stacks" id="stacks"></div>
   </section>
@@ -170,7 +182,7 @@ th[aria-sort] button::after { content: " ▾"; }
   <section aria-labelledby="matches-title">
     <div class="section-head">
       <h2 id="matches-title">Match by match</h2>
-      <p>Cell colour = how that single performance ranks against every team-match this season (green top third, red bottom third).</p>
+      <p>Cell colour = how that single performance ranks against every team-match in the same competition this season (green top third, red bottom third).</p>
     </div>
     <div class="table-wrap"><table id="matches"></table></div>
     <p class="goal-types" id="goal-types" hidden></p>
@@ -243,11 +255,19 @@ th[aria-sort] button::after { content: " ▾"; }
   const ranked = P.metrics.filter((m) => m.percentile != null);
   const worst = [...ranked].sort((a, b) => a.percentile - b.percentile).slice(0, 4);
   const best = [...ranked].sort((a, b) => b.percentile - a.percentile).slice(0, 2);
-  const line = (m) => `<b>${esc(m.label)}</b>: ${esc(showVal(m, m.value))} per match, ${ord(m.rank)} of ${m.of} (league average ${esc(showVal(m, m.league_avg))}).`;
+  const line = (m) => `<b>${esc(m.label)}</b>: ${esc(showVal(m, m.value))} in a typical match, ${ord(m.rank)} of ${m.of} (league average ${esc(showVal(m, m.league_avg))}).`;
   $("verdict").innerHTML =
     best.map((m) => `<li class="good">Strength. ${line(m)}</li>`).join("") +
     worst.map((m) => `<li class="bad">Problem. ${line(m)}</li>`).join("");
 
+  // ---- Per-competition views (stacks, match table, goals). Each competition is ranked
+  // only against its own pool and providers.
+  const COMPS = [P, P.ucl].filter(Boolean);
+  const renderComp = (C) => {
+  const metricBy = Object.fromEntries(C.metrics.map((m) => [m.key, m]));
+  const n = C.metrics[0]?.of;
+  $("stacks-sub").textContent = `Each bar is United's percentile among all ${n} ${C.competition} teams, comparing every team's typical (median) match so one freak game can't carry a season. 100 = best. Tap a metric for the season average and match-by-match detail.`;
+  $("goal-types").hidden = true;
   // ---- Stacks
   const spark = (m) => {
     const vals = m.matches.map((x) => x.value).filter((v) => v != null);
@@ -267,19 +287,22 @@ th[aria-sort] button::after { content: " ▾"; }
       <line x1="0" x2="${W}" y1="${avgY}" y2="${avgY}" stroke="var(--muted)" stroke-dasharray="4 4" stroke-width="1"></line>
       <path d="${path}" fill="none" stroke="var(--ink)" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>${dots}</svg>`;
   };
-  const opps = P.matches.map((m) => short(m.opponent));
-  $("stacks").innerHTML = P.stacks.map((s) => {
-    const ms = P.metrics.filter((m) => m.stack === s.id);
+  const opps = C.matches.map((m) => short(m.opponent));
+  const oppOf = (id) => { const mt = C.matches.find((x) => x.match_id === id); return mt ? `${short(mt.opponent)} (${mt.is_home ? "H" : "A"})` : ""; };
+  $("stacks").innerHTML = C.stacks.map((s) => {
+    const ms = C.metrics.filter((m) => m.stack === s.id);
     return `<article class="stack" aria-label="${esc(s.name)}">
       <header><h3>${esc(s.name)}</h3><span class="score num tier-${tier(s.score)}" title="Average percentile">${s.score ?? "—"}</span></header>
       ${ms.map((m) => `<details class="metric" id="m-${m.key}">
         <summary>
-          <span class="m-label">${esc(m.label)}</span>
+          <span class="m-label">${esc(m.label)}${m.skew?.flag ? ' <span class="skew-tag" title="One match skews the season average">skewed</span>' : ""}</span>
           <span class="m-value"><span class="num">${esc(showVal(m, m.value))}</span><span class="rank">${ord(m.rank)}/${m.of}</span></span>
           <span class="bar" aria-hidden="true"><i class="tier-${tier(m.percentile)}" style="width:${Math.max(2, m.percentile ?? 0)}%"></i></span>
         </summary>
         <div class="m-detail">
           <p>${esc(m.explain)}${m.direction < 0 ? " Lower is better." : ""}</p>
+          <p>Typical match (median) <span class="num">${esc(showVal(m, m.value))}</span> · season average <span class="num">${esc(showVal(m, m.season_average))}</span>${m.rank_by_average !== m.rank ? ` (${ord(m.rank_by_average)} by average)` : ""}</p>
+          ${m.skew?.flag ? `<p class="skew">One match skews the average: <b>${esc(oppOf(m.skew.match_id))}</b> <span class="num">${esc(showVal(m, m.skew.match_value))}</span>. Without it the average is <span class="num">${esc(showVal(m, m.skew.average_without))}</span> (${ord(m.skew.rank_without)} of ${m.of}).</p>` : ""}
           <p>League average <span class="num">${esc(showVal(m, m.league_avg))}</span> · best ${esc(short(m.league_best.team))} <span class="num">${esc(showVal(m, m.league_best.value))}</span> · worst ${esc(short(m.league_worst.team))} <span class="num">${esc(showVal(m, m.league_worst.value))}</span></p>
           ${spark(m)}
           <div class="legend">${m.matches.map((x, i) => `<span>${esc(opps[i])} <span class="num">${esc(showVal(m, x.value))}</span></span>`).join("")}<span>- - league avg</span></div>
@@ -288,9 +311,45 @@ th[aria-sort] button::after { content: " ▾"; }
     </article>`;
   }).join("");
 
+
+  // ---- Matches table
+  const matchCols = ["distance_oop_adj_km", "distance_gap_km", "sprints_gap", "ppda", "territory_pct", "box_touches", "npxg", "npxg_per_shot", "outside_box_shot_pct", "npxg_conceded", "npxg_per_shot_conceded"];
+  const colLabel = { distance_oop_adj_km: "Run w/o ball (km)", distance_gap_km: "Run vs opp (km)", sprints_gap: "Sprints vs opp", outside_box_shot_pct: "Shots outside box %", ppda: "PPDA", territory_pct: "Territory %", box_touches: "Box touches", npxg: "npxG", npxg_per_shot: "npxG / shot", npxg_conceded: "npxGA", npxg_per_shot_conceded: "npxGA / shot" };
+  const cols = matchCols.filter((k) => metricBy[k]);
+  $("matches").innerHTML = `<thead><tr><th class="l">Match</th><th>Score</th>${cols.map((k) => `<th>${colLabel[k]}</th>`).join("")}</tr></thead><tbody>` +
+    C.matches.map((mt, i) => `<tr><td class="l"><span class="pos">${mt.kickoff_utc.slice(5, 10).split("-").reverse().join("/")} ${mt.is_home ? "H" : "A"}</span> ${esc(short(mt.opponent))}</td>
+      <td><span class="res ${mt.result}">${mt.result}</span> <span class="num">${mt.goals_for}–${mt.goals_against}</span></td>
+      ${cols.map((k) => { const m = metricBy[k], c = m.matches[i]; const v = SIGNED.has(k) ? signed(c.value, m.decimals) : fmt(c.value, m.decimals);
+        return `<td class="cell h-${tier(c.percentile)}" title="${c.percentile ?? "—"}th percentile">${v}</td>`; }).join("")}</tr>`).join("") + "</tbody>";
+
+  // ---- How the goals came (shot map)
+  const gt = C.context && C.context.goals_by_type;
+  if (gt) {
+    const part = (g) => [["open_play", "open play"], ["fast_break", "counter-attack"], ["set_piece", "set piece"], ["penalty", "penalty"], ["own_goals", "own goal"]]
+      .filter(([k]) => g[k]).map(([k, l]) => `${g[k]} ${l}`).join(", ") + (g.of_which_from_outside_box ? ` · ${g.of_which_from_outside_box} from outside the box` : "");
+    $("goal-types").innerHTML = `<b>How the goals came.</b> Scored ${gt.scored.total}: ${esc(part(gt.scored))}. Conceded ${gt.conceded.total}: ${esc(part(gt.conceded))}.`;
+    $("goal-types").hidden = false;
+  }
+
+  };
+  if (COMPS.length > 1) {
+    $("comp-switch").innerHTML = COMPS.map((C, i) => `<button type="button" role="tab" aria-selected="${i === 0}" data-i="${i}">${esc(C.competition)} <small>${C.record.played} matches</small></button>`).join("");
+    $("comp-switch").hidden = false;
+    $("comp-switch").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-i]");
+      if (!b) return;
+      $("comp-switch").querySelectorAll("button").forEach((x) => x.setAttribute("aria-selected", x === b));
+      renderComp(COMPS[+b.dataset.i]);
+    });
+  }
+  renderComp(P);
+
   document.addEventListener("click", (e) => {
     const chip = e.target.closest(".chip[data-metric]");
     if (!chip) return;
+    // Analyst chips cite Premier League metrics: switch back to that view first.
+    const tab = document.querySelector('#comp-switch button[data-i="0"]');
+    if (tab && tab.getAttribute("aria-selected") !== "true") tab.click();
     const el = document.getElementById("m-" + chip.dataset.metric);
     if (!el) return;
     el.open = true;
@@ -298,24 +357,6 @@ th[aria-sort] button::after { content: " ▾"; }
     el.classList.add("flash");
     setTimeout(() => el.classList.remove("flash"), 1600);
   });
-
-  // ---- Matches table
-  const matchCols = ["distance_gap_km", "sprints_gap", "ppda", "territory_pct", "box_touches", "npxg", "npxg_per_shot", "outside_box_shot_pct", "npxg_conceded", "npxg_per_shot_conceded"];
-  const colLabel = { distance_gap_km: "Run vs opp (km)", sprints_gap: "Sprints vs opp", outside_box_shot_pct: "Shots outside box %", ppda: "PPDA", territory_pct: "Territory %", box_touches: "Box touches", npxg: "npxG", npxg_per_shot: "npxG / shot", npxg_conceded: "npxGA", npxg_per_shot_conceded: "npxGA / shot" };
-  $("matches").innerHTML = `<thead><tr><th class="l">Match</th><th>Score</th>${matchCols.map((k) => `<th>${colLabel[k]}</th>`).join("")}</tr></thead><tbody>` +
-    P.matches.map((mt, i) => `<tr><td class="l"><span class="pos">${mt.kickoff_utc.slice(5, 10).split("-").reverse().join("/")} ${mt.is_home ? "H" : "A"}</span> ${esc(short(mt.opponent))}</td>
-      <td><span class="res ${mt.result}">${mt.result}</span> <span class="num">${mt.goals_for}–${mt.goals_against}</span></td>
-      ${matchCols.map((k) => { const m = metricBy[k], c = m.matches[i]; const v = SIGNED.has(k) ? signed(c.value, m.decimals) : fmt(c.value, m.decimals);
-        return `<td class="cell h-${tier(c.percentile)}" title="${c.percentile ?? "—"}th percentile">${v}</td>`; }).join("")}</tr>`).join("") + "</tbody>";
-
-  // ---- How the goals came (shot map)
-  const gt = P.context && P.context.goals_by_type;
-  if (gt) {
-    const part = (g) => [["open_play", "open play"], ["fast_break", "counter-attack"], ["set_piece", "set piece"], ["penalty", "penalty"], ["own_goals", "own goal"]]
-      .filter(([k]) => g[k]).map(([k, l]) => `${g[k]} ${l}`).join(", ") + (g.of_which_from_outside_box ? ` · ${g.of_which_from_outside_box} from outside the box` : "");
-    $("goal-types").innerHTML = `<b>How the goals came.</b> Scored ${gt.scored.total}: ${esc(part(gt.scored))}. Conceded ${gt.conceded.total}: ${esc(part(gt.conceded))}.`;
-    $("goal-types").hidden = false;
-  }
 
   // ---- Players table (sortable)
   const pCols = [["effort", "Effort pct"], ["distance_m", "Km"], ["sprints", "Sprints"], ["recoveries", "Recov."], ["duels_won", "Duels won"], ["line_breaking_passes", "Line-break"], ["box_touches", "Box touches"], ["xg_xa", "xG+xA"]];
@@ -335,7 +376,9 @@ th[aria-sort] button::after { content: " ▾"; }
   // ---- Notes
   $("notes").innerHTML = [
     `Data: match stats, running data and player stats from FotMob; PPDA and deep completions from Understat. Each metric uses one provider, so comparisons are like-for-like.`,
-    `Small sample: ${P.record.played} matches, including Manchester City and Tottenham. Expect these ranks to move.`,
+    `Champions League: match stats from FotMob, running data from UEFA's tracking. UCL numbers are ranked only against the other ${P.ucl ? P.ucl.metrics[0].of : 36} UCL teams and never compared with Premier League numbers (different providers measure running differently).`,
+    `Ranks compare each team's typical (median) match. A metric marked "skewed" has one match that moves the season average by several places; the detail names it.`,
+    `Small sample: ${P.record.played} Premier League${P.ucl ? ` and ${P.ucl.record.played} Champions League` : ""} matches. Expect these ranks to move.`,
     `A player's role is the position they started in most often this season, taken from FotMob's line-ups.`,
     `Generated ${new Date(P.generated_at).toUTCString().slice(5, 22)} UTC.`,
   ].map((t) => `<p>${esc(t)}</p>`).join("");

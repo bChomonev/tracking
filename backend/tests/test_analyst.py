@@ -4,8 +4,8 @@ from corridor.analyst.validate import check, is_supported, numbers_in
 
 FACTS = {
     "metrics": [
-        {"key": "npxg_per_shot", "per_match_average": 0.074, "league_rank": 20},
-        {"key": "distance_gap_km", "per_match_average": -1.8},
+        {"key": "npxg_per_shot", "typical_match": 0.074, "league_rank": 20},
+        {"key": "distance_gap_km", "typical_match": -1.8},
     ],
     "players": [{"name": "Kobbie Mainoo", "per_90": {"Recoveries / 90": {"value": 10.1}}}],
     "record": {"played": 6, "goals_for": 9, "xg_for": 10.69},
