@@ -20,6 +20,7 @@ uv run python -m corridor.scripts.build_season --season 2024  # once: the season
 uv run python -m corridor.scripts.united_profile  # profile all 20 teams + overview (league.json) + lines + proof
 uv run python -m corridor.scripts.analyse         # LLM analyst writes + a critic checks the season read (needs backend/.env, ~4 min)
 uv run python -m corridor.scripts.predictions     # next round + season simulation + running record (D-023)
+uv run python -m corridor.scripts.previews        # team news, line-ups, shooters, corners per fixture (D-024)
 uv run python -m corridor.scripts.build_site      # render data/site/2026/index.html (overview + team pages) from web/united.html
 ```
 

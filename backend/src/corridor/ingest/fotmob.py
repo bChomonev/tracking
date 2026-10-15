@@ -71,6 +71,7 @@ TEAM_STATS = {
     "physical_metrics_running": "running_m",
     "physical_metrics_sprinting": "sprinting_m",
     "physical_metrics_number_of_sprints": "sprints",
+    "corners": "corners",
 }
 
 # FotMob player-stat key → our field name.
@@ -173,6 +174,38 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
             players.append(rec)
 
     shots = (d["content"].get("shotmap") or {}).get("shots") or []
+    # Per-player shooting from the shot map (FotMob's player stat blocks don't reliably
+    # carry shots/xG): non-penalty shots, shots on target, npxG, penalties taken.
+    by_player: dict[int, dict[str, float]] = {}
+    for sh in shots:
+        if sh.get("isOwnGoal") or sh.get("playerId") is None:
+            continue
+        b = by_player.setdefault(
+            sh["playerId"],
+            {
+                "np_shots": 0,
+                "np_shots_on_target": 0,
+                "npxg_shots": 0.0,
+                "penalties": 0,
+                "np_goals": 0,
+            },
+        )
+        if sh.get("situation") == "Penalty":
+            b["penalties"] += 1
+            continue
+        b["np_shots"] += 1
+        b["np_shots_on_target"] += bool(sh.get("isOnTarget"))
+        b["npxg_shots"] += sh.get("expectedGoals") or 0.0
+        b["np_goals"] += sh.get("eventType") == "Goal"
+    zero = {
+        "np_shots": 0,
+        "np_shots_on_target": 0,
+        "npxg_shots": 0.0,
+        "penalties": 0,
+        "np_goals": 0,
+    }
+    for pl in players:
+        pl |= by_player.get(pl["player_id"], zero)
     reds = red_card_minutes(d)
     records = []
     for i, side in enumerate(sides):
@@ -256,6 +289,7 @@ def shot_profile(shots: list[dict], team_id: int) -> dict[str, float | int]:
 
 
 _CONCEDED = {
+    "corners",
     "xg",
     "npxg",
     "xgot",

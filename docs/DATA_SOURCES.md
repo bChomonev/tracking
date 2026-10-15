@@ -72,6 +72,11 @@ StatsBomb open data: full event data but no current PL season.
   in the **same season** from the same provider.
 - Low-volume, personal use only; scraping these sites for a public product is legally weak.
 
+## Pre-match team news (added 2026-10-15)
+FotMob's match page for an upcoming fixture already carries `lineup.unavailable` (injury /
+suspension, expected return) and `lineupType: lastStarting11` until the official line-up
+(~1 h before kickoff). Fetched once per next-round fixture per pipeline run.
+
 ## Betting odds (benchmark only, added 2026-10-15)
 **football-data.co.uk** publishes free season CSVs (`mmz4281/{yy}{yy}/E0.csv`) of PL
 results with bookmaker odds: pre-match averages (`AvgH/D/A`, older files `BbAv*`) and

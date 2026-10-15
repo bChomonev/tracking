@@ -8,6 +8,25 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-024 — Stage 5: match previews (team news, line-ups, shooters, corners) · 2026-10-15 · accepted
+Clicking a next-round fixture opens `#match/<id>`: the prediction, **team news** (FotMob's
+pre-match "unavailable" list: type, expected return, the player's minutes and share of the
+team's npxG + xA this season), **line-ups** (FotMob's last starting XI until the official
+one is out, ~1 h before kickoff; players now out are struck through), **likely shooters**
+and **corners**. Built by `scripts/previews.py` after `predictions` (one FotMob request per
+fixture per run). The parser now records team corners and per-player non-penalty shots,
+shots on target, npxG (from the shot map), penalties and non-penalty goals.
+**Shooters:** shots and npxG per 90 this season + last (half weight), shrunk towards the
+role average with 270 minutes of prior, × usual minutes when starting × the opponent's
+shots / npxG conceded relative to the league; Poisson for P(≥1 shot) and P(non-pen goal),
+"if he starts". Walk-forward on 2025-26 (7,600 starts): Brier 0.207 vs 0.220 for a role
+average; goal chances calibrated. **Corners:** opponent-adjusted rolling corners won /
+conceded (30-match half-life, chosen on 2025-26). Honest finding: a side's corners are
+predictable (MAE 2.07 vs 2.15; the expected "more corners" side wins them 62%), the match
+**total is not** (correlation 0.06; worse than the league average), so totals use the
+league average. **Absences are shown, not used** in the win/draw/loss model: there is no
+injury history to test an adjustment against; shooter lists drop players who are out.
+
 ## D-023 — Stage 4: pre-match predictions, honestly tested · 2026-10-15 · accepted
 **Ratings** (`corridor.predict`): every team carries exponentially weighted Understat
 non-penalty xG for/against, goals for/against and the share of the 5 core elite / worst

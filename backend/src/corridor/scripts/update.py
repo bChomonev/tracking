@@ -8,7 +8,8 @@ Meant to run on a schedule (see ops/launchd). Each run:
 1. Refreshes the PL and UCL fixture lists (2 requests) and finds the finished matches.
 2. Decides whether a new match is worth trying: 3 h after kickoff for the PL, 12 h for the
    UCL. Not yet → exit quietly.
-3. Runs build_season (pl, ucl) → united_profile → predictions → analyse → build_site.
+3. Runs build_season (pl, ucl) → united_profile → predictions → previews → analyse →
+   build_site.
    Before the expensive steps it checks the slow sources actually have the match —
    Understat's PPDA (PL) and UEFA's tracking (UCL, ~17 h after kickoff) — and otherwise
    waits for a later run, up to MAX_WAIT, after which it builds with what it has.
@@ -192,6 +193,10 @@ def main() -> None:
             run_step("predictions", "--season", str(args.season))
         except RuntimeError:
             log.info("predictions failed; publishing without a fresh forecast")
+        try:
+            run_step("previews", "--season", str(args.season))
+        except RuntimeError:
+            log.info("previews failed; publishing the previous match previews")
         try:
             run_step("analyse", "--season", str(args.season))
         except RuntimeError:

@@ -46,7 +46,7 @@ body {
   padding-block: 28px 48px;
 }
 main { max-width: 1120px; margin: 0 auto; display: grid; gap: 40px; }
-main > *, #overview > *, #team-view > * { min-width: 0; } /* let wide tables scroll inside .table-wrap instead of widening the page */
+main > *, #overview > *, #team-view > *, #match-view > * { min-width: 0; } /* let wide tables scroll inside .table-wrap instead of widening the page */
 [hidden] { display: none !important; }
 h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.05; margin: 0; text-wrap: balance; }
 h2 { font-size: 1.9rem; text-transform: uppercase; letter-spacing: .02em; }
@@ -172,7 +172,7 @@ tr.typical td { background: var(--track); font-weight: 600; }
 .lines-cell small { display: block; font: 400 .74rem/1.2 var(--body); color: var(--muted); }
 
 /* Overview */
-#overview, #team-view { display: contents; }
+#overview, #team-view, #match-view { display: contents; }
 .back { font: 600 .9rem/1 var(--body); color: var(--muted); text-decoration: none; }
 .back:hover { color: var(--ink); }
 .hero > p:has(.back) { margin: -8px 0 0; }
@@ -228,6 +228,33 @@ tr.typical td { background: var(--track); font-weight: 600; }
 .pj-bar { display: inline-block; height: 10px; border-radius: 2px; vertical-align: 0; margin-right: 6px; }
 #team-next .fx { max-width: 560px; }
 #team-next h3 { font-size: 1.05rem; text-transform: uppercase; margin: 0 0 8px; letter-spacing: .04em; }
+
+/* Match preview */
+.mv-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; }
+.mv-card { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+.mv-card h3 { font-size: 1.25rem; text-transform: uppercase; margin-bottom: 4px; }
+.mv-card h3 small { font: 400 .85rem/1 var(--body); color: var(--muted); text-transform: none; margin-left: 6px; }
+.mv-card .lead { margin: 0 0 10px; color: var(--muted); font-size: .9rem; }
+.mv-card .lead b { color: var(--ink); }
+.mv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.mv-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 7px 0; border-top: 1px solid var(--rule); font-size: .92rem; }
+.mv-list li small { grid-column: 1 / -1; color: var(--muted); font-size: .8rem; }
+.tag { font: 600 .66rem/1 var(--body); text-transform: uppercase; letter-spacing: .06em; padding: 3px 5px; border-radius: 3px; }
+.tag.injury { background: var(--bad-bg); color: var(--bad); }
+.tag.suspension { background: var(--mid-bg); color: var(--mid); }
+.tag.out { background: var(--bad-bg); color: var(--bad); margin-left: 6px; }
+.xi { display: grid; gap: 6px; }
+.xi-line { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.xi-line span { background: var(--track); border-radius: 999px; padding: 5px 10px; font-size: .85rem; }
+.xi-line span.out { background: var(--bad-bg); color: var(--bad); text-decoration: line-through; }
+.mv-big { font: 700 2.2rem/1 var(--display); }
+.pred-big .pbar3 { height: 34px; font-size: .95rem; line-height: 34px; }
+.pred-big { max-width: 720px; display: grid; gap: 8px; }
+#mv-title a { color: inherit; text-decoration: none; }
+#mv-title a:hover { text-decoration: underline; text-decoration-thickness: 3px; }
+#mv-title > span { color: var(--red); }
+.fx-link { font: 600 .82rem/1 var(--body); color: var(--red); text-decoration: none; justify-self: start; }
+.fx-link:hover { text-decoration: underline; }
 
 /* Hero */
 .hero { display: grid; gap: 20px; border-bottom: 3px solid var(--red); padding-bottom: 28px; }
@@ -391,6 +418,32 @@ th[aria-sort] button::after { content: " ▾"; }
     </section>
 
     <footer class="notes" id="ov-notes"></footer>
+  </div>
+
+  <div id="match-view" hidden>
+    <section class="hero" aria-labelledby="mv-title">
+      <p><a class="back" href="#">← Premier League overview</a></p>
+      <p class="eyebrow" id="mv-when"></p>
+      <h1 id="mv-title"></h1>
+      <div id="mv-pred"></div>
+    </section>
+    <section aria-labelledby="mvn-title">
+      <div class="section-head"><h2 id="mvn-title">Team news</h2><p id="mvn-sub"></p></div>
+      <div class="mv-cols" id="mv-news"></div>
+    </section>
+    <section aria-labelledby="mvl-title">
+      <div class="section-head"><h2 id="mvl-title">Line-ups</h2><p id="mvl-sub"></p></div>
+      <div class="mv-cols" id="mv-lineups"></div>
+    </section>
+    <section aria-labelledby="mvs-title">
+      <div class="section-head"><h2 id="mvs-title">Who's most likely to shoot</h2><p id="mvs-sub"></p></div>
+      <div class="mv-cols" id="mv-shooters"></div>
+    </section>
+    <section aria-labelledby="mvc-title">
+      <div class="section-head"><h2 id="mvc-title">Corners</h2><p id="mvc-sub"></p></div>
+      <div id="mv-corners"></div>
+    </section>
+    <footer class="notes" id="mv-notes"></footer>
   </div>
 
   <div id="team-view" hidden>
@@ -779,6 +832,7 @@ th[aria-sort] button::after { content: " ▾"; }
       <div class="pbar3" role="img" aria-label="Home win ${pc(h)}, draw ${pc(d)}, away win ${pc(a)}"><span class="h" style="width:${100 * h}%">${lab(h)}</span><span class="d" style="width:${100 * d}%">${lab(d)}</span><span class="a" style="width:${100 * a}%">${lab(a)}</span></div>
       <div class="pbar3-legend"><span>Home win ${pc(h)}</span><span>Draw ${pc(d)}</span><span>Away win ${pc(a)}</span></div>
       <p class="fx-why">Expected chance quality <span class="num">${f.exp_home.toFixed(2)}–${f.exp_away.toFixed(2)}</span>. ${Math.max(h, a) < 0.45 ? "Close to a coin toss." : `Leans ${esc(short(fav[0]))}.`}${why ? ` Biggest factors: ${why}.` : ""}</p>
+      ${L.previews?.fixtures?.[f.id] ? `<a class="fx-link" href="#match/${esc(f.id)}">Match preview: team news, line-ups, shooters, corners →</a>` : ""}
     </article>`;
   };
   const renderPredictions = () => {
@@ -834,6 +888,62 @@ th[aria-sort] button::after { content: " ▾"; }
     const nx = (PRD?.next_round || []).find((f) => f.home === P.team || f.away === P.team);
     const pj = (PRD?.projection || []).find((r) => r.team === P.team);
     $("team-next").innerHTML = nx || pj ? `${nx ? `<h3>Next match</h3>${fixtureCard(nx)}` : ""}${pj ? `<p class="fx-why" style="margin-top:8px">Season projection: <b class="num">${pj.points.toFixed(0)}</b> points (80% range ${pj.points_p10.toFixed(0)}–${pj.points_p90.toFixed(0)}) · top 4 ${pc(pj.top4)} · relegation ${pc(pj.relegation, pj.relegation > 0 && pj.relegation < 0.01 ? 1 : 0)} · <a href="#" class="back">see all predictions</a></p>` : ""}` : "";
+  };
+
+  // ===== Match preview (D-024): prediction, team news, line-ups, shooters, corners =====
+  const PV = L.previews;
+  const renderMatch = (id) => {
+    const f = (PRD?.next_round || []).find((x) => x.id === id), V = PV?.fixtures?.[id];
+    if (!f) { location.hash = ""; return; }
+    const H = short(f.home), A = short(f.away);
+    document.title = `${H} v ${A} · Preview`;
+    $("mv-when").textContent = `Premier League · ${fxWhen(f.kickoff)}`;
+    $("mv-title").innerHTML = `${teamLink(f.home)} <span>v</span> ${teamLink(f.away)}`;
+    const [ph, pd, pa] = f.p, lab = (x) => (x >= 0.1 ? Math.round(100 * x) + "%" : "");
+    $("mv-pred").innerHTML = `<div class="pred-big"><div class="pbar3" role="img" aria-label="Home win ${pc(ph)}, draw ${pc(pd)}, away win ${pc(pa)}"><span class="h" style="width:${100 * ph}%">${lab(ph)}</span><span class="d" style="width:${100 * pd}%">${lab(pd)}</span><span class="a" style="width:${100 * pa}%">${lab(pa)}</span></div>
+      <div class="pbar3-legend"><span>${esc(H)} win ${pc(ph)}</span><span>Draw ${pc(pd)}</span><span>${esc(A)} win ${pc(pa)}</span></div>
+      <p class="fx-why">Expected chance quality <span class="num">${f.exp_home.toFixed(2)}–${f.exp_away.toFixed(2)}</span>. ${(f.drivers || []).length ? `Biggest factors: ${f.drivers.map((x) => `${x.feature} (${esc(short(x.favours === "home" ? f.home : f.away))})`).join(", ")}.` : ""} The probabilities come from the team ratings and don't yet adjust for the absences below.</p></div>`;
+    if (!V) {
+      ["mv-news", "mv-lineups", "mv-shooters", "mv-corners"].forEach((k) => ($(k).innerHTML = `<p class="bl-foot">No preview data for this fixture yet.</p>`));
+      return;
+    }
+    const S = V.sides, fetched = when(V.fetched_at, true);
+    // Team news
+    $("mvn-sub").textContent = `Injuries and suspensions from FotMob, as of ${fetched}. "Share of output" is the player's part of the team's chance creation this season (non-penalty xG + expected assists).`;
+    $("mv-news").innerHTML = ["home", "away"].map((k) => { const t = S[k];
+      return `<article class="mv-card"><h3>${esc(short(t.team))}<small>${t.news.length ? `${t.news.length} out` : "no absences"}</small></h3>
+        ${t.news.length ? `<p class="lead">Missing <b>${pc(t.missing_share_output)}</b> of this season's chance creation.</p>` : ""}
+        <ul class="mv-list">${t.news.map((n) => `<li><span>${esc(n.name)} <span class="tag ${esc(n.type || "")}">${esc(n.type || "out")}</span></span><span class="num">${n.minutes ? `${pc(n.share_output)}` : "—"}</span>
+          <small>${n.back ? `Back: ${esc(n.back)} · ` : ""}${n.minutes ? `${n.minutes} min, ${n.starts} starts this season` : "no league minutes this season"}</small></li>`).join("")}</ul></article>`; }).join("");
+    // Line-ups
+    const official = V.lineup === "official";
+    $("mvl-sub").textContent = official ? `Official line-ups.` : `Official line-ups are published about an hour before kickoff. Until then this is each team's last starting XI; players now injured or suspended are struck through.`;
+    const LINES = [["ST"], ["AM", "W"], ["CM"], ["CB", "FB"], ["GK"]];
+    $("mv-lineups").innerHTML = ["home", "away"].map((k) => { const t = S[k];
+      return `<article class="mv-card"><h3>${esc(short(t.team))}<small>${esc(t.formation || "")} · ${official ? "official" : "last XI"}</small></h3><div class="xi">${
+        LINES.map((roles) => { const ps = t.xi.filter((x) => roles.includes(x.role)); return ps.length ? `<div class="xi-line">${ps.map((x) => `<span class="${x.out ? "out" : ""}" title="${esc(x.role || "")}">${esc(x.name)}</span>`).join("")}</div>` : ""; }).join("")}</div></article>`; }).join("");
+    // Shooters
+    const SB = PV.backtest.shooters, sb = SB[Object.keys(SB).sort()[0]];
+    $("mvs-sub").textContent = `If he starts: expected non-penalty shots, the chance of at least one shot, and the chance of a non-penalty goal. From each player's shots and xG per 90 this season and last (shrunk towards his position's average), his usual minutes, and how much the opponent concedes.`;
+    $("mv-shooters").innerHTML = ["home", "away"].map((k) => { const t = S[k];
+      return `<article class="mv-card"><h3>${esc(short(t.team))}<small>≈${t.exp_shots.toFixed(1)} shots expected from this XI</small></h3>
+        <div class="table-wrap" style="border:0"><table><thead><tr><th class="l">Player</th><th>Exp. shots</th><th>≥1 shot</th><th>Scores (non-pen)</th></tr></thead><tbody>
+        ${t.shooters.map((x) => `<tr><td class="l">${esc(x.name)} <span class="pos">${esc(x.role || "")}</span></td><td class="cell">${x.exp_shots.toFixed(1)}</td><td class="cell h-${x.p_shot >= 0.75 ? "good" : x.p_shot >= 0.5 ? "mid" : ""}">${pc(x.p_shot)}</td><td class="cell">${pc(x.p_goal)}</td></tr>`).join("")}
+        </tbody></table></div></article>`; }).join("");
+    // Corners
+    const C = V.corners, CB = PV.backtest.corners;
+    $("mvc-sub").textContent = `Expected corners for each side from rolling corners won and conceded (opponent-adjusted). Which side wins more is fairly predictable; the match total isn't, so totals use the league average.`;
+    $("mv-corners").innerHTML = `<div class="mv-cols"><article class="mv-card"><h3>Expected corners</h3>
+        <div class="pbar" style="grid-template-columns: 8em minmax(0,1fr) 3em"><small>${esc(H)}</small><div class="track"><span style="width:${(100 * C.exp_home) / 9}%;background:var(--good)"></span></div><b>${C.exp_home.toFixed(1)}</b></div>
+        <div class="pbar" style="grid-template-columns: 8em minmax(0,1fr) 3em"><small>${esc(A)}</small><div class="track"><span style="width:${(100 * C.exp_away) / 9}%;background:var(--ink)"></span></div><b>${C.exp_away.toFixed(1)}</b></div>
+        <p class="fx-why" style="margin-top:10px">More corners: ${esc(H)} ${pc(C.p_home_more)} · level ${pc(C.p_equal)} · ${esc(A)} ${pc(C.p_away_more)}</p></article>
+      <article class="mv-card"><h3>Total corners<small>league average ${C.league_total.toFixed(1)}</small></h3>
+        <ul class="mv-list">${Object.entries(C.p_over).map(([l, p]) => `<li><span>Over ${l}</span><span class="num">${pc(p)}</span></li>`).join("")}</ul></article></div>`;
+    $("mv-notes").innerHTML = [
+      `How these were tested (every match predicted from earlier matches only): shooters on ${(sb.starters).toLocaleString()} starts — Brier score for "at least one shot" ${sb.brier_shot.toFixed(3)} vs ${sb.brier_shot_naive.toFixed(3)} for a position-average guess; goal chances are calibrated (when it says 25%, about a quarter score). Corners on ${CB.matches} matches — a side's corners off by ${CB.mae_side.toFixed(2)} on average vs ${CB.mae_side_naive.toFixed(2)} for the average; the side expected to win more corners did so ${pc(CB.favourite_more_corners)} of the time; match totals barely predictable (correlation ${CB.corr_total.toFixed(2)}).`,
+      `Absences are shown but not yet fed into the win/draw/loss probabilities: there's no injury history to test such an adjustment on. Shooter numbers drop players who are out.`,
+      `Team news and line-ups: FotMob, fetched ${fetched}. The page refreshes after each match day.`,
+    ].map((t) => `<p>${esc(t)}</p>`).join("");
   };
 
   // ===== Overview: every Premier League team on what decides matches =====
@@ -993,10 +1103,13 @@ th[aria-sort] button::after { content: " ▾"; }
   let current = null;
   const route = () => {
     const m = location.hash.match(/^#\/?team\/([a-z0-9-]+)/);
+    const mm = location.hash.match(/^#\/?match\/([0-9]+)/);
     const t = m && bySlug[m[1]];
-    $("overview").hidden = !!t;
+    $("overview").hidden = !!(t || mm);
     $("team-view").hidden = !t;
-    if (t) { if (t !== current) renderTeam(L.teams[t]); current = t; } else renderOverview();
+    $("match-view").hidden = !mm;
+    if (mm) renderMatch(mm[1]);
+    else if (t) { if (t !== current) renderTeam(L.teams[t]); current = t; } else renderOverview();
     window.scrollTo(0, 0);
   };
   addEventListener("hashchange", route);

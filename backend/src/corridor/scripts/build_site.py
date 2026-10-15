@@ -3,8 +3,8 @@ the analyst's read for the focus team.
 
     uv run python -m corridor.scripts.build_site [--season 2026]
 
-Reads data/site/{season}/league.json (+ predictions.json and analysis.json if present) and writes
-data/site/{season}/index.html (gitignored).
+Reads data/site/{season}/league.json (+ predictions.json, previews.json and analysis.json
+if present) and writes data/site/{season}/index.html (gitignored).
 """
 
 import argparse
@@ -27,6 +27,9 @@ def main() -> None:
     pred_path = out / "predictions.json"
     if pred_path.exists():
         league["predictions"] = json.loads(pred_path.read_text())
+    prev_path = out / "previews.json"
+    if prev_path.exists():
+        league["previews"] = json.loads(prev_path.read_text())
     analysis_path = out / "analysis.json"
     analysis = json.loads(analysis_path.read_text()) if analysis_path.exists() else None
 
