@@ -603,7 +603,8 @@ th[aria-sort] button::after { content: " ▾"; }
     helps: ["Helps a little", "A 10–20 point effect on results."],
     no_effect: ["Doesn't decide matches", "Under 10 points: teams win about as often whether they reach these lines or not."],
   };
-  const tipOf = (m) => m.explain + (m.direction < 0 ? " Lower is better." : " Higher is better.");
+  // Explanations say which direction is better themselves; older data may not.
+  const tipOf = (m) => (/better/i.test(m.explain) ? m.explain : m.explain + (m.direction < 0 ? " Lower is better." : " Higher is better."));
   const STATUS = { best: "Elite level", between: "In between", worst: "Relegation level" };
   const slug = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const fresh = (Date.now() - new Date(SITE.generated_at)) / 864e5 < 8;
@@ -776,7 +777,7 @@ th[aria-sort] button::after { content: " ▾"; }
           <span class="bar" aria-hidden="true"><i class="tier-${tier(m.percentile)}" style="width:${Math.max(2, m.percentile ?? 0)}%"></i></span>
         </summary>
         <div class="m-detail">
-          <p>${esc(m.explain)}${m.direction < 0 ? " Lower is better." : ""}</p>
+          <p>${esc(tipOf(m))}</p>
           <p>Typical match (median) <span class="num">${esc(showVal(m, m.value))}</span> · season average <span class="num">${esc(showVal(m, m.season_average))}</span>${m.rank_by_average !== m.rank ? ` (${ord(m.rank_by_average)} by average)` : ""}</p>
           ${m.skew?.flag ? `<p class="skew">One match skews the average: <b>${esc(oppOf(m.skew.match_id))}</b> <span class="num">${esc(showVal(m, m.skew.match_value))}</span>. Without it the average is <span class="num">${esc(showVal(m, m.skew.average_without))}</span> (${ord(m.skew.rank_without)} of ${m.of}).</p>` : ""}
           ${m.best_line ? `<p>Best line <span class="num">${esc(showVal(m, m.best_line.value))}</span> (elite range <span class="num">${esc(showVal(m, m.direction > 0 ? m.best_line.p25 : m.best_line.p75))}</span>–<span class="num">${esc(showVal(m, m.direction > 0 ? m.best_line.p75 : m.best_line.p25))}</span>) · <span class="${m.best_line.typical_hits ? "line-ok" : "line-miss"}">${m.best_line.typical_hits ? "typical match reaches it" : "typical match below it"}</span> · reached in ${m.best_line.matches_hit} of ${m.best_line.matches_counted} matches</p>` : ""}

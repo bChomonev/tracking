@@ -33,7 +33,12 @@ STACKS = {
 
 METRICS: tuple[ProfileMetric, ...] = (
     ProfileMetric(
-        "distance_km", "Distance covered", "work", +1, "km", "Total team running distance."
+        "distance_km",
+        "Distance covered",
+        "work",
+        +1,
+        "km",
+        "Total distance the whole team ran. More is better.",
     ),
     ProfileMetric(
         "distance_gap_km",
@@ -41,16 +46,30 @@ METRICS: tuple[ProfileMetric, ...] = (
         "work",
         +1,
         "km",
-        "How much more (or less) the team ran than its opponent.",
+        (
+            "How much further the team ran than the opponent; negative = the opponent ran "
+            "more. Higher is better."
+        ),
     ),
-    ProfileMetric("sprints", "Sprints", "work", +1, "", "Number of sprints by the whole team.", 0),
+    ProfileMetric(
+        "sprints",
+        "Sprints",
+        "work",
+        +1,
+        "",
+        "Number of sprints by the whole team. More is better.",
+        0,
+    ),
     ProfileMetric(
         "sprints_gap",
         "Sprints vs opponent",
         "work",
         +1,
         "",
-        "How many more (or fewer) sprints the team made than its opponent.",
+        (
+            "How many more sprints the team made than the opponent; negative = fewer. Higher "
+            "is better."
+        ),
         0,
     ),
     ProfileMetric(
@@ -59,8 +78,11 @@ METRICS: tuple[ProfileMetric, ...] = (
         "work",
         +1,
         "km",
-        "Distance covered while the opponent had the ball, scaled to a match where they have "
-        "it half the time, so possession doesn't flatter or punish it (UEFA, UCL only).",
+        (
+            "Distance run while the opponent had the ball, scaled to a match where they have "
+            "it half the time, so possession doesn't flatter or punish it (UEFA data, "
+            "Champions League only). More is better."
+        ),
     ),
     ProfileMetric(
         "high_intensity_runs",
@@ -68,7 +90,10 @@ METRICS: tuple[ProfileMetric, ...] = (
         "work",
         +1,
         "",
-        "Runs above high-intensity speed by the whole team (UEFA, UCL only).",
+        (
+            "Runs above high-intensity speed by the whole team (UEFA data, Champions League "
+            "only). More is better."
+        ),
         0,
     ),
     ProfileMetric(
@@ -77,16 +102,30 @@ METRICS: tuple[ProfileMetric, ...] = (
         "work",
         -1,
         "",
-        "Opponent passes allowed per defensive action. Lower = more aggressive press.",
+        (
+            "Pressing: how many passes the opponent is allowed before the team wins the ball "
+            "back or makes a tackle. Lower is better: a low number means an aggressive press."
+        ),
     ),
-    ProfileMetric("recoveries", "Ball recoveries", "work", +1, "", "Loose balls won back.", 0),
+    ProfileMetric(
+        "recoveries",
+        "Ball recoveries",
+        "work",
+        +1,
+        "",
+        "Loose balls the team won back. More is better.",
+        0,
+    ),
     ProfileMetric(
         "territory_pct",
         "Territory",
         "progression",
         +1,
         "%",
-        "Share of all opposition-half passes in the match that were ours (a field-tilt proxy).",
+        (
+            "How much of the match was played in the opponent's half: the team's share of all"
+            " passes made in the opponent's half. Higher is better."
+        ),
     ),
     ProfileMetric(
         "line_breaking_passes",
@@ -94,7 +133,7 @@ METRICS: tuple[ProfileMetric, ...] = (
         "progression",
         +1,
         "",
-        "Passes that cut through an opponent line.",
+        "Passes that go through a line of opponents. More is better.",
         0,
     ),
     ProfileMetric(
@@ -103,7 +142,7 @@ METRICS: tuple[ProfileMetric, ...] = (
         "progression",
         +1,
         "",
-        "Completed passes that reach the attacking third.",
+        "Completed passes into the attacking third of the pitch. More is better.",
         0,
     ),
     ProfileMetric(
@@ -112,7 +151,7 @@ METRICS: tuple[ProfileMetric, ...] = (
         "progression",
         +1,
         "",
-        "Passes completed within ~20 m of goal (Understat).",
+        ("Passes completed within about 20 m of the opponent's goal (Understat). More is better."),
         0,
     ),
     ProfileMetric(
@@ -121,7 +160,7 @@ METRICS: tuple[ProfileMetric, ...] = (
         "progression",
         +1,
         "",
-        "How often we got the ball into the penalty area.",
+        "Touches the team had in the opponent's penalty area. More is better.",
         0,
     ),
     ProfileMetric(
@@ -130,7 +169,10 @@ METRICS: tuple[ProfileMetric, ...] = (
         "attack",
         +1,
         "",
-        "Non-penalty expected goals: how good our chances were.",
+        (
+            "Expected goals without penalties: how many goals the team's chances were worth "
+            "on average. Higher is better."
+        ),
         2,
     ),
     ProfileMetric(
@@ -139,17 +181,31 @@ METRICS: tuple[ProfileMetric, ...] = (
         "attack",
         +1,
         "",
-        "Average quality of each shot. Low = speculative shooting.",
+        (
+            "How good the team's average shot is: its chance of going in (0.10 = 1 in 10). "
+            "Higher is better; a low number means lots of long-range or difficult shots."
+        ),
         3,
     ),
-    ProfileMetric("big_chances", "Big chances", "attack", +1, "", "Clear-cut chances created.", 1),
+    ProfileMetric(
+        "big_chances",
+        "Big chances",
+        "attack",
+        +1,
+        "",
+        "Clear-cut chances the team created. More is better.",
+        1,
+    ),
     ProfileMetric(
         "finishing_delta",
         "Finishing (xGOT − xG)",
         "attack",
         +1,
         "",
-        "Did shot placement add value? Positive = shots hit better than average.",
+        (
+            "How well shots were placed: expected goals on target minus expected goals. "
+            "Positive = shots placed better than average. Higher is better."
+        ),
         2,
     ),
     ProfileMetric(
@@ -158,7 +214,10 @@ METRICS: tuple[ProfileMetric, ...] = (
         "attack",
         -1,
         "m",
-        "How far from goal our non-penalty shots were taken (shot map).",
+        (
+            "Average distance from goal of the team's shots (penalties excluded). Lower is "
+            "better: closer shots are better chances."
+        ),
     ),
     ProfileMetric(
         "outside_box_shot_pct",
@@ -166,7 +225,7 @@ METRICS: tuple[ProfileMetric, ...] = (
         "attack",
         -1,
         "%",
-        "Share of our non-penalty shots taken from outside the penalty area.",
+        "Share of the team's shots taken from outside the penalty area. Lower is better.",
         0,
     ),
     ProfileMetric(
@@ -175,7 +234,10 @@ METRICS: tuple[ProfileMetric, ...] = (
         "attack",
         -1,
         "%",
-        "Share of our non-penalty shots blocked by a defender. High = shooting into crowds.",
+        (
+            "Share of the team's shots blocked by a defender, often a sign of shooting into a"
+            " crowd. Lower is better."
+        ),
         0,
     ),
     ProfileMetric(
@@ -184,7 +246,7 @@ METRICS: tuple[ProfileMetric, ...] = (
         "attack",
         -1,
         "",
-        "Clear-cut chances that did not become goals.",
+        "Clear-cut chances the team didn't score. Fewer is better.",
         1,
     ),
     ProfileMetric(
@@ -193,7 +255,10 @@ METRICS: tuple[ProfileMetric, ...] = (
         "attack",
         +1,
         "",
-        "npxG from corners, free kicks and throw-in routines.",
+        (
+            "Expected goals from the team's corners, free kicks and throw-in routines. Higher"
+            " is better."
+        ),
         2,
     ),
     ProfileMetric(
@@ -202,7 +267,10 @@ METRICS: tuple[ProfileMetric, ...] = (
         "defence",
         -1,
         "",
-        "How many shots opponents took.",
+        (
+            "Shots the opponent took at the team's goal. Fewer is better: each one is a "
+            "chance to concede. How good those shots were (npxGA per shot) matters even more."
+        ),
         1,
     ),
     ProfileMetric(
@@ -211,7 +279,10 @@ METRICS: tuple[ProfileMetric, ...] = (
         "defence",
         -1,
         "",
-        "Non-penalty expected goals we allowed.",
+        (
+            "Expected goals the team allowed, without penalties: how many goals the "
+            "opponent's chances were worth on average. Lower is better."
+        ),
         2,
     ),
     ProfileMetric(
@@ -220,7 +291,10 @@ METRICS: tuple[ProfileMetric, ...] = (
         "defence",
         -1,
         "",
-        "Quality of the shots we allowed.",
+        (
+            "How good the average shot the team allowed was: its chance of going in (0.10 = 1"
+            " in 10). Lower is better: it means the opponent only got hopeful shots."
+        ),
         3,
     ),
     ProfileMetric(
@@ -229,7 +303,7 @@ METRICS: tuple[ProfileMetric, ...] = (
         "defence",
         -1,
         "",
-        "Clear-cut chances we gave away.",
+        "Clear-cut chances the team allowed the opponent. Fewer is better.",
         1,
     ),
     ProfileMetric(
@@ -238,7 +312,7 @@ METRICS: tuple[ProfileMetric, ...] = (
         "defence",
         -1,
         "",
-        "How often opponents got into our penalty area.",
+        "Touches the opponent had in the team's penalty area. Fewer is better.",
         0,
     ),
     ProfileMetric(
@@ -247,7 +321,10 @@ METRICS: tuple[ProfileMetric, ...] = (
         "defence",
         +1,
         "m",
-        "How far from our goal opponents' non-penalty shots were. Higher = kept them further out.",
+        (
+            "Average distance from the team's goal of the opponent's shots. Higher is better:"
+            " it means they were kept further out."
+        ),
     ),
     ProfileMetric(
         "npxg_fast_break_conceded",
@@ -255,7 +332,7 @@ METRICS: tuple[ProfileMetric, ...] = (
         "defence",
         -1,
         "",
-        "npxG opponents created from fast breaks.",
+        "Expected goals the opponent created from counter-attacks. Lower is better.",
         2,
     ),
     ProfileMetric(
@@ -264,7 +341,10 @@ METRICS: tuple[ProfileMetric, ...] = (
         "defence",
         -1,
         "",
-        "npxG opponents created from corners, free kicks and throw-in routines.",
+        (
+            "Expected goals the opponent created from corners, free kicks and throw-ins. "
+            "Lower is better."
+        ),
         2,
     ),
     ProfileMetric(
@@ -273,7 +353,11 @@ METRICS: tuple[ProfileMetric, ...] = (
         "defence",
         +1,
         "",
-        "Post-shot xG faced minus goals conceded. Positive = keeper saving us.",
+        (
+            "How many goals the goalkeeper saved beyond what was expected: expected goals on "
+            "target faced minus goals conceded. Positive = the keeper is saving the team. "
+            "Higher is better."
+        ),
         2,
     ),
 )
