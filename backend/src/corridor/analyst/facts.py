@@ -86,6 +86,7 @@ def build_facts(profile: dict) -> dict[str, Any]:
                 "season_average": _r(m["season_average"], dec),
                 "league_rank_by_season_average": m["rank_by_average"],
                 "one_match_effect": _skew_fact(m, labels_by_id, dec),
+                "decides_matches": _impact_fact(m),
                 "elite_line": _line_fact(m, dec, "best"),
                 "worst_line": _line_fact(m, dec, "worst"),
                 "unit": m["unit"],
@@ -183,6 +184,7 @@ def build_facts(profile: dict) -> dict[str, Any]:
         "best_line": _line_summary(profile, labels, "best"),
         "worst_line": _line_summary(profile, labels, "worst"),
         "proof": _proof_facts(profile, labels),
+        "what_decides_matches": _focus_facts(profile, labels),
         "players": players,
         "notes": [
             "typical_match is the team's median match; league_rank, league_percentile and "
@@ -247,6 +249,89 @@ def _placement(label: str, x: dict) -> dict:
         if core.get("history"):
             out[f"pct_of_such_matches_{word}"] = _pct(core["history"][res])
     return out
+
+
+TIER_WORDS = {
+    "decisive": "decides matches",
+    "helps": "helps a little",
+    "no_effect": "does not decide matches",
+}
+STATUS_WORDS = {
+    "best": "at or above the elite line",
+    "between": "between the lines",
+    "worst": "at or below the relegation (worst) line",
+}
+
+
+def _impact_fact(m: dict) -> dict | None:
+    imp = m.get("impact")
+    if not imp:
+        return None
+    return {
+        "tier": TIER_WORDS[imp["tier"]],
+        "pct_won_when_reached_elite_line": _pct(imp["won_when_reached"]),
+        "pct_won_when_not": _pct(imp["won_when_not"]),
+        "pct_lost_when_at_worst_line": _pct(imp["lost_when_at_worst"]),
+        "pct_lost_when_not": _pct(imp["lost_when_not"]),
+        "team_matches_tested": imp["n"],
+        "provisional": imp["provisional"],
+    }
+
+
+def _focus_facts(profile: dict, labels: list[str]) -> dict | None:
+    f, pr = profile.get("focus"), profile.get("proof")
+    if not f or not pr:
+        return None
+    by_key = {m["key"]: m["label"] for m in profile["metrics"]}
+    tiers = {}
+    for tier, t in f["tiers"].items():
+        tiers[TIER_WORDS[tier]] = {
+            "metrics": [
+                {"metric": by_key[k], "united_typical_match": STATUS_WORDS[s]}
+                for k, s in zip(t["metrics"], t["status"], strict=True)
+            ],
+            "count_at_elite_line": t["best"],
+            "count_between": t["between"],
+            "count_at_worst_line": t["worst"],
+        }
+    wf = pr["fotmob"]["weighted"]["walk_forward"]
+    us_wf = pr["understat"]["weighted"]["walk_forward"]
+
+    def score(x: dict, res: str) -> dict:
+        h = x.get("history") or {}
+        return {"score_0_to_100": _pct(x["share"]), f"pct_{res}": _pct(h.get(res[0].upper()))}
+
+    return {
+        "what_it_is": (
+            "Every metric is put in a tier by how much reaching the elite line (or sinking to "
+            "the worst line) changed results out of sample. The impact score counts the lines "
+            "reached, each weighted by how much it decides matches; the history says how "
+            "teams with that score did. Lead with the 'decides matches' tier; a strength on a "
+            "metric that does not decide matches does not make up for weakness on one that "
+            "does."
+        ),
+        "tiers": tiers,
+        "weighting_check": {
+            "what": "Weights learned only from earlier seasons, then tested on later ones. "
+            "AUC: 0.5 = no better than a coin, 1 = perfect.",
+            "long_record_auc_equal_lines": round(us_wf["best"]["auc_equal"], 2),
+            "long_record_auc_weighted_lines": round(us_wf["best"]["auc_weighted"], 2),
+            "this_season_auc_equal_lines": round(wf["best"]["auc_equal"], 2),
+            "this_season_auc_weighted_lines": round(wf["best"]["auc_weighted"], 2),
+        },
+        "united_typical_match": {
+            "elite_impact": score(pr["typical_weighted"]["best"], "won"),
+            "relegation_impact": score(pr["typical_weighted"]["worst"], "lost"),
+        },
+        "united_matches": [
+            {
+                "match": lbl,
+                "elite_impact": score(x["best_weighted"], "won"),
+                "relegation_impact": score(x["worst_weighted"], "lost"),
+            }
+            for lbl, x in zip(labels, pr["matches"], strict=True)
+        ],
+    }
 
 
 def _proof_facts(profile: dict, labels: list[str]) -> dict | None:

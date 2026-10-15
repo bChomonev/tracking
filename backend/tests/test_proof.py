@@ -56,3 +56,63 @@ def test_place_finds_the_bin():
     summary = {"bins": [{"from": 0.0, "to": 0.5, "W": 0.2}, {"from": 0.5, "to": 1.0, "W": 0.8}]}
     assert proof.place(0.7, summary)["W"] == 0.8 and proof.place(1.0, summary)["W"] == 0.8
     assert proof.place(None, summary) is None
+
+
+def test_weighted_beats_equal_when_one_metric_is_noise():
+    # ppda is pure noise in the synthetic league: weighting by lift should push it down and
+    # rank wins better out of sample than counting all lines equally.
+    seasons = [(str(y), _season(y, n_teams=12, rounds=30)) for y in range(5)]
+    out = proof.evaluate(seasons, proof.UNDERSTAT_METRICS, proof.UNDERSTAT_BINS)
+    w = out["weighted"]["weights"]["best"]
+    assert w["npxg"] > w["ppda"]
+    wf = out["weighted"]["walk_forward"]["best"]
+    assert wf["tested_seasons"] == ["2", "3", "4"]
+    assert wf["auc_weighted"] >= wf["auc_equal"] - 0.01
+
+
+def test_weighted_share_and_auc():
+    assert proof.weighted_share({"a": True, "b": False}, {"a": 3.0, "b": 1.0}) == 0.75
+    assert proof.weighted_share({"a": True}, {"a": 0.0}) is None
+    assert proof.auc([1, 2, 3, 4], [False, False, True, True]) == 1.0
+    assert proof.auc([1, 1, 1, 1], [False, True, False, True]) == 0.5
+
+
+def test_impact_tiers():
+    fm = {
+        "best": {
+            "by_metric": [
+                {
+                    "key": "a",
+                    "rate_when_hit": 0.6,
+                    "rate_when_not": 0.3,
+                    "lift": 0.3,
+                    "n_hit": 200,
+                    "n_not": 600,
+                },
+                {
+                    "key": "b",
+                    "rate_when_hit": 0.4,
+                    "rate_when_not": 0.38,
+                    "lift": 0.02,
+                    "n_hit": 50,
+                    "n_not": 70,
+                },
+            ]
+        },
+        "worst": {
+            "by_metric": [
+                {
+                    "key": "a",
+                    "rate_when_hit": 0.6,
+                    "rate_when_not": 0.3,
+                    "lift": 0.3,
+                    "n_hit": 200,
+                    "n_not": 600,
+                },
+            ]
+        },
+    }
+    imp = proof.impact(fm)
+    assert imp["a"]["tier"] == "decisive" and not imp["a"]["provisional"]
+    assert imp["b"]["tier"] == "no_effect" and imp["b"]["provisional"]
+    assert imp["b"]["lost_when_at_worst"] is None

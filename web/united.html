@@ -4,8 +4,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: matchday programme — verdict up top, four stack "dossiers" in a 2×2 grid,
-   then the match log and the squad sheet as dense, shaded tables. */
+/* Layout: matchday programme — the record, then what decides matches (tiers with United
+   placed between the worst and elite lines), the analyst, the proof, the match log, the
+   four stack "dossiers" with every metric, and the squad sheet. */
 :root {
   --bg: #f6f4f3;         /* warm off-white, biased toward the red */
   --panel: #ffffff;
@@ -98,6 +99,53 @@ td.l small { color: var(--muted); }
 .skew b { color: var(--ink); }
 .skew-tag { font: 600 .66rem/1 var(--body); text-transform: uppercase; letter-spacing: .06em; padding: 2px 5px; border-radius: 4px; border: 1px solid var(--muted); color: var(--muted); vertical-align: 2px; margin-left: 4px; }
 
+/* What decides matches */
+.focus-lede { font: 600 clamp(1.3rem, 3vw, 1.65rem)/1.25 var(--display); margin: 0 0 18px; max-width: 62ch; text-wrap: balance; }
+.focus-lede em { font-style: normal; color: var(--bad); }
+.focus-lede strong { color: var(--good); }
+.tier { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px 6px; margin-bottom: 14px; }
+.tier > header, .tier > summary { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; padding-bottom: 8px; }
+.tier > summary { cursor: pointer; list-style: none; }
+.tier > summary::-webkit-details-marker { display: none; }
+.tier > summary .tally::after { content: " · Show ▾"; color: var(--ink); font-weight: 600; }
+.tier[open] > summary .tally::after { content: " · Hide ▴"; }
+.tier h3 { font-size: 1.35rem; text-transform: uppercase; letter-spacing: .02em; }
+.tier h3 small { display: block; font: 400 .88rem/1.35 var(--body); text-transform: none; letter-spacing: 0; color: var(--muted); margin-top: 3px; }
+.tier .tally { font-size: .9rem; color: var(--muted); }
+.tier .tally b { font-family: var(--mono); font-weight: 500; }
+.tier .tally .g { color: var(--good); } .tier .tally .r { color: var(--bad); }
+.tier.decisive { border-top: 4px solid var(--ink); }
+.f-rows { list-style: none; margin: 0; padding: 0; }
+.f-row { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 9.5em; gap: 6px 18px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rule); }
+.f-name .prov { display: inline-block; margin: 0 0 3px 4px; }
+.f-name small { display: block; color: var(--muted); font-size: .82rem; }
+.f-name .chip-link { font-weight: 600; }
+.chip-link { all: unset; cursor: pointer; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+.chip-link:focus-visible { outline: 2px solid var(--ink); }
+.gauge { position: relative; height: 22px; }
+.gauge::before { content: ""; position: absolute; left: 0; right: 0; top: 10px; height: 2px; background: var(--track); }
+.gauge .lw, .gauge .lb { position: absolute; top: 3px; width: 2px; height: 16px; }
+.gauge .lw { left: 12%; background: var(--bad); } .gauge .lb { left: 88%; background: var(--good); }
+.gauge i { position: absolute; top: 4px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: var(--ink); border: 2px solid var(--panel); }
+.gauge-legend { display: flex; justify-content: space-between; gap: 8px; font-size: .76rem; color: var(--muted); }
+.gauge-legend .num { color: var(--ink); }
+.pill { justify-self: end; font: 600 .74rem/1 var(--body); text-transform: uppercase; letter-spacing: .06em; padding: 6px 8px; border-radius: 4px; text-align: center; }
+.pill.best { background: var(--good-bg); color: var(--good); }
+.pill.between { background: var(--track); color: var(--muted); }
+.pill.worst { background: var(--bad-bg); color: var(--bad); }
+.prov { font: 600 .66rem/1 var(--body); text-transform: uppercase; letter-spacing: .06em; padding: 2px 5px; border-radius: 4px; border: 1px solid var(--mid); color: var(--mid); vertical-align: 2px; margin-left: 4px; }
+.imp-tag { font: 600 .66rem/1 var(--body); text-transform: uppercase; letter-spacing: .06em; padding: 2px 5px; border-radius: 4px; vertical-align: 2px; margin-left: 4px; }
+.imp-tag.decisive { background: var(--ink); color: var(--bg); }
+.imp-tag.helps { border: 1px solid var(--ink); color: var(--ink); }
+.imp-tag.no_effect { border: 1px solid var(--rule); color: var(--muted); }
+.score-cell { font-family: var(--mono); }
+.score-cell small { display: block; font: 400 .74rem/1.2 var(--body); color: var(--muted); }
+tr.typical td { background: var(--track); font-weight: 600; }
+@media (max-width: 640px) {
+  .f-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .f-row .f-gauge { grid-column: 1 / -1; grid-row: 2; }
+}
+
 /* Hero */
 .hero { display: grid; gap: 20px; border-bottom: 3px solid var(--red); padding-bottom: 28px; }
 .hero h1 { font-size: clamp(2.6rem, 7vw, 4.6rem); text-transform: uppercase; }
@@ -111,11 +159,6 @@ td.l small { color: var(--muted); }
 .record div { display: grid; }
 .record b { font: 600 2rem/1 var(--display); }
 .record small { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
-.verdict { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; max-width: 75ch; font-size: 1.08rem; }
-.verdict li { display: grid; grid-template-columns: 14px 1fr; gap: 10px; align-items: baseline; }
-.verdict li::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--muted); transform: translateY(1px); }
-.verdict li.bad::before { background: var(--bad); }
-.verdict li.good::before { background: var(--good); }
 
 /* Stack dossiers */
 .stacks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr)); gap: 20px; }
@@ -205,62 +248,56 @@ th[aria-sort] button::after { content: " ▾"; }
     <p class="freshness" id="freshness"></p>
     <h1 id="title">Why are United <span>struggling?</span></h1>
     <div class="record" id="record"></div>
-    <div class="analyst" id="analyst" hidden></div>
-    <ul class="verdict" id="verdict"></ul>
   </section>
 
-  <div class="comp-switch" id="comp-switch" role="tablist" aria-label="Competition" hidden></div>
-
-  <section aria-labelledby="bestline-title" id="bestline-sec" hidden>
+  <section aria-labelledby="focus-title" id="focus-sec" hidden>
     <div class="section-head">
-      <h2 id="bestline-title">Against the lines</h2>
-      <p id="bestline-sub"></p>
+      <h2 id="focus-title">What decides matches</h2>
+      <p id="focus-sub"></p>
     </div>
-    <div class="bl-scores">
-      <div class="bl-score good"><b class="num" id="bl-count"></b><small id="bl-count-sub"></small></div>
-      <div class="bl-score bad"><b class="num" id="wl-count"></b><small id="wl-count-sub"></small></div>
-    </div>
-    <div class="bl-matches" id="bl-matches"></div>
-    <div class="bl-lists">
-      <div><h3>Furthest below the best line</h3><ol class="bl-list" id="bl-below"></ol></div>
-      <div><h3>At relegation level</h3><ol class="bl-list" id="wl-hit"></ol></div>
-      <div><h3>At or above the best line</h3><ol class="bl-list" id="bl-above"></ol></div>
-    </div>
-    <p class="bl-foot" id="bl-foot"></p>
+    <p class="focus-lede" id="focus-lede"></p>
+    <div id="focus-tiers"></div>
+    <p class="bl-foot" id="focus-foot"></p>
+  </section>
+
+  <section aria-labelledby="analyst-title" id="analyst-sec" hidden>
+    <div class="section-head"><h2 id="analyst-title">The analyst's read</h2></div>
+    <div class="analyst" id="analyst"></div>
   </section>
 
   <section aria-labelledby="proof-title" id="proof-sec" hidden>
     <div class="section-head">
-      <h2 id="proof-title">The proof</h2>
+      <h2 id="proof-title">How we know</h2>
       <p id="proof-sub"></p>
     </div>
     <div class="proof-grid">
       <figure class="proof-chart" id="proof-best"></figure>
       <figure class="proof-chart" id="proof-worst"></figure>
     </div>
-    <h3 class="proof-h">Which lines decide matches</h3>
+    <p class="proof-note" id="proof-weighting"></p>
+    <h3 class="proof-h">Every line, by how much it decides matches</h3>
     <p class="proof-note" id="proof-metrics-note"></p>
     <div class="table-wrap"><table id="proof-metrics" class="proof-table"></table></div>
-    <h3 class="proof-h">United's matches on that record</h3>
-    <div class="table-wrap"><table id="proof-matches"></table></div>
     <p class="bl-foot" id="proof-foot"></p>
   </section>
 
-  <section aria-labelledby="stacks-title">
-    <div class="section-head">
-      <h2 id="stacks-title">The four stacks</h2>
-      <p id="stacks-sub"></p>
-    </div>
-    <div class="stacks" id="stacks"></div>
-  </section>
+  <div class="comp-switch" id="comp-switch" role="tablist" aria-label="Competition" hidden></div>
 
   <section aria-labelledby="matches-title">
     <div class="section-head">
       <h2 id="matches-title">Match by match</h2>
-      <p>Cell colour = how that single performance ranks against every team-match in the same competition this season (green top third, red bottom third).</p>
+      <p id="matches-sub"></p>
     </div>
     <div class="table-wrap"><table id="matches"></table></div>
     <p class="goal-types" id="goal-types" hidden></p>
+  </section>
+
+  <section aria-labelledby="stacks-title">
+    <div class="section-head">
+      <h2 id="stacks-title">Every metric, by stack</h2>
+      <p id="stacks-sub"></p>
+    </div>
+    <div class="stacks" id="stacks"></div>
   </section>
 
   <section aria-labelledby="players-title">
@@ -320,7 +357,52 @@ th[aria-sort] button::after { content: " ▾"; }
     [`${xgf.toFixed(1)}–${xga.toFixed(1)}`, "xG for–against"],
   ].map(([b, s]) => `<div><b class="num">${esc(b)}</b><small>${esc(s)}</small></div>`).join("");
 
-  // Analyst's read (LLM-written, number-checked at build time). Falls back to the rule-based verdict.
+  // ---- What decides matches (PL only: tiers come from the out-of-sample proof, D-021)
+  const pctTxt = (x) => (x == null ? "—" : Math.round(x * 100) + "%");
+  const TIER = {
+    decisive: ["Decides matches", "Reaching the elite line here moved the win rate (and sinking to the worst line the loss rate) by 20+ points on average."],
+    helps: ["Helps a little", "A 10–20 point effect on results."],
+    no_effect: ["Doesn't decide matches", "Under 10 points: teams win about as often whether they reach these lines or not."],
+  };
+  const STATUS = { best: "Elite level", between: "In between", worst: "Relegation level" };
+  const F = P.focus;
+  if (F) {
+    const plBy = Object.fromEntries(P.metrics.map((m) => [m.key, m]));
+    const dec = F.tiers.decisive, ne = F.tiers.no_effect;
+    const names = (t, st) => t.metrics.filter((k, i) => t.status[i] === st).map((k) => plBy[k].label.replace(/ \(.*\)$/, "").toLowerCase());
+    const list = (xs) => xs.length <= 1 ? xs.join("") : xs.slice(0, -1).join(", ") + " and " + xs[xs.length - 1];
+    $("focus-lede").innerHTML = `On the ${dec.metrics.length} things that decide matches, United's typical match reaches the elite line on <strong>${dec.best}</strong> and sinks to relegation level on <em>${dec.worst}</em>. ` +
+      (ne.best ? `Their elite numbers (${esc(list(names(ne, "best")))}) are on things that don't decide matches.` : "");
+    $("focus-sub").textContent = `Every metric, ranked by how much it changed results when tested on later seasons, with United's typical (median) match placed between two lines: the worst line (last season's bottom four in defeat) and the elite line (the top four in victory).`;
+    const row = (k, st) => {
+      const m = plBy[k], im = m.impact, bl = m.best_line, wl = m.worst_line;
+      let gauge = "";
+      if (bl && wl && bl.value !== wl.value) {
+        const t = Math.max(-0.12, Math.min(1.12, (m.value - wl.value) / (bl.value - wl.value)));
+        gauge = `<div class="gauge" aria-hidden="true"><span class="lw"></span><span class="lb"></span><i style="left:${(12 + 76 * t).toFixed(1)}%"></i></div>
+          <div class="gauge-legend"><span>worst <span class="num">${esc(showVal(m, wl.value))}</span></span><span>United <span class="num">${esc(showVal(m, m.value))}</span></span><span>elite <span class="num">${esc(showVal(m, bl.value))}</span></span></div>`;
+      }
+      return `<li class="f-row"><div class="f-name"><button type="button" class="chip-link" data-metric="${esc(k)}">${esc(m.label)}</button>${im.provisional ? `<span class="prov" title="Running data only exists this season: tested on ${im.n} matches">provisional</span>` : ""}
+          <small>Won ${pctTxt(im.won_when_reached)} when reaching the elite line, ${pctTxt(im.won_when_not)} when not${im.lost_when_at_worst != null ? ` · lost ${pctTxt(im.lost_when_at_worst)} at the worst line` : ""}</small></div>
+        <div class="f-gauge">${gauge}</div><span class="pill ${st}">${STATUS[st]}</span></li>`;
+    };
+    $("focus-tiers").innerHTML = Object.entries(F.tiers).map(([tier, t]) => {
+      const head = `<h3>${TIER[tier][0]} <span class="num">(${t.metrics.length})</span><small>${TIER[tier][1]}</small></h3>
+        <span class="tally">United: <b class="g">${t.best}</b> elite · <b>${t.between}</b> between · <b class="r">${t.worst}</b> relegation level</span>`;
+      const rows = `<ul class="f-rows">${t.metrics.map((k, i) => row(k, t.status[i])).join("")}</ul>`;
+      return tier === "no_effect"
+        ? `<details class="tier ${tier}"><summary>${head}</summary>${rows}</details>`
+        : `<section class="tier ${tier}"><header>${head}</header>${rows}</section>`;
+    }).join("");
+    const BL = P.best_line, WL = P.worst_line;
+    const teams = (L) => L.teams.map((t) => `${short(t)} (${L.games_by_team[t]})`).join(", ");
+    const nc = Object.keys(BL.not_comparable || {}).map((k) => plBy[k]?.label || k);
+    const untested = F.untested.map((k) => plBy[k]?.label || k);
+    $("focus-foot").textContent = `Elite line: the middle value of each metric across last season's top four's ${BL.games} league wins (${teams(BL)}). Worst line: the bottom four's ${WL.games} defeats (${teams(WL)}). Games played 20+ minutes with 10 men are left out. Lines are fixed for the season. Not ranked here: ${untested.join(", ")}${nc.length ? ` (${nc.join(", ")} changed definition between seasons; the others partly contain the result)` : ""}.`;
+    $("focus-sec").hidden = false;
+  }
+
+  // ---- Analyst's read (LLM-written, number-checked at build time)
   const A = JSON.parse(document.getElementById("analysis-data").textContent.replace("/*__ANALYSIS__*/", ""));
   const kindLabel = { problem: "Problem", strength: "Strength", watch: "Watch" };
   if (A) {
@@ -333,87 +415,51 @@ th[aria-sort] button::after { content: " ▾"; }
           `<button class="chip" type="button" data-metric="${esc(k)}">${esc(metricBy[k].label)}</button>`).join("")}</div>
       </li>`).join("")}</ul>
       <p class="byline">Written ${A.meta?.generated_at ? esc(when(A.meta.generated_at, true)) + " " : ""}by an AI analyst (${esc(A.meta?.model || "LLM")}) from the numbers on this page${A.meta?.matches && A.meta.matches !== P.record.played ? ` <span class="stale">— it covers ${A.meta.matches} Premier League matches; the numbers below include ${P.record.played}</span>` : ""}. Every number it quotes is checked against the data before publishing; the italic "Reading" lines are its interpretation, not data.</p>`;
-    $("analyst").hidden = false;
-    $("verdict").hidden = true;
+    $("analyst-sec").hidden = false;
     if (A.players?.length) {
       $("player-notes").innerHTML = A.players.map((p) => `<li class="${esc(p.kind)}"><b>${esc(p.name)}</b>${esc(p.text)}</li>`).join("");
       $("player-notes").hidden = false;
     }
   }
 
-  // Verdict: strongest strengths and weaknesses, phrased from the data.
-  const ranked = P.metrics.filter((m) => m.percentile != null);
-  const worst = [...ranked].sort((a, b) => a.percentile - b.percentile).slice(0, 4);
-  const best = [...ranked].sort((a, b) => b.percentile - a.percentile).slice(0, 2);
-  const line = (m) => `<b>${esc(m.label)}</b>: ${esc(showVal(m, m.value))} in a typical match, ${ord(m.rank)} of ${m.of} (league average ${esc(showVal(m, m.league_avg))}).`;
-  $("verdict").innerHTML =
-    best.map((m) => `<li class="good">Strength. ${line(m)}</li>`).join("") +
-    worst.map((m) => `<li class="bad">Problem. ${line(m)}</li>`).join("");
+  // ---- How we know (PL only)
+  const PR = P.proof;
+  if (PR) {
+    const US = PR.understat, FM = PR.fotmob;
+    const seasons = `${US.pairs[0].tested_on}–${US.pairs[US.pairs.length - 1].tested_on}`;
+    $("proof-sub").textContent = `Each season's lines are built from the season before and tested on every Premier League team-match of the next, never on the games they came from. Long record: ${US.team_matches.toLocaleString()} team-matches, ${seasons}, on the 5 core metrics Understat has for every season. Detailed record: ${FM.team_matches} team-matches since 2025-26 on all FotMob metrics.`;
+    const chart = (el, S, word, colour, title) => {
+      const rows = S.bins.map((b, i) => ({ k: Math.round(b.from * 5 + (i ? 0.5 : 0)), ...b }));
+      $(el).innerHTML = `<figcaption>${title}<small>${word === "won" ? `Baseline: ${pctTxt(US.baseline.W)} of all team-matches are wins.` : `Baseline: ${pctTxt(US.baseline.L)} are defeats.`}</small></figcaption>` +
+        rows.map((b) => { const v = b[word === "won" ? "W" : "L"]; return `<div class="pbar"><small>${b.k} of 5</small><div class="track"><span style="width:${(v || 0) * 100}%;background:var(--${colour})"></span></div><b>${pctTxt(v)}</b></div><div class="pbar"><span></span><small>${b.n.toLocaleString()} matches</small><span></span></div>`; }).join("");
+    };
+    chart("proof-best", US.best, "won", "good", "Elite lines reached → share won");
+    chart("proof-worst", US.worst, "lost", "bad", "Worst lines hit → share lost");
+    const uw = US.weighted.walk_forward.best, fw = FM.weighted.walk_forward.best;
+    if (uw) $("proof-weighting").textContent = `Weighting the lines by impact predicts better than counting them equally. With weights learned only from earlier seasons, the chance that a random win scores higher than a random non-win rose from ${uw.auc_equal.toFixed(2)} to ${uw.auc_weighted.toFixed(2)} over ${uw.n.toLocaleString()} later team-matches (0.5 = coin flip)${fw ? `, and from ${fw.auc_equal.toFixed(2)} to ${fw.auc_weighted.toFixed(2)} on this season's ${fw.n} on all FotMob metrics` : ""}. That's why the match table scores matches by weighted lines.`;
+    const plBy = Object.fromEntries(P.metrics.map((m) => [m.key, m]));
+    const keys = P.metrics.filter((m) => m.impact).sort((a, b) => b.impact.impact - a.impact.impact).map((m) => m.key);
+    $("proof-metrics-note").textContent = `For each line: how often teams won when they reached the elite line vs when they didn't, and how often they lost at the worst line vs when they didn't. A big gap means the line separates wins from defeats.`;
+    $("proof-metrics").innerHTML = `<thead><tr><th class="l">Line</th><th>Won · reached elite</th><th>Won · didn't</th><th>Lost · at worst</th><th>Lost · not</th><th>United typical</th></tr></thead><tbody>` +
+      keys.map((k) => { const m = plBy[k], im = m.impact;
+        const st = m.best_line?.typical_hits ? "best" : m.worst_line?.typical_hits ? "worst" : "between";
+        return `<tr><td class="l"><span class="lift-bar" style="width:${Math.round(Math.max(0, im.impact) * 60)}px"></span>${esc(m.label)} <span class="imp-tag ${im.tier}">${TIER[im.tier][0]}</span>${im.provisional ? ` <small>(this season only, ${im.n} matches)</small>` : ""}</td>
+          <td class="cell">${pctTxt(im.won_when_reached)}</td><td class="cell">${pctTxt(im.won_when_not)}</td>
+          <td class="cell">${pctTxt(im.lost_when_at_worst)}</td><td class="cell">${pctTxt(im.lost_when_not)}</td>
+          <td class="cell ${st === "best" ? "h-good" : st === "worst" ? "h-bad" : ""}">${STATUS[st].toLowerCase()}</td></tr>`; }).join("") + "</tbody>";
+    const tb = US.best.threshold, top = US.best.bins[US.best.bins.length - 1];
+    $("proof-foot").textContent = `Reaching all 5 core elite lines won ${pctTxt(top.W)} of ${top.n} matches${tb ? "" : " — close to, but not, the 90% target"}; hitting all 5 worst lines lost ${pctTxt(US.worst.bins[US.worst.bins.length - 1].L)}${US.worst.threshold ? " — the 85% target holds" : ""}. Goals prevented, finishing and big chances missed are left out because they partly contain the result. Caveat: these are whole-match numbers, partly shaped by the score (a team 2–0 up may sit back). It is a strong association measured on later seasons, not a controlled experiment.`;
+    $("proof-sec").hidden = false;
+  }
 
-  // ---- Per-competition views (stacks, match table, goals). Each competition is ranked
+  // ---- Per-competition views (match table, stacks, goals). Each competition is ranked
   // only against its own pool and providers.
   const COMPS = [P, P.ucl].filter(Boolean);
   const renderComp = (C) => {
   const metricBy = Object.fromEntries(C.metrics.map((m) => [m.key, m]));
   const n = C.metrics[0]?.of;
-  $("stacks-sub").textContent = `Each bar is United's percentile among all ${n} ${C.competition} teams, comparing every team's typical (median) match so one freak game can't carry a season. 100 = best. Tap a metric for the season average and match-by-match detail.`;
+  $("stacks-sub").textContent = `Each bar is United's percentile among all ${n} ${C.competition} teams, comparing every team's typical (median) match so one freak game can't carry a season. 100 = best. Within each stack, metrics are ordered by how much they decide matches. Tap a metric for detail.`;
   $("goal-types").hidden = true;
-  // ---- Best / worst lines (PL only: built from last season's PL data)
-  const BL = C.best_line, WL = C.worst_line;
-  $("bestline-sec").hidden = !BL;
-  if (BL) {
-    const pctTxt = (x) => (x == null ? "—" : Math.round(x * 100) + "%");
-    const teams = (L) => L.teams.map((t) => `${short(t)} (${L.games_by_team[t]})`).join(", ");
-    $("bestline-sub").textContent = `Best line: what last season's top four looked like when they won — the middle value of each metric across their ${BL.games} league wins in ${BL.season} (${teams(BL)}). Worst line: what the bottom four looked like when they lost — ${WL ? `${WL.games} defeats (${teams(WL)})` : "—"}. Games played 20+ minutes with 10 men are left out.`;
-    $("bl-count").textContent = `${BL.typical_hits} of ${BL.metrics_compared}`;
-    $("bl-count-sub").textContent = "metrics where United's typical match reaches the best line";
-    if (WL) { $("wl-count").textContent = `${WL.typical_hits} of ${WL.metrics_compared}`; $("wl-count-sub").textContent = "metrics where it is at or below the worst line — relegation level in defeat"; }
-    $("bl-matches").innerHTML = C.matches.map((mt, i) => { const r = BL.per_match[i], w = WL && WL.per_match[i]; const pct = r.of ? (100 * r.hits) / r.of : 0;
-      return `<div class="bl-match"><small>${esc(short(mt.opponent))} (${mt.is_home ? "H" : "A"}) ${mt.goals_for}–${mt.goals_against}</small><b class="num">${r.hits}/${r.of}</b> <small>best</small>${w ? `<small class="w">${w.hits}/${w.of} at worst</small>` : ""}<i><span style="width:${pct}%;background:var(--${pct >= 50 ? "good" : pct >= 34 ? "mid" : "bad"})"></span></i></div>`; }).join("");
-    const item = (m, L, word) => `<li><button type="button" class="chip-link" data-metric="${esc(m.key)}">${esc(m.label)}</button> <small><span class="num">${esc(showVal(m, m.value))}</span> vs ${word} <span class="num">${esc(showVal(m, L.value))}</span></small></li>`;
-    const withLine = C.metrics.filter((m) => m.best_line);
-    const sorted = [...withLine].sort((a, b) => a.best_line.gap_in_ranges - b.best_line.gap_in_ranges);
-    $("bl-below").innerHTML = sorted.filter((m) => !m.best_line.typical_hits).slice(0, 7).map((m) => item(m, m.best_line, "line")).join("");
-    $("bl-above").innerHTML = sorted.filter((m) => m.best_line.typical_hits).reverse().map((m) => item(m, m.best_line, "line")).join("");
-    $("wl-hit").innerHTML = C.metrics.filter((m) => m.worst_line?.typical_hits).sort((a, b) => a.worst_line.gap_in_ranges - b.worst_line.gap_in_ranges).map((m) => item(m, m.worst_line, "worst line")).join("") || "<li>None</li>";
-    const nc = Object.keys(BL.not_comparable || {}).map((k) => C.metrics.find((m) => m.key === k)?.label || k);
-    $("bl-foot").textContent = `Lines are fixed for the season and rebuilt each summer. Running metrics use only the games that had tracking data (from December 2025). ${nc.length ? `No line for ${nc.join(", ")}: the data provider changed how it counts this between seasons, so last season's numbers don't compare.` : ""}`;
-
-    // ---- The proof
-    const PR = C.proof;
-    $("proof-sec").hidden = !PR;
-    if (PR) {
-      const US = PR.understat, FM = PR.fotmob;
-      const seasons = `${US.pairs[0].tested_on}–${US.pairs[US.pairs.length - 1].tested_on}`;
-      $("proof-sub").textContent = `Do the lines decide matches? Each season's lines are built from the season before and tested on every Premier League team-match of the next — never on the games they came from. Long record: ${US.team_matches.toLocaleString()} team-matches, ${seasons}, on the 5 core metrics Understat has for every season. Detailed record: ${FM.team_matches} team-matches since 2025-26 on all FotMob metrics.`;
-      const chart = (el, S, word, colour, title) => {
-        const rows = S.bins.map((b, i) => { const k = Math.round(b.from * 5 + (i ? 0.5 : 0)); return { k, ...b }; });
-        $(el).innerHTML = `<figcaption>${title}<small>${word === "won" ? `Baseline: ${pctTxt(US.baseline.W)} of all team-matches are wins.` : `Baseline: ${pctTxt(US.baseline.L)} are defeats.`}</small></figcaption>` +
-          rows.map((b) => { const v = b[word === "won" ? "W" : "L"]; return `<div class="pbar"><small>${b.k} of 5</small><div class="track"><span style="width:${(v || 0) * 100}%;background:var(--${colour})"></span></div><b>${pctTxt(v)}</b></div><div class="pbar"><span></span><small>${b.n.toLocaleString()} matches</small><span></span></div>`; }).join("");
-      };
-      chart("proof-best", US.best, "won", "good", "Best lines reached → share won");
-      chart("proof-worst", US.worst, "lost", "bad", "Worst lines hit → share lost");
-      const bestM = Object.fromEntries(FM.best.by_metric.map((x) => [x.key, x]));
-      const worstM = Object.fromEntries(FM.worst.by_metric.map((x) => [x.key, x]));
-      const keys = FM.best.by_metric.map((x) => x.key);
-      $("proof-metrics-note").textContent = `Detailed record. For each line: how often teams won when they reached it vs when they didn't, and how often they lost when they sank to the worst line. A big gap means the line separates wins from defeats; no gap means it doesn't decide matches. Goals prevented, finishing and big chances missed are left out because they partly contain the result.`;
-      $("proof-metrics").innerHTML = `<thead><tr><th class="l">Line</th><th>Won · reached best</th><th>Won · didn't</th><th>Lost · at worst</th><th>Lost · not</th><th>United typical</th></tr></thead><tbody>` +
-        keys.map((k) => { const b = bestM[k], w = worstM[k], m = C.metrics.find((x) => x.key === k); const small = b.n_hit + b.n_not < 300;
-          const lift = Math.max(0, b.lift);
-          return `<tr><td class="l"><span class="lift-bar" style="width:${Math.round(lift * 60)}px"></span>${esc(b.label)}${small ? ` <small>(this season only, ${b.n_hit + b.n_not} matches)</small>` : ""}</td>
-            <td class="cell">${pctTxt(b.rate_when_hit)}</td><td class="cell">${pctTxt(b.rate_when_not)}</td>
-            <td class="cell">${w ? pctTxt(w.rate_when_hit) : "—"}</td><td class="cell">${w ? pctTxt(w.rate_when_not) : "—"}</td>
-            <td class="cell ${m?.best_line?.typical_hits ? "h-good" : m?.worst_line?.typical_hits ? "h-bad" : ""}">${m?.best_line?.typical_hits ? "best" : m?.worst_line?.typical_hits ? "worst" : "between"}</td></tr>`; }).join("") + "</tbody>";
-      $("proof-matches").innerHTML = `<thead><tr><th class="l">Match</th><th>Core best</th><th>Teams like that won</th><th>Core worst</th><th>Teams like that lost</th><th>All lines: best</th><th>Won</th></tr></thead><tbody>` +
-        C.matches.map((mt, i) => { const x = PR.matches[i], bc = x.best_core, wc = x.worst_core;
-          return `<tr><td class="l">${esc(short(mt.opponent))} (${mt.is_home ? "H" : "A"}) <span class="res ${mt.result}">${mt.result}</span> <span class="num">${mt.goals_for}–${mt.goals_against}</span></td>
-            <td class="cell">${bc ? `${bc.hits}/${bc.of}` : "—"}</td><td class="cell">${bc?.history ? pctTxt(bc.history.W) : "—"}</td>
-            <td class="cell">${wc ? `${wc.hits}/${wc.of}` : "—"}</td><td class="cell">${wc?.history ? pctTxt(wc.history.L) : "—"}</td>
-            <td class="cell">${x.best.hits}/${x.best.of}</td><td class="cell">${x.best.history ? pctTxt(x.best.history.W) : "—"}</td></tr>`; }).join("") + "</tbody>";
-      const t = US.worst.threshold, tb = US.best.threshold, top = US.best.bins[US.best.bins.length - 1];
-      $("proof-foot").textContent = `What this shows: reaching all 5 core best lines won ${pctTxt(top.W)} of ${top.n} matches${tb ? "" : " — close to, but not, the 90% target"}; hitting all 5 worst lines lost ${pctTxt(US.worst.bins[US.worst.bins.length - 1].L)}${t ? " — the 85% target holds" : ""}. Caveat: these are whole-match numbers, so they are partly shaped by the score (a team 2–0 up may sit back). It is a strong association measured out of sample, not a controlled experiment.`;
-    }
-  } else { $("proof-sec").hidden = true; }
   // ---- Stacks
   const spark = (m) => {
     const vals = m.matches.map((x) => x.value).filter((v) => v != null);
@@ -440,12 +486,13 @@ th[aria-sort] button::after { content: " ▾"; }
   const opps = C.matches.map((m) => short(m.opponent));
   const oppOf = (id) => { const mt = C.matches.find((x) => x.match_id === id); return mt ? `${short(mt.opponent)} (${mt.is_home ? "H" : "A"})` : ""; };
   $("stacks").innerHTML = C.stacks.map((s) => {
-    const ms = C.metrics.filter((m) => m.stack === s.id);
+    const imp = (m) => (m.impact ? m.impact.impact : -1);
+    const ms = C.metrics.filter((m) => m.stack === s.id).sort((a, b) => imp(b) - imp(a));
     return `<article class="stack" aria-label="${esc(s.name)}">
       <header><h3>${esc(s.name)}</h3><span class="score num tier-${tier(s.score)}" title="Average percentile">${s.score ?? "—"}</span></header>
       ${ms.map((m) => `<details class="metric" id="m-${m.key}">
         <summary>
-          <span class="m-label">${esc(m.label)}${m.skew?.flag ? ' <span class="skew-tag" title="One match skews the season average">skewed</span>' : ""}</span>
+          <span class="m-label">${esc(m.label)}${m.impact ? ` <span class="imp-tag ${m.impact.tier}" title="Measured on Premier League matches">${esc(TIER[m.impact.tier][0])}</span>` : ""}${m.skew?.flag ? ' <span class="skew-tag" title="One match skews the season average">skewed</span>' : ""}</span>
           <span class="m-value"><span class="num">${esc(showVal(m, m.value))}</span><span class="rank">${ord(m.rank)}/${m.of}</span></span>
           <span class="bar" aria-hidden="true"><i class="tier-${tier(m.percentile)}" style="width:${Math.max(2, m.percentile ?? 0)}%"></i></span>
         </summary>
@@ -464,15 +511,29 @@ th[aria-sort] button::after { content: " ▾"; }
   }).join("");
 
 
-  // ---- Matches table
-  const matchCols = ["distance_oop_adj_km", "distance_gap_km", "sprints_gap", "ppda", "territory_pct", "box_touches", "npxg", "npxg_per_shot", "outside_box_shot_pct", "npxg_conceded", "npxg_per_shot_conceded"];
-  const colLabel = { distance_oop_adj_km: "Run w/o ball (km)", distance_gap_km: "Run vs opp (km)", sprints_gap: "Sprints vs opp", outside_box_shot_pct: "Shots outside box %", ppda: "PPDA", territory_pct: "Territory %", box_touches: "Box touches", npxg: "npxG", npxg_per_shot: "npxG / shot", npxg_conceded: "npxGA", npxg_per_shot_conceded: "npxGA / shot" };
-  const cols = matchCols.filter((k) => metricBy[k]);
-  $("matches").innerHTML = `<thead><tr><th class="l">Match</th><th>Score</th>${cols.map((k) => `<th>${colLabel[k]}</th>`).join("")}</tr></thead><tbody>` +
+  // ---- Matches table. PL: impact-weighted scores + the decisive metrics, shaded by line.
+  // UCL (no lines): a fixed set of metrics, shaded by percentile in the UCL pool.
+  const colLabel = { distance_oop_adj_km: "Run w/o ball (km)", distance_gap_km: "Run vs opp (km)", sprints_gap: "Sprints vs opp", outside_box_shot_pct: "Shots outside box %", ppda: "PPDA", territory_pct: "Territory %", box_touches: "Box touches", npxg: "npxG", npxg_per_shot: "npxG / shot", npxg_conceded: "npxGA", npxg_per_shot_conceded: "npxGA / shot", big_chances: "Big chances", big_chances_conceded: "Big chances conceded" };
+  const withLines = C === P && P.focus;
+  const cols = (withLines ? P.focus.tiers.decisive.metrics : ["distance_oop_adj_km", "distance_gap_km", "sprints_gap", "ppda", "territory_pct", "box_touches", "npxg", "npxg_per_shot", "outside_box_shot_pct", "npxg_conceded", "npxg_per_shot_conceded"]).filter((k) => metricBy[k]);
+  const lineTier = (m, v) => {
+    if (v == null) return "";
+    const hit = (L, side) => L && (side === "best" ? v * m.direction >= L.value * m.direction : v * m.direction <= L.value * m.direction);
+    return hit(m.best_line, "best") ? "good" : hit(m.worst_line, "worst") ? "bad" : "";
+  };
+  const cellTxt = (m, v) => (SIGNED.has(m.key) ? signed(v, m.decimals) : fmt(v, m.decimals));
+  const scoreCells = (x) => x ? `<td class="score-cell">${Math.round(100 * x.best_weighted.share)}<small>won ${pctTxt(x.best_weighted.history?.W)}</small></td><td class="score-cell">${Math.round(100 * x.worst_weighted.share)}<small>lost ${pctTxt(x.worst_weighted.history?.L)}</small></td>` : "";
+  $("matches-sub").textContent = withLines
+    ? `Elite score: share of the elite lines a match reached, each line weighted by how much it decides matches (0–100), with how often teams with that score won. Danger score: the same for the worst lines, and how often those teams lost. Then the ${cols.length} metrics that decide matches: green = at or above the elite line, red = at or below the worst line.`
+    : `Cell colour = how that single performance ranks against every team-match in the Champions League this season (green top third, red bottom third). No elite or worst lines here: they are built from Premier League data.`;
+  const TW = withLines && P.proof.typical_weighted;
+  $("matches").innerHTML = `<thead><tr><th class="l">Match</th><th>Score</th>${withLines ? "<th>Elite score</th><th>Danger score</th>" : ""}${cols.map((k) => `<th>${colLabel[k] || esc(metricBy[k].label)}</th>`).join("")}</tr></thead><tbody>` +
+    (withLines ? `<tr class="typical"><td class="l">Typical match</td><td></td><td class="score-cell">${Math.round(100 * TW.best.share)}<small>won ${pctTxt(TW.best.history?.W)}</small></td><td class="score-cell">${Math.round(100 * TW.worst.share)}<small>lost ${pctTxt(TW.worst.history?.L)}</small></td>${cols.map((k) => { const m = metricBy[k]; return `<td class="cell h-${lineTier(m, m.value)}">${cellTxt(m, m.value)}</td>`; }).join("")}</tr>` : "") +
     C.matches.map((mt, i) => `<tr><td class="l"><span class="pos">${mt.kickoff_utc.slice(5, 10).split("-").reverse().join("/")} ${mt.is_home ? "H" : "A"}</span> ${esc(short(mt.opponent))}</td>
       <td><span class="res ${mt.result}">${mt.result}</span> <span class="num">${mt.goals_for}–${mt.goals_against}</span></td>
-      ${cols.map((k) => { const m = metricBy[k], c = m.matches[i]; const v = SIGNED.has(k) ? signed(c.value, m.decimals) : fmt(c.value, m.decimals);
-        return `<td class="cell h-${tier(c.percentile)}" title="${c.percentile ?? "—"}th percentile">${v}</td>`; }).join("")}</tr>`).join("") + "</tbody>";
+      ${withLines ? scoreCells(P.proof.matches[i]) : ""}
+      ${cols.map((k) => { const m = metricBy[k], c = m.matches[i]; const t = withLines ? lineTier(m, c.value) : tier(c.percentile);
+        return `<td class="cell h-${t}" title="${c.percentile ?? "—"}th percentile">${cellTxt(m, c.value)}</td>`; }).join("")}</tr>`).join("") + "</tbody>";
 
   // ---- How the goals came (shot map)
   const gt = C.context && C.context.goals_by_type;

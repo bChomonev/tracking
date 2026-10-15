@@ -53,24 +53,30 @@ def _proof(season: int, team: str, prof: dict) -> dict:
         for side in ("best", "worst")
     }
     us_mine = {r["kickoff_utc"][:10]: r for r in us_seasons[-1][1] if r["team"] == team}
+    weights = fm["weighted"]["weights"]
     placed = []
     for i, mt in enumerate(prof["matches"]):
         rec: dict = {"match_id": mt["match_id"]}
         for side in ("best", "worst"):
-            hit = n = 0
+            by = {}
             for m in prof["metrics"]:
                 ln = m.get(f"{side}_line")
                 if m["key"] in keys and ln:
                     h = hits_line(m["matches"][i]["value"], ln["value"], m["direction"], side)
                     if h is not None:
-                        n += 1
-                        hit += h
+                        by[m["key"]] = h
+            hit, n = sum(by.values()), len(by)
             share = hit / n if n else None
             rec[side] = {
                 "hits": hit,
                 "of": n,
                 "share": share,
                 "history": proof.place(share, fm[side]),
+            }
+            ws = proof.weighted_share(by, weights[side])
+            rec[f"{side}_weighted"] = {
+                "share": ws,
+                "history": proof.place(ws, {"bins": fm["weighted"]["bins"][side]}),
             }
             ur = us_mine.get(mt["kickoff_utc"][:10])
             if ur:
@@ -88,7 +94,48 @@ def _proof(season: int, team: str, prof: dict) -> dict:
                     "history": proof.place(ushare, us[side]),
                 }
         placed.append(rec)
-    return {"fotmob": fm, "understat": us, "matches": placed}
+    typical = {}
+    for side in ("best", "worst"):
+        by = {
+            m["key"]: bool(m[f"{side}_line"]["typical_hits"])
+            for m in prof["metrics"]
+            if m["key"] in keys and m.get(f"{side}_line")
+        }
+        ws = proof.weighted_share(by, weights[side])
+        typical[side] = {
+            "share": ws,
+            "history": proof.place(ws, {"bins": fm["weighted"]["bins"][side]}),
+        }
+    return {"fotmob": fm, "understat": us, "matches": placed, "typical_weighted": typical}
+
+
+def _focus(prof: dict) -> dict:
+    """Tag every metric with its proven impact and count where the team stands on each tier
+    (D-021): does it win the things that decide matches, or the things that don't?"""
+    imp = proof.impact(prof["proof"]["fotmob"])
+    for comp in (prof, prof.get("ucl")):
+        for m in comp["metrics"] if comp else []:
+            if m["key"] in imp:
+                m["impact"] = imp[m["key"]]
+    tiers = {}
+    for _, tier in proof.TIERS:
+        ms = [m for m in prof["metrics"] if m.get("impact", {}).get("tier") == tier]
+        ms.sort(key=lambda m: -m["impact"]["impact"])
+        status = [
+            "best"
+            if m.get("best_line", {}).get("typical_hits")
+            else "worst"
+            if m.get("worst_line", {}).get("typical_hits")
+            else "between"
+            for m in ms
+        ]
+        tiers[tier] = {
+            "metrics": [m["key"] for m in ms],
+            "status": status,
+            **{s: status.count(s) for s in ("best", "between", "worst")},
+        }
+    untested = [m["key"] for m in prof["metrics"] if "impact" not in m]
+    return {"tiers": tiers, "untested": untested}
 
 
 def main() -> None:
@@ -119,6 +166,8 @@ def main() -> None:
         # Separate pool, separate providers: ranked only against other UCL team-matches.
         ucl = team_profile(json.loads(ucl_src.read_text()), args.team)
         prof["ucl"] = ucl | {"competition": "Champions League", "season": prof["season"]}
+    if "proof" in prof:
+        prof["focus"] = _focus(prof)
 
     out = DATA_DIR / "site" / str(args.season)
     out.mkdir(parents=True, exist_ok=True)

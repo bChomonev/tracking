@@ -35,6 +35,11 @@ The worst_line is the bottom four in defeat: being at or below it is relegation 
 - Use "proof" to say which lines actually decide matches (and which don't), and what \
 happened historically to teams with a match like United's. Quote its percentages exactly; \
 say it is association measured on past seasons, not certainty.
+- Focus on what decides matches. "what_decides_matches" puts every metric in a tier \
+(each metric also has "decides_matches"). Build the headline and the problems around the \
+"decides matches" tier. Mention a strength on a metric that "does not decide matches" only \
+to say that it is not what wins games. Quote the impact scores and their historical \
+percentages exactly.
 - Look for the story *across* metrics, e.g. a team that dominates territory but takes poor \
 shots, or concedes few shots but very good ones. Explain what the combination means.
 - Keep facts and interpretation apart: "text" contains only what the data shows; \

@@ -20,6 +20,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
+
 from corridor.best_line import Side, build_line, hits_line
 from corridor.profile import METRICS, derive
 
@@ -29,6 +31,10 @@ UNDERSTAT_BINS = (0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0001)
 THRESHOLD_STEPS = [round(x * 0.05, 2) for x in range(6, 21)]  # 30% … 100%
 MIN_N = 30
 TARGET = {"best": ("W", 0.90), "worst": ("L", 0.85)}
+# Impact tiers (D-021): a metric's impact is the mean of its best-line lift (win rate when
+# reached minus when not) and worst-line lift (loss rate when sunk to it minus when not).
+TIERS = ((0.20, "decisive"), (0.10, "helps"), (float("-inf"), "no_effect"))
+PROVISIONAL_N = 300  # fewer tested team-matches than this → tier is provisional
 
 
 @dataclass(frozen=True)
@@ -111,23 +117,140 @@ def evaluate(
                 hit, n = score(r, ln, metrics, keys)
                 rec[f"{side}_hits"], rec[f"{side}_of"] = hit, n
                 rec[f"{side}_share"] = hit / n if n else None
+                rec[f"{side}_by"] = by = {}
                 for m in metrics:
                     if m.key not in keys:
                         continue
                     h = hits_line(r.get(m.key), ln["metrics"][m.key]["value"], m.direction, side)
                     if h is None:
                         continue
+                    by[m.key] = h
                     bucket = per_metric.setdefault(f"{side}:{m.key}", {"hit": [], "miss": []})
                     outcome = 1 if r["result"] == TARGET[side][0] else 0
                     bucket["hit" if h else "miss"].append(outcome)
             scored.append(rec)
-    return {
+    out = {
         "pairs": pairs,
         "team_matches": len(scored),
         "baseline": _rates(scored),
         "best": _side_summary(scored, "best", metrics, per_metric, bins),
         "worst": _side_summary(scored, "worst", metrics, per_metric, bins),
     }
+    out["weighted"] = _weighted(scored, out, [p["tested_on"] for p in pairs])
+    return out
+
+
+def lifts(records: list[dict], side: Side) -> dict[str, float]:
+    """Per-metric lift on ``records``: target rate when the line is hit minus when not."""
+    res = TARGET[side][0]
+    acc: dict[str, list[list[int]]] = {}
+    for r in records:
+        for k, h in r[f"{side}_by"].items():
+            acc.setdefault(k, [[], []])[0 if h else 1].append(r["result"] == res)
+    return {k: sum(a) / len(a) - sum(b) / len(b) for k, (a, b) in acc.items() if a and b}
+
+
+def weighted_share(by: dict[str, bool], weights: dict[str, float]) -> float | None:
+    """Share of lines hit, each line counted by its weight (lift, floored at 0)."""
+    tot = sum(weights.get(k, 0.0) for k in by)
+    if tot <= 0:
+        return None
+    return sum(weights.get(k, 0.0) for k, h in by.items() if h) / tot
+
+
+def _weights(lift: dict[str, float]) -> dict[str, float]:
+    return {k: max(0.0, v) for k, v in lift.items()}
+
+
+def auc(scores: Sequence[float], positive: Sequence[bool]) -> float | None:
+    """Probability a random positive outranks a random negative (ties count half)."""
+    s = np.asarray(scores, float)
+    y = np.asarray(positive, bool)
+    n1, n0 = int(y.sum()), int((~y).sum())
+    if not n1 or not n0:
+        return None
+    order = s.argsort(kind="mergesort")
+    ranks = np.empty(len(s))
+    sorted_s = s[order]
+    i = 0
+    while i < len(s):
+        j = i
+        while j + 1 < len(s) and sorted_s[j + 1] == sorted_s[i]:
+            j += 1
+        ranks[order[i : j + 1]] = (i + j) / 2 + 1
+        i = j + 1
+    return float((ranks[y].sum() - n1 * (n1 + 1) / 2) / (n1 * n0))
+
+
+def _weighted(scored: list[dict], out: dict, seasons: list[str]) -> dict:
+    """Impact-weighted score (D-021). Weights = each line's lift on the record, floored at 0.
+
+    walk_forward is the honest test: for each tested season, weights are learned only from
+    the seasons before it, then equal and weighted scores are compared on that season by
+    AUC and by the hit rate of the top-k matches (k = matches that hit every line, so both
+    scores pick the same number of games)."""
+    res: dict[str, Any] = {"weights": {}, "bins": {}, "walk_forward": {}}
+    for side in ("best", "worst"):
+        target = TARGET[side][0]
+        w = _weights(lifts(scored, side))
+        res["weights"][side] = w
+        rows = [(weighted_share(r[f"{side}_by"], w), r) for r in scored]
+        rows = [(x, r) for x, r in rows if x is not None]
+        res["bins"][side] = [
+            {"from": lo, "to": min(hi, 1.0), **_rates([r for x, r in rows if lo <= x < hi])}
+            for lo, hi in zip(FOTMOB_BINS, FOTMOB_BINS[1:], strict=False)
+        ]
+        eq, wt, y = [], [], []
+        for i, s in enumerate(seasons[1:], 1):
+            wf = _weights(lifts([r for r in scored if r["season"] in seasons[:i]], side))
+            for r in scored:
+                if r["season"] != s or r[f"{side}_share"] is None:
+                    continue
+                ws = weighted_share(r[f"{side}_by"], wf)
+                if ws is None:
+                    continue
+                eq.append(r[f"{side}_share"])
+                wt.append(ws)
+                y.append(r["result"] == target)
+        if not y:
+            continue
+        k = max(sum(1 for e in eq if e >= 1.0 - 1e-9), MIN_N)
+
+        def top(sc: list[float], k: int = k, y: list[bool] = y) -> float:
+            return sum(y[i] for i in np.argsort(sc, kind="stable")[::-1][:k]) / k
+
+        res["walk_forward"][side] = {
+            "tested_seasons": seasons[1:],
+            "n": len(y),
+            "auc_equal": auc(eq, y),
+            "auc_weighted": auc(wt, y),
+            "top_k": k,
+            "top_rate_equal": top(eq),
+            "top_rate_weighted": top(wt),
+        }
+    return res
+
+
+def impact(fm: dict) -> dict[str, dict]:
+    """Per-metric impact from a proof summary: how much reaching the best line / sinking to
+    the worst line moves the result, and the tier that puts it in."""
+    worst = {x["key"]: x for x in fm["worst"]["by_metric"]}
+    out = {}
+    for b in fm["best"]["by_metric"]:
+        w = worst.get(b["key"])
+        val = (b["lift"] + w["lift"]) / 2 if w else b["lift"]
+        n = b["n_hit"] + b["n_not"]
+        out[b["key"]] = {
+            "impact": val,
+            "tier": next(t for lo, t in TIERS if val >= lo),
+            "provisional": n < PROVISIONAL_N,
+            "n": n,
+            "won_when_reached": b["rate_when_hit"],
+            "won_when_not": b["rate_when_not"],
+            "lost_when_at_worst": w["rate_when_hit"] if w else None,
+            "lost_when_not": w["rate_when_not"] if w else None,
+        }
+    return out
 
 
 def _side_summary(

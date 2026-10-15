@@ -8,6 +8,26 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-021 — Page refocused on what decides matches; impact-weighted lines · 2026-10-15 · accepted
+The page listed 29 metrics with equal weight, so United's strengths (territory, PPDA,
+passes into the final third) visually balanced weaknesses that matter far more. Each
+metric now gets an **impact** = mean of its best-line lift and worst-line lift on the
+FotMob out-of-sample record, and a tier: **decides matches** ≥ 0.20, **helps a little**
+0.10–0.20, **doesn't decide matches** < 0.10 (provisional if < 300 tested team-matches,
+i.e. running metrics). Outcome-linked metrics and line-breaking passes stay untiered.
+**Weighted score:** share of lines reached with each line weighted by its lift (floored
+at 0). Checked walk-forward — weights learned only from earlier seasons: Understat AUC
+for wins 0.675 → 0.714 (7,720 team-matches, 2016-17→now), losses 0.705 → 0.738; FotMob
+this season 0.64 → 0.73 (120). Top-group win rate is unchanged (85%), so the 90% target
+is still not met. FotMob weights/bins used to place United's matches come from the full
+record (in-sample for the bins; the walk-forward test is what justifies weighting).
+**Page order:** record → What decides matches (tiers, each metric on a worst→elite gauge;
+the no-effect tier collapsed) → analyst → How we know (proof) → match table (elite/danger
+scores + the decisive metrics, shaded by line) → every metric by stack (sorted by impact,
+tagged) → players. The rule-based percentile verdict and the separate "Against the
+lines" section are gone. The analyst gets `what_decides_matches` and a per-metric
+`decides_matches`, and is told to build the read around the decisive tier.
+
 ## D-020 — Stage 3: worst line + out-of-sample proof · 2026-10-15 · accepted
 **Worst line** mirrors D-019: median of every metric over the previous season's bottom
 four's league *defeats*, minus defeats where they were down to 10 men before the 70th
