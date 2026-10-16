@@ -379,20 +379,27 @@ def markets(mx: np.ndarray) -> dict[str, Any]:
 
 
 def evaluate_goals(
-    scored: list[dict], seasons: Sequence[int], first_train: int, params: "Params | None" = None
+    scored: list[dict],
+    seasons: Sequence[int],
+    first_train: int,
+    published: "dict[str, Sequence[float]] | None" = None,
 ) -> dict:
     """Walk-forward test of the goals model: 1X2 RPS, over 2.5 and both-teams-to-score
-    (Brier, vs base rate and, for over 2.5, the bookmakers), exact-score log loss."""
+    (Brier, vs base rate and, for over 2.5, the bookmakers), exact-score log loss.
+    ``published``: match id → the win/draw/loss chances as published (walk-forward), to
+    align the scorelines with, as the live page does."""
     rows: dict[str, list] = defaultdict(list)
     for s in seasons:
         train = [m for m in scored if first_train <= m["season"] < s and m["played"]]
         test = [m for m in scored if m["season"] == s and m["played"]]
+        if published is not None:
+            test = [m for m in test if m["id"] in published]
         if not train or not test:
             continue
         g = GoalsModel().fit(train)
         lh, la = g.rates(test)
-        if params is not None:  # align the split with the main model, as published
-            pm = Model(params).fit(train).predict(test)
+        if published is not None:  # align the split with the main model, as published
+            pm = [published[m["id"]] for m in test]
             pairs = [align(g, float(x), float(y), p) for x, y, p in zip(lh, la, pm, strict=True)]
             lh, la = np.array([a for a, _ in pairs]), np.array([b for _, b in pairs])
         else:
@@ -481,20 +488,97 @@ def attach_odds(
                 m["odds"] = r["odds"]
 
 
-def evaluate(scored: list[dict], p: Params, seasons: Sequence[int], first_train: int) -> dict:
-    """Walk-forward: for each test season S, fit on seasons [first_train, S) and score S."""
+def walk_forward(
+    scored: list[dict], p: Params, seasons: Iterable[int], first_train: int
+) -> dict[int, tuple[list[dict], np.ndarray]]:
+    """For each season S: its played matches and raw predictions from a model fitted on
+    seasons [first_train, S) only."""
+    out = {}
+    for s in seasons:
+        train = [m for m in scored if first_train <= m["season"] < s and m["played"]]
+        test = [m for m in scored if m["season"] == s and m["played"]]
+        if train and test:
+            out[s] = (test, Model(p).fit(train).predict(test))
+    return out
+
+
+# ---------------------------------------------------------------------------- calibration
+
+TEMPERATURES = np.round(np.arange(0.8, 1.605, 0.01), 2)
+
+
+def temper(probs: np.ndarray, t: float) -> np.ndarray:
+    """Temperature scaling: t > 1 pulls probabilities towards each other (less confident),
+    t < 1 pushes them apart; the order of the three outcomes never changes."""
+    lg = np.log(np.clip(np.asarray(probs, float), 1e-12, 1)) / t
+    e = np.exp(lg - lg.max(1, keepdims=True))
+    return e / e.sum(1, keepdims=True)
+
+
+def _rps_mean(probs: np.ndarray, results: Sequence[str]) -> float:
+    o = np.array([[r == x for x in OUTCOMES] for r in results], float)
+    c = np.cumsum(probs, 1)[:, :2] - np.cumsum(o, 1)[:, :2]
+    return float(np.mean((c**2).sum(1) / 2))
+
+
+def fit_temperature(probs: np.ndarray, results: Sequence[str]) -> float:
+    """The temperature with the lowest RPS on out-of-sample predictions (D-036)."""
+    return float(min(TEMPERATURES, key=lambda t: _rps_mean(temper(probs, t), results)))
+
+
+def temperature_for(wf: dict[int, tuple[list[dict], np.ndarray]], season: int, first: int) -> float:
+    """Season ``season``'s temperature: fitted on the raw walk-forward predictions of seasons
+    [first, season) only; 1 (no change) when there is no earlier season."""
+    prior = [s for s in wf if first <= s < season]
+    if not prior:
+        return 1.0
+    return fit_temperature(
+        np.vstack([wf[s][1] for s in prior]), [m["result"] for s in prior for m in wf[s][0]]
+    )
+
+
+def calibrate(
+    wf: dict[int, tuple[list[dict], np.ndarray]], first: int
+) -> dict[int, tuple[list[dict], np.ndarray, np.ndarray, float]]:
+    """Rolling calibration (D-036): each season's predictions are tempered with the
+    temperature fitted on the seasons before it, never on itself.
+    Returns {S: (matches, raw, calibrated, t)}."""
+    out = {}
+    for s, (test, raw) in sorted(wf.items()):
+        t = temperature_for(wf, s, first)
+        out[s] = (test, raw, temper(raw, t), t)
+    return out
+
+
+def evaluate(
+    scored: list[dict],
+    p: Params,
+    seasons: Sequence[int],
+    first_train: int,
+    cal: dict[int, tuple] | None = None,
+) -> dict:
+    """Walk-forward: for each test season S, fit on seasons [first_train, S) and score S.
+    With ``cal`` (from ``calibrate``), the calibrated predictions are scored as the model
+    and the raw ones are reported alongside."""
     per_season = []
     pooled: dict[str, list] = defaultdict(list)
     for s in seasons:
         train = [m for m in scored if first_train <= m["season"] < s and m["played"]]
-        test = [m for m in scored if m["season"] == s and m["played"]]
-        if not train or not test:
-            continue
-        model = Model(p).fit(train)
-        pm = model.predict(test)
+        if cal is not None:
+            if s not in cal:
+                continue
+            test, raw, pm, t = cal[s]
+        else:
+            test = [m for m in scored if m["season"] == s and m["played"]]
+            if not train or not test:
+                continue
+            pm = Model(p).fit(train).predict(test)
         pb = np.tile(base_rates(train), (len(test), 1))
         res = [m["result"] for m in test]
         row = {"season": s, "model": score(pm, res), "base": score(pb, res)}
+        if cal is not None:
+            row |= {"temperature": t, "model_raw": score(raw, res)}
+            pooled["model_raw"] += list(zip(raw, res, strict=True))
         for book in ("avg", "closing"):
             with_odds = [i for i, m in enumerate(test) if book in m.get("odds", {})]
             if len(with_odds) >= 0.8 * len(test):
@@ -508,7 +592,7 @@ def evaluate(scored: list[dict], p: Params, seasons: Sequence[int], first_train:
         pooled["calibration"] += list(zip(pm, res, strict=True))
         per_season.append(row)
     summary = {}
-    for k in ("model", "base"):
+    for k in ("model", "base", "model_raw"):
         if pooled[k]:
             summary[k] = score(np.array([p for p, _ in pooled[k]]), [r for _, r in pooled[k]])
     for book in ("avg", "closing"):

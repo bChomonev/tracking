@@ -26,6 +26,8 @@ from corridor.scripts.build_season import _name_map
 # chase the held-out seasons.
 PARAMS = P.Params(half_life=24.0, carry=1.0, features="xg+goals+lines", C=0.05, adjust=True)
 FIRST_TRAIN, FIRST_TEST = 2015, 2020
+# Rolling calibration (D-036) is fitted on walk-forward predictions from this season on.
+CAL_FIRST = FIRST_TRAIN + 1
 FEATURE_WORDS = {
     "xg_diff": "chance quality for and against",
     "xg_total": "how open their games are",
@@ -39,9 +41,12 @@ def _label(y: int) -> str:
     return f"{y}-{(y + 1) % 100:02d}"
 
 
-def team_news_test(league, scored: list[dict], season: int) -> dict | None:
+def team_news_test(
+    league, scored: list[dict], season: int, published: dict[str, np.ndarray]
+) -> dict | None:
     """Out-of-sample test of the frozen team-news weight (fitted on the Premier League,
-    D-026) on another league's own matches: RPS with and without the adjustment."""
+    D-026) on another league's own matches: RPS with and without the adjustment, applied
+    to the walk-forward predictions as published (``published``: match id → chances)."""
     seasons = []
     for s in range(season - 2, season + 1):
         d = processed_dir(s, league)
@@ -56,13 +61,7 @@ def team_news_test(league, scored: list[dict], season: int) -> dict | None:
     if len(seasons) < 2:
         return None
     absn = AB.history(seasons)
-    base_p = {}
-    for s, *_ in seasons:
-        train = [m for m in scored if FIRST_TRAIN <= m["season"] < s and m["played"]]
-        test = [m for m in scored if m["season"] == s and m["played"]]
-        if train and test:
-            for m, p in zip(test, P.Model(PARAMS).fit(train).predict(test), strict=True):
-                base_p[m["id"]] = p
+    base_p = published
     rows = []
     for s, *_ in seasons:
         fm = fotmob.league_matches(f"{s}/{s + 1}", league.fotmob_id)
@@ -135,8 +134,27 @@ def main() -> None:
     P.attach_odds(scored, range(FIRST_TRAIN, season + 1), current=season, code=league.odds_code)
 
     # 1. Backtest: walk-forward on the held-out seasons (tuning used earlier seasons only).
-    ev = P.evaluate(scored, PARAMS, range(FIRST_TEST, season + 1), FIRST_TRAIN)
-    ev_goals = P.evaluate_goals(scored, range(FIRST_TEST, season + 1), FIRST_TRAIN, PARAMS)
+    #    Every season's predictions are calibrated with a temperature fitted on the earlier
+    #    seasons' walk-forward predictions (D-036); this season's comes from all before it.
+    #    Like team news (D-031), it is applied only where its held-out test shows a gain.
+    wf = P.walk_forward(scored, PARAMS, range(CAL_FIRST, season + 1), FIRST_TRAIN)
+    cal = P.calibrate(wf, CAL_FIRST)
+    tests = range(FIRST_TEST, season + 1)
+    ev = P.evaluate(scored, PARAMS, tests, FIRST_TRAIN, cal=cal)
+    cal_test = {
+        "rps_raw": ev["pooled"]["model_raw"]["rps"],
+        "rps_calibrated": ev["pooled"]["model"]["rps"],
+        "temperatures": {r["season"]: r["temperature"] for r in ev["seasons"]},
+    }
+    cal_on = cal_test["rps_calibrated"] < cal_test["rps_raw"]
+    if not cal_on:
+        cal = {s: (test, raw, raw, 1.0) for s, (test, raw, _, _) in cal.items()}
+        ev = P.evaluate(scored, PARAMS, tests, FIRST_TRAIN, cal=cal)
+    published = {
+        m["id"]: p for test, _, pc, _ in cal.values() for m, p in zip(test, pc, strict=True)
+    }
+    ev_goals = P.evaluate_goals(scored, tests, FIRST_TRAIN, published)
+    temperature = P.temperature_for(wf, season, CAL_FIRST) if cal_on else 1.0
 
     # 2. Final model: every played match up to now.
     train = [m for m in scored if m["played"] and m["season"] >= FIRST_TRAIN]
@@ -154,7 +172,7 @@ def main() -> None:
 
     current = [m for m in scored if m["season"] == season]
     upcoming = [m for m in current if not m["played"]]
-    probs = model.predict(upcoming) if upcoming else np.zeros((0, 3))
+    probs = P.temper(model.predict(upcoming), temperature) if upcoming else np.zeros((0, 3))
     pmap = {m["id"]: p for m, p in zip(upcoming, probs, strict=True)}
 
     def fixture(m: dict) -> dict:
@@ -191,7 +209,7 @@ def main() -> None:
     contrib = AB.current_contributions(_players(season - 1), _players(season))
     # The adjustment is applied only where its own out-of-sample test shows a gain (D-031):
     # England's two cross-season tests did; Spain's clean test with the frozen weight didn't.
-    tn_test = AB.TEST if league.key == "pl" else team_news_test(league, scored, season)
+    tn_test = AB.TEST if league.key == "pl" else team_news_test(league, scored, season, published)
     tn_on = bool(tn_test) and all(f["rps_adjusted"] < f["rps_base"] for f in tn_test["fits"])
     fm_open = {
         (m["home"]["name"], m["away"]["name"]): m for m in fm_fix if not m["status"].get("finished")
@@ -307,6 +325,9 @@ def main() -> None:
     out = {
         "generated_at": made_at,
         "params": vars(PARAMS),
+        "temperature": temperature,
+        "calibration_test": cal_test,
+        "calibration_applied": cal_on,
         "next_round": nxt,
         "projection": projection,
         "backtest": ev,
@@ -321,8 +342,9 @@ def main() -> None:
     pooled = ev["pooled"]
     book = pooled.get("avg", {}).get("rps", float("nan"))
     print(
-        f"backtest {FIRST_TEST}→{season}: model RPS {pooled['model']['rps']:.4f}, "
-        f"base {pooled['base']['rps']:.4f}, bookmakers {book:.4f}"
+        f"backtest {FIRST_TEST}→{season}: model RPS {pooled['model']['rps']:.4f} "
+        f"(uncalibrated {pooled['model_raw']['rps']:.4f}), base {pooled['base']['rps']:.4f}, "
+        f"bookmakers {book:.4f}; temperature now {temperature:.2f}"
     )
     for f in nxt:
         pr = " / ".join(f"{_pct(x):4.1f}" for x in f["p"])

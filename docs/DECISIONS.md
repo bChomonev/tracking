@@ -8,6 +8,32 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-036 — Rolling calibration (PL only, by its own test); team news has no double count · 2026-10-16 · accepted
+**Calibration.** Held-out, the PL model's favourites won less often than it said (said 74%,
+won 68%; outsiders said 7%, won 10%). Temperature scaling (`predict.temper`: divide the log
+chances by t, renormalise; order never changes) fitted on 2016-17…2019-20 found nothing to fix
+(t = 1.02: the over-confidence only appeared after 2020), and fitting t on the held-out seasons
+would be choosing by the test set. So the calibration is **rolling**: season S uses the t that
+fits the walk-forward predictions of 2016-17…S−1 (`calibrate`, `temperature_for`), never S.
+Held-out 2020-21…now: PL RPS 0.2046 → 0.2042 (±0.0004, borderline), La Liga 0.1940 → 0.1941,
+Serie A 0.1932 → 0.1933, Bundesliga 0.2012 → 0.2015 (their early-season t ≈ 1.2 was a pattern
+that faded). As with team news (D-031), it is **applied per league only where its held-out
+test shows a gain**: on in the PL (t = 1.12 this season), off elsewhere; both versions are in
+`predictions.json` (`calibration_test`). Calibrated chances feed everything downstream: team
+news, scorelines, the season simulation, the log. Windows of 2 or 3 seasons did no better.
+It closes ~6% of the PL gap to the bookmakers; the gap is spread across the season (not a
+summer carry-over problem: matchweeks 1–8 gap 0.005, 9–19 0.007, 20–38 0.007).
+**Team-news double count (checked, none found).** Worry: an absentee who has been out for weeks
+is already in the ratings *and* in the missing-minutes share. Built each absence's streak
+(consecutive earlier matches on the unavailable list; PL 820 / La Liga 837 / Serie A 819 /
+Bundesliga 656 matches, 2024-25…now). 38–58% of missing minutes are fresh absences, 9–20% are
+players out 5+ matches. Leave-one-season-out, the current measure, "fresh only", "not
+long-term" and a no-new-parameter decay (share × 0.5^(streak/24), the part the ratings don't
+yet reflect) score the same in every league (PL 0.2059 / 0.2058 / 0.2063 / 0.2059). With a
+24-match half-life, a 5-match absence is only ~13% in the ratings, so the overlap is too small
+to matter. Team news is unchanged. Leeds–United (United missing 25% of usual minutes: Shaw,
+Mainoo, Šeško, Dorgu, Mazraoui, Ugarte, Heaton) are mostly fresh injuries.
+
 ## D-035 — Newsletter identity: "Red Lines", I/we voice, launch order · 2026-10-16 · accepted
 The Substack (chomanalysis.substack.com) is **Red Lines**, tagline "Let's draw the red lines:
 why Manchester United play the way they do, measured after every match." — the name is the

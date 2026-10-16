@@ -87,3 +87,33 @@ def test_next_round_stops_when_a_team_plays_again():
         {"id": "3", "played": False, "kickoff": "2026-10-23 18:30:00", "home": "B", "away": "C"},
     ]
     assert [m["id"] for m in P.next_round(fx, datetime(2026, 10, 15))] == ["1", "2"]
+
+
+def test_temper_keeps_order_and_softens_above_one():
+    p = np.array([[0.7, 0.2, 0.1], [0.2, 0.3, 0.5]])
+    assert np.allclose(P.temper(p, 1.0), p)
+    soft = P.temper(p, 1.3)
+    assert np.allclose(soft.sum(1), 1)
+    assert (soft.argsort(1) == p.argsort(1)).all()
+    assert soft[0, 0] < p[0, 0] and soft[0, 2] > p[0, 2]
+
+
+def test_fit_temperature_softens_over_confident_predictions():
+    rng = np.random.default_rng(42)
+    true = rng.dirichlet([4, 3, 3], size=3000)
+    results = [P.OUTCOMES[rng.choice(3, p=t)] for t in true]
+    assert P.fit_temperature(P.temper(true, 0.8), results) > 1.1  # undoes the sharpening
+    assert abs(P.fit_temperature(true, results) - 1.0) < 0.1
+
+
+def test_calibration_never_uses_its_own_season():
+    def season(p, results):
+        return ([{"result": r} for r in results], np.tile(p, (len(results), 1)))
+
+    # 2017: confident favourites that won; 2018: the same predictions, favourites all lost.
+    wf = {2017: season([0.8, 0.1, 0.1], ["H"] * 80 + ["D"] * 10 + ["A"] * 10)}
+    wf[2018] = season([0.8, 0.1, 0.1], ["A"] * 100)
+    cal = P.calibrate(wf, 2017)
+    assert cal[2017][3] == 1.0  # nothing earlier to fit on
+    assert cal[2018][3] == P.fit_temperature(wf[2017][1], ["H"] * 80 + ["D"] * 10 + ["A"] * 10)
+    assert P.temperature_for(wf, 2019, 2017) > cal[2018][3]  # 2018's misses now count
