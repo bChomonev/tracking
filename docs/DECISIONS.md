@@ -8,6 +8,26 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-034 — Post-match Substack drafts (commentary style) · 2026-10-16 · accepted (in progress)
+For a newsletter of post-match columns in the user's voice: commentary that quotes our
+findings, never republished datasets or tables. `scripts/post.py` builds a one-match fact
+sheet (`corridor.post`: lines per decisive metric, elite / danger score, events, both sides'
+shot summary, players, pre-kickoff prediction, next match, `not_measured`), three charts
+(lines scorecard, shot map, xG race; captions written from data — the model can't see the
+charts), then **plan → draft → critic → one revision**: the plan (angle, opener, section
+bullets, numbers used) is the only call that reads the whole fact sheet; the draft writes
+only from the plan and the house style (`prompts/house_style.md`: first-person fan, friendly
+opener, honest and dry, 600-900 words); numbers are checked at both steps; the critic's
+flags are revised once and any left become "check before publishing" notes. Output: plan.md,
+post.md, post.html (copy-paste into Substack) and PNGs in `data/posts/…` — never published
+automatically; `update` drafts one after each new United league match. A Claude Code skill
+(`.claude/skills/united-post`) uses the same house style. **LLM limits:** the DiscreteStack
+gateway cuts requests at 180 s (504s seen) — calls are capped (timeout 170 s, 5-8k tokens,
+low/medium effort), retried once with less reasoning, and a failed checker never discards a
+finished draft. First draft (Spurs 1-1) had a good plan but the draft added unsupported
+colour and wrong chart captions — fixed by the plan-only rule, data-written captions and a
+shot summary; the re-run is pending (endpoint timing out).
+
 ## D-033 — Shot accuracy and "at least 2 / 3" chances · 2026-10-16 · accepted
 Per player: share of shots on target (shrunk with 10 shots of role prior), expected shots
 on target, and P(≥1/≥2/≥3 shots), P(≥1/≥2 on target) — Poisson. Team pages' "Who takes the

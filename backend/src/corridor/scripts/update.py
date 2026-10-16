@@ -250,7 +250,21 @@ def _finish(args, site: Path, state: dict, state_path: Path, new, labels, now) -
         notify("Site updated", f"After {labels[-1]} — publishing to claude.ai")
     else:
         notify("Site rebuilt", f"After {labels[-1]} (not published)")
+    draft_posts(new)
     log.info("done")
+
+
+def draft_posts(new: list[tuple]) -> None:
+    """A Substack draft for each new United league match (D-034). Never published: it
+    lands in data/posts/ and a notification says it's ready for editing."""
+    for comp, m in new:
+        if comp != "pl" or TEAM not in m["label"]:
+            continue
+        try:
+            run_step("post", "--match", str(m["id"]))
+            notify("Post-match draft ready", f"{m['label']} — data/posts/")
+        except RuntimeError:
+            log.info("post draft failed for %s", m["label"])
 
 
 if __name__ == "__main__":
