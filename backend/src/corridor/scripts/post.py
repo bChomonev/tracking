@@ -52,8 +52,8 @@ was on top when), goalkeepers, tactics or mood unless a plan bullet states it.
 
 Return ONLY JSON:
 {"title": "...", "subtitle": "...", "sections": [{"heading": "...", "paragraphs": ["..."]}]}
-The first paragraph starts with the plan's opener. Put "Data: FotMob and Understat." as \
-the last paragraph on its own."""
+The first paragraph starts with the plan's opener. Don't add a data-source line; the \
+pipeline adds it."""
 
 REVISE = """\
 An editor flagged sentences in this column as not supported by the data. Rewrite only \
@@ -225,7 +225,12 @@ def to_markdown(post: dict, images: dict[str, str]) -> str:
                 f"*{post.get('chart_captions', {}).get(k, '')}*",
                 "",
             ]
-    out += ["---", "*Drafted from data with an AI assistant and edited by me.*"]
+    out += [
+        "Data: FotMob and Understat.",
+        "",
+        "---",
+        "*Drafted from data with an AI assistant and edited by me.*",
+    ]
     return "\n".join(out)
 
 
@@ -251,6 +256,7 @@ def to_html(post: dict, images: dict[str, str]) -> str:
                 f"<figure><img src='{images[k]}' alt='{cap}'>"
                 f"<figcaption>{cap}</figcaption></figure>"
             )
+    body.append("<p>Data: FotMob and Understat.</p>")
     body.append("<hr><p class='sub'>Drafted from data with an AI assistant and edited by me.</p>")
     return (
         "<!doctype html><meta charset='utf-8'><title>" + e(post["title"]) + "</title>"

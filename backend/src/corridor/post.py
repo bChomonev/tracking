@@ -147,6 +147,7 @@ def match_facts(
         },
         "events": events(details, home),
         "shots_summary": shots_summary(details, home),
+        "running_vs_opponent": running(prof, i),
         "lines": {
             "what_they_are": (
                 "Elite line = what last season's top four looked like in their typical league "
@@ -202,6 +203,20 @@ def match_facts(
         ],
     }
     return out
+
+
+def running(prof: dict, i: int) -> dict | None:
+    """Plain statement of who ran more (so a column can't call a side 'outworked' wrongly)."""
+    by = {m["key"]: m["matches"][i]["value"] for m in prof["metrics"]}
+    gap, spr = by.get("distance_gap_km"), by.get("sprints_gap")
+    if gap is None and spr is None:
+        return None
+    return {
+        "outrun_by_opponent": None if gap is None else gap < 0,
+        "distance_more_than_opponent_km": None if gap is None else round(gap, 1),
+        "outsprinted_by_opponent": None if spr is None else spr < 0,
+        "sprints_more_than_opponent": None if spr is None else int(spr),
+    }
 
 
 def shots_summary(details: dict, home: bool) -> dict:
