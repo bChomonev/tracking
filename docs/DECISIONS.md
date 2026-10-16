@@ -8,6 +8,18 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-033 — Shot accuracy and "at least 2 / 3" chances · 2026-10-16 · accepted
+Per player: share of shots on target (shrunk with 10 shots of role prior), expected shots
+on target, and P(≥1/≥2/≥3 shots), P(≥1/≥2 on target) — Poisson. Team pages' "Who takes the
+shots" shows each player's on-target share vs his role. **Data fix:** FotMob's shot-map
+`isOnTarget` is also true for *blocked* shots (it gave 65–75% "accuracy"); excluding blocked
+shots matches FotMob's official team shots-on-target stat exactly (996 = 996 over 200
+matches), giving the real 32–35%. **Calibration fix:** high-volume shooters' predictions
+were too confident (≥2 shots "84%" happened 70%); a gentler shrink didn't help, compressing
+expected shots (λ^0.85) did — chosen on PL 2025-26, checked on La Liga (unseen). Walk-
+forward 2025-26, all four leagues beat the role-average guess on ≥2 shots, ≥1 on target and
+≥2 on target, and on-target chances are calibrated (e.g. PL 45% → 46%, La Liga 74% → 76%).
+
 ## D-032 — Serie A and Bundesliga, same method · 2026-10-15 · accepted
 Added through `corridor.leagues` only (FotMob 55 / 54, Understat `Serie_A` / `Bundesliga`,
 odds `I1` / `D1` with aliases; an alias falls back to the plain name for other eras). The

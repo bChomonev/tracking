@@ -204,7 +204,9 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
             b["penalties"] += 1
             continue
         b["np_shots"] += 1
-        b["np_shots_on_target"] += bool(sh.get("isOnTarget"))
+        # FotMob's isOnTarget is also true for blocked shots; excluding them matches its
+        # official "shots on target" team stat exactly.
+        b["np_shots_on_target"] += bool(sh.get("isOnTarget")) and not sh.get("isBlocked")
         b["npxg_shots"] += sh.get("expectedGoals") or 0.0
         b["np_goals"] += sh.get("eventType") == "Goal"
         b["np_shots_outside_box"] += not sh.get("isFromInsideBox")

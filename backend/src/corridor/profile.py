@@ -746,9 +746,11 @@ def shooting(players: list[dict], team: str) -> dict:
     average quality for the player's role, minus what they did produce. Summed over the
     squad it splits the team's shot-quality problem by player."""
     role_acc: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0])
+    role_ot: dict[str, float] = defaultdict(float)
     per: dict[int, dict] = {}
     for p in players:
         r = role_acc[p.get("role") or "UNK"]
+        role_ot[p.get("role") or "UNK"] += p.get("np_shots_on_target", 0)
         r[0] += p["np_shots"]
         r[1] += p["npxg_shots"]
         a = per.setdefault(
@@ -799,6 +801,10 @@ def shooting(players: list[dict], team: str) -> dict:
             "npxg": a["npxg"],
             "goals": a["goals"],
             "on_target": a["on_target"],
+            "on_target_pct": 100 * a["on_target"] / a["shots"] if a["shots"] else None,
+            "role_on_target_pct": 100 * role_ot[role] / role_acc[role][0]
+            if role_acc[role][0]
+            else None,
             "npxg_per_shot": q,
             "role_npxg_per_shot": base,
             "avg_distance_m": a["distance_sum"] / a["shots"] if a["shots"] else None,

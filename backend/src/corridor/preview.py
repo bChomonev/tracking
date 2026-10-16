@@ -24,7 +24,11 @@ import numpy as np
 
 CORNER_HALF_LIFE = 30.0  # matches (chosen on 2025-26)
 CORNER_CARRY = 0.7  # summer regression towards average
-SHRINK_MIN = 270.0  # minutes of role-average "prior" mixed into each player's rate
+SHRINK_MIN = 270.0
+# Expected shots are compressed (λ ** 0.85): high-volume shooters' counts don't hold up match
+# to match. Chosen on PL 2025-26 (≥2 shots: 84% predicted had happened 70%), checked on
+# La Liga 2025-26, which it never saw (D-033).
+SHOT_POWER = 0.85  # minutes of role-average "prior" mixed into each player's rate
 LAST_SEASON_WEIGHT = 0.5
 
 
@@ -186,7 +190,9 @@ def corner_backtest(preds: list[dict], from_season: int) -> dict[str, Any]:
 
 def role_rates(players: list[dict]) -> dict[str, dict[str, float]]:
     acc: dict[str, list[float]] = defaultdict(lambda: [0.0] * 5)
+    on_target: dict[str, float] = defaultdict(float)
     for p in players:
+        on_target[p.get("role") or "UNK"] += p.get("np_shots_on_target", 0)
         a = acc[p.get("role") or "UNK"]
         a[0] += p["np_shots"]
         a[1] += p["npxg_shots"]
@@ -199,6 +205,7 @@ def role_rates(players: list[dict]) -> dict[str, dict[str, float]]:
             "npxg90": 90 * x / m,
             "xa90": 90 * xa / m,
             "yellow90": 90 * y / m,
+            "accuracy": on_target[r] / s if s else 0.33,
         }
         for r, (s, x, xa, y, m) in acc.items()
         if m
@@ -212,6 +219,7 @@ class PlayerRates:
         self.roles = roles
         self.acc: dict[int, list[float]] = defaultdict(lambda: [0.0] * 5)
         self.starts: dict[int, list[float]] = defaultdict(list)
+        self.on_target: dict[int, float] = defaultdict(float)
 
     def add(self, p: dict, weight: float = 1.0) -> None:
         a = self.acc[p["player_id"]]
@@ -220,6 +228,7 @@ class PlayerRates:
         a[2] += weight * p["minutes"]
         a[3] += weight * (p.get("xa") or 0.0)
         a[4] += weight * p.get("yellow", 0)
+        self.on_target[p["player_id"]] += weight * p.get("np_shots_on_target", 0)
         if p["started"] and weight == 1.0:
             self.starts[p["player_id"]].append(p["minutes"])
 
@@ -243,9 +252,20 @@ class PlayerRates:
             90 * (y + py * 900 / 90) / (m + 900),
         )
 
+    def accuracy(self, pid: int, role: str | None) -> float:
+        """Share of a player's shots on target, shrunk towards his role (10 shots of prior)."""
+        prior = (self.roles.get(role or "UNK") or {}).get("accuracy", 0.33)
+        shots = self.acc.get(pid, (0.0,) * 5)[0]
+        return (self.on_target.get(pid, 0.0) + prior * 10) / (shots + 10)
+
     def minutes_if_starting(self, pid: int) -> float:
         st = self.starts.get(pid, [])[-6:]
         return float(np.mean(st)) if st else 78.0
+
+
+def p_at_least(k: int, lam: float) -> float:
+    """P(X >= k) for a Poisson count with mean ``lam``."""
+    return 1 - sum(math.exp(-lam) * lam**i / math.factorial(i) for i in range(k))
 
 
 def expect_player(
@@ -259,13 +279,20 @@ def expect_player(
 ) -> dict[str, float]:
     s90, x90 = rates.rate(pid, role)
     a90, y90 = rates.extra(pid, role)
-    lam_s = s90 * minutes / 90 * opp_shot_factor
+    lam_s = (s90 * minutes / 90 * opp_shot_factor) ** SHOT_POWER
     lam_x = x90 * minutes / 90 * opp_xg_factor
     lam_a = a90 * minutes / 90 * opp_xg_factor
     lam_y = y90 * minutes / 90 * card_factor
+    lam_t = lam_s * rates.accuracy(pid, role)
     return {
         "exp_shots": lam_s,
         "p_shot": 1 - math.exp(-lam_s),
+        "p_shot2": p_at_least(2, lam_s),
+        "p_shot3": p_at_least(3, lam_s),
+        "exp_on_target": lam_t,
+        "accuracy": rates.accuracy(pid, role),
+        "p_on_target": 1 - math.exp(-lam_t),
+        "p_on_target2": p_at_least(2, lam_t),
         "exp_npxg": lam_x,
         "p_goal": 1 - math.exp(-lam_x),
         "exp_xa": lam_a,
@@ -331,6 +358,15 @@ def shooter_backtest(prev_players: list[dict], players: list[dict], team_rows: l
                     "naive_p_shot": 1 - math.exp(-base["shots90"] * 80 / 90),
                     "naive_p_goal": 1 - math.exp(-base["npxg90"] * 80 / 90),
                     "naive_p_assist": 1 - math.exp(-base.get("xa90", 0.1) * 80 / 90),
+                    "naive_p_shot2": p_at_least(2, base["shots90"] * 80 / 90),
+                    "naive_p_on_target": 1
+                    - math.exp(-base["shots90"] * 80 / 90 * base.get("accuracy", 0.33)),
+                    "naive_p_on_target2": p_at_least(
+                        2, base["shots90"] * 80 / 90 * base.get("accuracy", 0.33)
+                    ),
+                    "shot2": p["np_shots"] >= 2,
+                    "on_target": p.get("np_shots_on_target", 0) >= 1,
+                    "on_target2": p.get("np_shots_on_target", 0) >= 2,
                     "naive_p_booked": 1 - math.exp(-base.get("yellow90", 0.15) * 80 / 90),
                     "shot": p["np_shots"] > 0,
                     "goal": p.get("np_goals", 0) > 0,
@@ -365,6 +401,14 @@ def shooter_backtest(prev_players: list[dict], players: list[dict], team_rows: l
         "brier_shot_naive": brier("naive_p_shot", "shot"),
         "brier_goal": brier("p_goal", "goal"),
         "brier_goal_naive": brier("naive_p_goal", "goal"),
+        "brier_shot2": brier("p_shot2", "shot2"),
+        "brier_shot2_naive": brier("naive_p_shot2", "shot2"),
+        "brier_on_target": brier("p_on_target", "on_target"),
+        "brier_on_target_naive": brier("naive_p_on_target", "on_target"),
+        "brier_on_target2": brier("p_on_target2", "on_target2"),
+        "brier_on_target2_naive": brier("naive_p_on_target2", "on_target2"),
+        "calibration_shot2": calib("p_shot2", "shot2"),
+        "calibration_on_target": calib("p_on_target", "on_target"),
         "brier_assist": brier("p_assist", "assist"),
         "brier_assist_naive": brier("naive_p_assist", "assist"),
         "brier_booked": brier("p_booked", "booked"),
