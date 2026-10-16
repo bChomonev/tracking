@@ -33,6 +33,10 @@ players, they don't need it narrated back to them. They come for the "why".
 - At most about a dozen numbers in the whole column. Pick the ones that make the point.
 - Quote them exactly as in the fact sheet (rounding allowed). Never work out new numbers
   yourself — no sums, differences or percentages of your own.
+- **Plain enough for any fan.** Every number says what it counts. Win-rate comparisons keep
+  percentages but spell out both sides: "teams that reached the elite line for territory won
+  33% of their games; teams that didn't won 37%" — never a bare "33% vs 37%".
+  Per-shot chance values get a plain reading next to them: "0.10 — about 1 in 10 goes in".
 - Explain jargon the first time, in passing: "expected goals (xG) — how many goals our
   chances were worth on average".
 - Anything the data can't see (tactics, instructions, effort beyond running numbers,

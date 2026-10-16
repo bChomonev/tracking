@@ -8,6 +8,21 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-035 — Newsletter identity: "Red Lines", I/we voice, launch order · 2026-10-16 · accepted
+The Substack (chomanalysis.substack.com) is **Red Lines**, tagline "Let's draw the red lines:
+why Manchester United play the way they do, measured after every match." — the name is the
+method (elite / worst lines) in United red. Pen name "Chom". **Voice:** "I" for the author,
+"we" only for United fans; never imply a human team. AI help is stated once, plainly (About
+page and Substack's "How I make this" note), not hidden. **Launch order:** Post 1 = why I
+built it + how it works (the "How we know" page in prose; pinned and linked from every
+column), Post 2 = the season so far (analyst read), then game by game (D-034 drafts).
+Nothing is published without the user's explicit yes. **Plain numbers:** every number says what
+it counts; win-rate comparisons keep percentages with both sides spelled out ("won 33% of their
+games; teams that didn't won 37%"), never a bare "33% vs 37%" (rule added to
+`prompts/house_style.md`). **Free for now:** paid subscriptions off (Stripe stays connected);
+charging waits on the data-licensing question in DATA_SOURCES.md. Posts 1 and 2 published
+2026-10-16.
+
 ## D-034 — Post-match Substack drafts (commentary style) · 2026-10-16 · accepted (in progress)
 For a newsletter of post-match columns in the user's voice: commentary that quotes our
 findings, never republished datasets or tables. `scripts/post.py` builds a one-match fact
