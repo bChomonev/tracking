@@ -731,7 +731,18 @@ th[aria-sort] button::after { content: " ▾"; }
           <rect x="${(bad ? mid : mid - w).toFixed(1)}" y="${y + 3}" width="${Math.max(1, w).toFixed(1)}" height="${rowH - 8}" rx="2" fill="var(--${bad ? "bad" : "good"})"></rect>
           <text x="${(bad ? mid + w + 6 : mid - w - 6).toFixed(1)}" y="${y + 14}" text-anchor="${bad ? "start" : "end"}" style="font:500 11px var(--mono)">${signed(r.quality_gap, 2)}</text>`; }).join("")}
       <g class="axis"><text x="${mid - 8}" y="${H - 6}" text-anchor="end">← better shots than his position</text><text x="${mid + 8}" y="${H - 6}">npxG wasted on poor shots →</text></g></svg>`;
-    $("shoot-table").innerHTML = `<thead><tr><th class="l">Player</th><th>Shots</th><th>Share</th><th>Goals</th><th><span class="tip below" tabindex="0" data-tip="Average non-penalty xG per shot, vs the league average for his position.">npxG / shot</span></th><th><span class="tip below" tabindex="0" data-tip="Share of his non-penalty shots that were on target, vs the league average for his position.">On target</span></th><th><span class="tip below" tabindex="0" data-tip="How far from goal his shots are taken on average, in metres. The penalty spot is 11 m out; the edge of the box is about 16.5 m.">Shot distance</span></th><th>Outside box</th><th>Blocked</th><th><span class="tip below end" tabindex="0" data-tip="npxG his shots would have produced at his position's average quality, minus what they produced. + = wasted on poor shots.">npxG wasted</span></th></tr></thead><tbody>` +
+    const sTh = (l, tip, end) => `<th><span class="tip below${end ? " end" : ""}" tabindex="0" data-tip="${esc(tip)}">${l}</span></th>`;
+    $("shoot-table").innerHTML = `<thead><tr><th class="l">Player</th>` + [
+      ["Shots", "His shots in the league this season. Penalties are left out of every column here."],
+      ["Share", "His share of all the team's shots."],
+      ["Goals", "Goals he scored, not counting penalties."],
+      ["npxG / shot", "How likely his average shot was to go in (0.10 = about 1 in 10), against the league average for his position after the slash. Green: clearly better shots; red: clearly worse."],
+      ["On target", "Share of his shots that were on target, against the league average for his position after the slash."],
+      ["Shot distance", "How far from goal his shots are taken on average, in metres. The penalty spot is 11 m out; the edge of the box is about 16.5 m."],
+      ["Outside box", "Share of his shots taken from outside the penalty area."],
+      ["Blocked", "Share of his shots blocked by a defender before reaching goal."],
+      ["npxG wasted", "Goals' worth lost to where he shoots from: what his shots would have been worth at his position's average quality, minus what they were worth. + = chances wasted on poor shots; − = better shots than usual.", true],
+    ].map(([l, tip, end]) => sTh(l, tip, end)).join("") + `</tr></thead><tbody>` +
       [...SH.players].map((r) => `<tr><td class="l">${esc(r.name)} <span class="pos">${esc(r.role)}</span></td><td class="cell">${r.shots}</td><td class="cell">${r.share_of_shots.toFixed(0)}%</td><td class="cell">${r.goals}</td>
         <td class="cell h-${r.npxg_per_shot >= r.role_npxg_per_shot * 1.15 ? "good" : r.npxg_per_shot <= r.role_npxg_per_shot * 0.7 ? "bad" : ""}">${r.npxg_per_shot.toFixed(3)} <small style="color:var(--muted)">/ ${r.role_npxg_per_shot.toFixed(3)}</small></td>
         <td class="cell h-${r.on_target_pct == null || r.role_on_target_pct == null ? "" : r.on_target_pct >= r.role_on_target_pct + 10 ? "good" : r.on_target_pct <= r.role_on_target_pct - 10 ? "bad" : ""}">${r.on_target_pct != null ? r.on_target_pct.toFixed(0) + "%" : "—"} <small style="color:var(--muted)">/ ${r.role_on_target_pct != null ? r.role_on_target_pct.toFixed(0) + "%" : "—"}</small></td>
