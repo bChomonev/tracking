@@ -8,6 +8,16 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-037 — Gauge when the elite and worst lines cross · 2026-10-17 · accepted
+The "what decides matches" gauge placed a team between fixed worst (12%) and elite (88%) ticks
+by `(value − worst) / (elite − worst)`. On three PL metrics the bottom four's defeats beat the top
+four's wins (ball recoveries 46 vs 45, PPDA 11.8 vs 12.2, big chances missed 1 vs 2), so that
+ratio flipped sign and an elite-level value (United's 50 recoveries) was drawn at the worst end.
+Ticks stay at worst-left / elite-right on every row (moving them to their true places read as a
+swap). When the lines cross, the dot goes just past elite if it clears both lines, just before
+worst if it clears neither, and in the middle if it counts as both; hovering explains the cross.
+Normal rows are unchanged.
+
 ## D-036 — Rolling calibration (PL only, by its own test); team news has no double count · 2026-10-16 · accepted
 **Calibration.** Held-out, the PL model's favourites won less often than it said (said 74%,
 won 68%; outsiders said 7%, won 10%). Temperature scaling (`predict.temper`: divide the log
