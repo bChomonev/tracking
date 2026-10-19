@@ -8,6 +8,12 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-038 — Predictions get their own tab · 2026-10-19 · accepted
+"How good are the predictions?" and "Match previews: what was tested" move out of How we know
+into a Predictions tab (`#predictions[/<league>]`, own league switch); How we know keeps the
+lines, the league comparison and data caveats, and links across. Same render code (renderHow
+fills both views). The "Next round" cards stay on each league page.
+
 ## D-037 — Gauge when the elite and worst lines cross · 2026-10-17 · accepted
 The "what decides matches" gauge placed a team between fixed worst (12%) and elite (88%) ticks
 by `(value − worst) / (elite − worst)`. On three PL metrics the bottom four's defeats beat the top

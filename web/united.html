@@ -46,7 +46,7 @@ body {
   padding-block: 28px 48px;
 }
 main { max-width: 1120px; margin: 0 auto; display: grid; gap: 40px; }
-main > *, #overview > *, #team-view > *, #match-view > *, #how-view > * { min-width: 0; } /* let wide tables scroll inside .table-wrap instead of widening the page */
+main > *, #overview > *, #team-view > *, #match-view > *, #how-view > *, #pred-view > * { min-width: 0; } /* let wide tables scroll inside .table-wrap instead of widening the page */
 [hidden] { display: none !important; }
 h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.05; margin: 0; text-wrap: balance; }
 h2 { font-size: 1.9rem; text-transform: uppercase; letter-spacing: .02em; }
@@ -180,7 +180,7 @@ tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600
 .lines-cell small { display: block; font: 400 .74rem/1.2 var(--body); color: var(--muted); }
 
 /* Overview */
-#overview, #team-view, #match-view, #how-view { display: contents; }
+#overview, #team-view, #match-view, #how-view, #pred-view { display: contents; }
 .topnav { display: flex; flex-wrap: wrap; gap: 4px 18px; font: 600 .85rem/1 var(--body); text-transform: uppercase; letter-spacing: .08em; margin-bottom: -16px; }
 .topnav a { color: var(--muted); text-decoration: none; padding: 6px 0; border-bottom: 2px solid transparent; }
 .topnav a:hover { color: var(--ink); }
@@ -422,7 +422,7 @@ th[aria-sort] button::after { content: " ▾"; }
       <p class="eyebrow">Method, tests and data</p>
       <h1 id="how-h">How we <span>know</span></h1>
       <p class="ov-lede" id="how-lede"></p>
-      <p class="how-toc"><a href="#how" data-jump="cmp-sec">Leagues compared</a> · <a href="#how" data-jump="proof-sec">The lines</a> · <a href="#how" data-jump="bt-sec">The predictions</a> · <a href="#how" data-jump="pv-sec">Match previews</a> · <a href="#how" data-jump="data-sec">Data &amp; caveats</a></p>
+      <p class="how-toc"><a href="#how" data-jump="cmp-sec">Leagues compared</a> · <a href="#how" data-jump="proof-sec">The lines</a> · <a href="#how" data-jump="data-sec">Data &amp; caveats</a> · <a href="#predictions">How good are the predictions? →</a></p>
     </section>
     <section aria-labelledby="cmp-title" id="cmp-sec">
       <div class="section-head"><h2 id="cmp-title">Same method, two leagues</h2><p id="cmp-sub"></p></div>
@@ -447,6 +447,20 @@ th[aria-sort] button::after { content: " ▾"; }
     <div class="table-wrap"><table id="proof-metrics" class="proof-table"></table></div>
     <p class="bl-foot" id="proof-foot"></p>
   </section>
+    <section aria-labelledby="data-title" id="data-sec">
+      <div class="section-head"><h2 id="data-title">Data &amp; caveats</h2></div>
+      <div class="notes" id="how-notes"></div>
+    </section>
+  </div>
+
+  <div id="pred-view" hidden>
+    <section class="hero" aria-labelledby="pred-h">
+      <p class="eyebrow">Tested on matches it had never seen</p>
+      <h1 id="pred-h">Predictions, <span>tested</span></h1>
+      <p class="ov-lede">Every prediction is made from what was known before kick-off, saved, then scored after the match. Here's how the model compares with simple base rates and the bookmakers, and what was tested for the match previews.</p>
+      <p class="how-toc"><a href="#predictions" data-jump="bt-sec">The predictions</a> · <a href="#predictions" data-jump="pv-sec">Match previews</a></p>
+    </section>
+    <div class="comp-switch" id="pred-switch" role="tablist" aria-label="League"></div>
     <section aria-labelledby="bt-title" id="bt-sec">
       <div class="section-head">
         <h2 id="bt-title">How good are the predictions?</h2>
@@ -463,10 +477,6 @@ th[aria-sort] button::after { content: " ▾"; }
     <section aria-labelledby="pv-title" id="pv-sec">
       <div class="section-head"><h2 id="pv-title">Match previews: what was tested</h2><p>Every number below comes from predicting past matches using only what was known before each one.</p></div>
       <div class="mv-cols" id="pv-cards"></div>
-    </section>
-    <section aria-labelledby="data-title" id="data-sec">
-      <div class="section-head"><h2 id="data-title">Data &amp; caveats</h2></div>
-      <div class="notes" id="how-notes"></div>
     </section>
   </div>
 
@@ -970,7 +980,7 @@ th[aria-sort] button::after { content: " ▾"; }
       $("pr-record").textContent = R.scored
         ? `Record this season: ${R.scored} predictions scored, ${R.hits} favourites won (${pc(R.hits / R.scored)}). Average RPS ${R.rps.toFixed(3)}${R.rps_base != null ? ` (${R.rps_base.toFixed(3)} without team news)` : ""}${R.avg_rps != null ? ` vs the bookmakers' ${R.avg_rps.toFixed(3)}` : ""} (lower is better).`
         : `Every prediction is saved before kickoff and scored after the match — the record starts with this round.`;
-      $("pr-record").insertAdjacentHTML("beforeend", ` <a href="#how" data-jump="bt-sec">How good are these predictions? →</a>`);
+      $("pr-record").insertAdjacentHTML("beforeend", ` <a href="#predictions/${LK}">How good are these predictions? →</a>`);
     }
   };
   const teamNext = (P) => {
@@ -1257,11 +1267,12 @@ th[aria-sort] button::after { content: " ▾"; }
         return `<tr><td class="l"><span class="tip below" tabindex="0" data-tip="${esc(tipOf(m))}">${esc(m.label)}</span></td>${imp.map((x) => { const im = x[k]?.impact; return `<td class="l">${im ? `<span class="lift-bar" style="width:${Math.round(Math.max(0, im.impact) * 60)}px"></span><span class="imp-tag ${im.tier}">${TIER[im.tier][0]}</span> <small class="num">${im.impact >= 0 ? "+" : ""}${(100 * im.impact).toFixed(0)}</small>${im.provisional ? " <small>(this season only)</small>" : ""}` : "<small>no data</small>"}</td>`; }).join("")}</tr>`; }).join("") + "</tbody>";
   };
   const renderHow = () => {
-    document.title = `How we know · ${LN}`;
+    document.title = `${location.hash.startsWith("#predictions") ? "Predictions" : "How we know"} · ${LN}`;
     if (howDone === LK) return;
     if (howDone === null) renderCompare();
     howDone = LK;
     $("how-switch").innerHTML = `<span class="eyebrow" style="align-self:center">Detail for</span>` + Object.entries(SITE.leagues).map(([k, lg]) => `<a role="tab" class="${k === LK ? "on" : ""}" aria-selected="${k === LK}" href="#how/${k}">${esc(lg.competition)}</a>`).join("");
+    $("pred-switch").innerHTML = `<span class="eyebrow" style="align-self:center">League</span>` + Object.entries(SITE.leagues).map(([k, lg]) => `<a role="tab" class="${k === LK ? "on" : ""}" aria-selected="${k === LK}" href="#predictions/${k}">${esc(lg.competition)}</a>`).join("");
     $("how-lede").innerHTML = `<p>Everything on this site is measured the same way: build it from the past, then test it on matches it has never seen. Where something didn't work — corner totals, the line features in the prediction, a bigger team-news model — we say so and leave it out.</p>`;
     // The lines
     const PR = L.proof, FT = L.teams[L.focus_team] || Object.values(L.teams)[0];
@@ -1339,7 +1350,7 @@ th[aria-sort] button::after { content: " ▾"; }
     ].map((t) => `<p>${esc(t)}</p>`).join("");
   };
 
-  // ===== Router (D-029): #<league>, #<league>/team/<slug>, #<league>/match/<id>, #how[/<league>]
+  // ===== Router (D-029): #<league>, #<league>/team/<slug>, #<league>/match/<id>, #how[/<league>], #predictions[/<league>]
   // (old links #team/<slug> and #match/<id> mean the Premier League) =====
   let current = null;
   const useLeague = (k) => {
@@ -1358,12 +1369,12 @@ th[aria-sort] button::after { content: " ▾"; }
   };
   const FT_NAME = SITE.leagues[FOCUS_LK].focus_team;
   $("topnav").innerHTML = Object.entries(SITE.leagues).map(([k, lg]) => `<a href="#${k}" data-nav="${k}">${esc(lg.competition)}</a>`).join("") +
-    (FT_NAME ? `<a href="${hTeam(FT_NAME, FOCUS_LK)}" data-nav="focus">${esc(FT_NAME)}</a>` : "") + `<a href="#how" data-nav="how">How we know</a>`;
+    (FT_NAME ? `<a href="${hTeam(FT_NAME, FOCUS_LK)}" data-nav="focus">${esc(FT_NAME)}</a>` : "") + `<a href="#predictions" data-nav="predictions">Predictions</a><a href="#how" data-nav="how">How we know</a>`;
   let jumpTo = null;
   const route = () => {
     let parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
     if (parts[0] === "team" || parts[0] === "match") parts = ["pl", ...parts];
-    const how = parts[0] === "how";
+    const pred = parts[0] === "predictions", how = parts[0] === "how" || pred;
     const want = how ? (SITE.leagues[parts[1]] ? parts[1] : LK || "pl") : SITE.leagues[parts[0]] ? parts[0] : "pl";
     if (want !== LK) useLeague(want);
     const t = !how && parts[1] === "team" && bySlug[parts[2]];
@@ -1371,11 +1382,12 @@ th[aria-sort] button::after { content: " ▾"; }
     $("overview").hidden = !!(t || mm || how);
     $("team-view").hidden = !t;
     $("match-view").hidden = !mm;
-    $("how-view").hidden = !how;
+    $("how-view").hidden = !how || pred;
+    $("pred-view").hidden = !pred;
     if (how) renderHow();
     else if (mm) renderMatch(mm);
     else if (t) { if (t !== current) renderTeam(L.teams[t]); current = t; } else renderOverview();
-    const page = how ? "how" : t && t === ME ? "focus" : !t && !mm ? LK : "";
+    const page = pred ? "predictions" : how ? "how" : t && t === ME ? "focus" : !t && !mm ? LK : "";
     document.querySelectorAll(".topnav a").forEach((a) => (a.dataset.nav === page ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
     const target = jumpTo && document.getElementById(jumpTo);
     jumpTo = null;
@@ -1386,7 +1398,7 @@ th[aria-sort] button::after { content: " ▾"; }
     const a = e.target.closest("a[data-jump]");
     if (!a) return;
     jumpTo = a.dataset.jump;
-    if (location.hash.startsWith("#how")) { e.preventDefault(); route(); }
+    if (location.hash.startsWith(a.getAttribute("href").split("/")[0])) { e.preventDefault(); route(); }
   });
   addEventListener("hashchange", route);
   route();
