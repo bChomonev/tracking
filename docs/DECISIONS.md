@@ -18,6 +18,13 @@ walk-forward on 2025-26 and 2026-27. Chosen on the PL (box touches + shots at 0.
 2.068 → 2.063, "more corners" side 62.1% → 62.3%), it didn't hold elsewhere: La Liga worse on
 all three measures, Serie A and the Bundesliga mixed. No version improved every league, so
 corners stay corners-only; past corners already carry most of the pressure signal.
+Follow-up the same day: deep completions (Understat), blocked shots and shots inside the box.
+Blocked shots and shots in the box: mixed or worse. Deep completions at 0.25 was the best
+candidate: better on 9 of 12 checks (side miss better in the PL, Serie A, Bundesliga, flat in
+La Liga; "more corners" side better in three leagues, worse in the PL), but the gain is ~0.01
+corners per side and it was picked after seeing all four leagues, so there is no clean
+held-out check. Not adopted now; re-test on the rest of 2026-27 as a fresh hold-out (revisit
+at the season's end).
 
 ## D-042 — Shooter odds: the opponent's defence remembers last season · 2026-10-19 · accepted
 Question from the user: do player shot chances account for the opponent (e.g. Ipswich at
