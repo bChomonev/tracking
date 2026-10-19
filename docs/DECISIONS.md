@@ -8,6 +8,17 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-043 — Corners: pressure stats tested, not adopted · 2026-10-19 · rejected
+Question from the user: would corners improve if, like the shooters' opponent factor, we used
+more than past corners? The corner model already uses both sides (a team's corners won ×
+the opponent's corners conceded, opponent-adjusted, rolling across seasons). Tested adding
+rolling won/conceded ratings for box touches, shots, passes into the final third and
+possession, blended with the corner ratings on the log scale (weights 0.25 / 0.5 / 0.75),
+walk-forward on 2025-26 and 2026-27. Chosen on the PL (box touches + shots at 0.5: side miss
+2.068 → 2.063, "more corners" side 62.1% → 62.3%), it didn't hold elsewhere: La Liga worse on
+all three measures, Serie A and the Bundesliga mixed. No version improved every league, so
+corners stay corners-only; past corners already carry most of the pressure signal.
+
 ## D-042 — Shooter odds: the opponent's defence remembers last season · 2026-10-19 · accepted
 Question from the user: do player shot chances account for the opponent (e.g. Ipswich at
 City)? They did (× shots / npxG the opponent concedes vs the league), but from this season
