@@ -98,10 +98,12 @@ def main() -> None:
         R.add(p, V.LAST_SEASON_WEIGHT)
     for p in sorted(players_now, key=lambda p: p["match_id"]):
         R.add(p)
-    facs = V.opponent_factors(teams_now)
+    facs = V.opponent_factors(teams_now, prev_rows=_load(season - 1, "team_matches", lg))
     # Shooter backtest on every season we have player data for (each from its own past).
     shooter_bt = {
-        str(s): V.shooter_backtest(prev, cur, _load(s, "team_matches", lg))
+        str(s): V.shooter_backtest(
+            prev, cur, _load(s, "team_matches", lg), _load(s - 1, "team_matches", lg)
+        )
         for s in range(season - 1, season + 1)
         if (prev := _load(s - 1, "player_matches", lg)) and (cur := _load(s, "player_matches", lg))
     }

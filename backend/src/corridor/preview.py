@@ -30,6 +30,9 @@ SHRINK_MIN = 270.0
 # La Liga 2025-26, which it never saw (D-033).
 SHOT_POWER = 0.85  # minutes of role-average "prior" mixed into each player's rate
 LAST_SEASON_WEIGHT = 0.5
+# Opponent shots / npxG conceded: last season counts half (D-042: 15 of 16 checks better
+# across four leagues; making the factor count more lost everywhere).
+OPP_PREV_WEIGHT = 0.5
 
 
 # ---------------------------------------------------------------------------- corners
@@ -303,28 +306,53 @@ def expect_player(
 
 
 def opponent_factors(
-    team_rows: list[dict], before: str | None = None
+    team_rows: list[dict],
+    before: str | None = None,
+    prev_rows: list[dict] | None = None,
+    prev_weight: float = OPP_PREV_WEIGHT,
 ) -> dict[str, tuple[float, float]]:
     """Team → (shots conceded / league avg, npxG conceded / league avg), from matches before
-    ``before`` (kickoff string) in the given rows."""
-    rows = [r for r in team_rows if before is None or r["kickoff_utc"] < before]
-    if not rows:
+    ``before`` (kickoff string) in the given rows, plus last season's matches (``prev_rows``)
+    at ``prev_weight`` each, shrunk towards average by three average matches (D-042)."""
+
+    def ratios(rows: list[dict]) -> dict[str, tuple[int, float, float]]:
+        rows = [r for r in rows if r.get("np_shots_conceded") is not None]
+        if not rows:
+            return {}
+        lg_s = np.mean([r["np_shots_conceded"] for r in rows])
+        lg_x = np.mean([r.get("npxg_conceded") or 0 for r in rows])
+        by: dict[str, list[dict]] = defaultdict(list)
+        for r in rows:
+            by[r["team"]].append(r)
+        return {
+            t: (
+                len(rs),
+                float(np.mean([r["np_shots_conceded"] for r in rs]) / lg_s),
+                float(np.mean([r.get("npxg_conceded") or 0 for r in rs]) / lg_x),
+            )
+            for t, rs in by.items()
+        }
+
+    cur = ratios([r for r in team_rows if before is None or r["kickoff_utc"] < before])
+    if not cur:
         return {}
-    by: dict[str, list[dict]] = defaultdict(list)
-    for r in rows:
-        by[r["team"]].append(r)
-    lg_s = np.mean([r["np_shots_conceded"] for r in rows if r.get("np_shots_conceded") is not None])
-    lg_x = np.mean([r["npxg_conceded"] for r in rows if r.get("npxg_conceded") is not None])
+    prev = ratios(prev_rows or []) if prev_weight else {}
+    k = 3  # shrink: three league-average matches
     out = {}
-    for t, rs in by.items():
-        k = 3  # shrink: three league-average matches
-        s = (sum(r.get("np_shots_conceded") or 0 for r in rs) + k * lg_s) / (len(rs) + k)
-        x = (sum(r.get("npxg_conceded") or 0 for r in rs) + k * lg_x) / (len(rs) + k)
-        out[t] = (float(s / lg_s), float(x / lg_x))
+    for t in cur:  # teams in this league now (promoted sides have no last season here)
+        n, fs, fx = cur[t]
+        m, ps, px = prev.get(t, (0, 1.0, 1.0))
+        m *= prev_weight
+        out[t] = ((n * fs + m * ps + k) / (n + m + k), (n * fx + m * px + k) / (n + m + k))
     return out
 
 
-def shooter_backtest(prev_players: list[dict], players: list[dict], team_rows: list[dict]) -> dict:
+def shooter_backtest(
+    prev_players: list[dict],
+    players: list[dict],
+    team_rows: list[dict],
+    prev_team_rows: list[dict] | None = None,
+) -> dict:
     """Walk through a season: before each match, predict every starter's chance of a shot and
     of a non-penalty goal from earlier data only; score calibration and Brier vs a naive
     role-rate baseline."""
@@ -339,7 +367,7 @@ def shooter_backtest(prev_players: list[dict], players: list[dict], team_rows: l
     opp_of = {(r["match_id"], r["team"]): r["opponent"] for r in team_rows}
     preds = []
     for mid in sorted(by_match, key=lambda m: ko.get(m, "")):
-        facs = opponent_factors(team_rows, ko.get(mid))
+        facs = opponent_factors(team_rows, ko.get(mid), prev_team_rows)
         for p in by_match[mid]:
             if not p["started"] or p.get("role") == "GK":
                 continue

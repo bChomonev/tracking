@@ -104,3 +104,24 @@ def test_player_extra_rates_assists_and_bookings():
     assert 0.1 < xa90 < 0.3 and 0.2 < y90 < 0.5
     e = V.expect_player(R, 9, "CM", 90, 1.0, 1.0)
     assert e["p_involved"] >= max(e["p_goal"], e["p_assist"])
+
+
+def test_opponent_factor_remembers_last_season_at_half_weight():
+    from corridor.preview import opponent_factors
+
+    def rows(team_vals, ko):
+        return [
+            {"team": t, "kickoff_utc": ko, "np_shots_conceded": v, "npxg_conceded": v / 10}
+            for t, v in team_vals
+        ]
+
+    # This season: A and B both concede 10 (average). Last season A conceded 5, B 15.
+    now = rows([("A", 10), ("B", 10)], "2026-09-01")
+    last = rows([("A", 5), ("B", 15)] * 10, "2025-09-01")
+    f_now = opponent_factors(now)
+    assert f_now["A"][0] == f_now["B"][0] == 1.0
+    f = opponent_factors(now, prev_rows=last)
+    assert f["A"][0] < 1.0 < f["B"][0]  # last season's mean defence still counts
+    # 1 match now + 10 last season at half weight (5) + 3 average: (1*1 + 5*0.5 + 3)/9
+    assert abs(f["A"][0] - (1 + 5 * 0.5 + 3) / 9) < 1e-9
+    assert opponent_factors(now, prev_rows=last, prev_weight=0)["A"][0] == 1.0

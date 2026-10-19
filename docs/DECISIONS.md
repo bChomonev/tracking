@@ -8,6 +8,17 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-042 — Shooter odds: the opponent's defence remembers last season · 2026-10-19 · accepted
+Question from the user: do player shot chances account for the opponent (e.g. Ipswich at
+City)? They did (× shots / npxG the opponent concedes vs the league), but from this season
+only, shrunk by three average matches, so early in a season a strong defence barely
+counted. Walk-forward test on every start in 2025-26 and 2026-27 (chosen on the PL, checked
+on La Liga, Serie A and the Bundesliga): adding last season's concession at half weight
+improved 15 of 16 Brier checks (1+ shots, 2+ shots, on target, goal × four leagues; the one
+loss was 1+ shots in the Bundesliga by 0.0002). Making the factor count more (power 1.5 or
+2) was worse everywhere; dropping it was worse everywhere, so it matters. Promoted sides
+have no last season in the league and are shrunk towards average as before.
+
 ## D-041 — Two Notes per match: one with the column, one midway · 2026-10-19 · accepted
 Substack Notes are how new readers find the newsletter, but more than two per match would
 turn the column into spam (user's call). The post step writes two Notes from the same fact
