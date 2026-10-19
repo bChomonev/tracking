@@ -8,6 +8,15 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-044 — Tested-prediction cards lead with a plain verdict · 2026-10-19 · accepted
+The "Match previews: what was tested" cards showed raw Brier / RPS scores (0.206 vs 0.220)
+that a fan can't read ("is it good, can I rely on it?"). Each line now leads with a verdict
+from how much the prediction beats its simple guess on matches it never saw: Useful (≥5%
+more accurate, or "which side gets more" right ≥58% vs a coin toss's 50%), Slight edge
+(2-5%, 54-58%), Barely better (a real gain under 2%), No better than a guess (then the site
+uses the plain average, and says so). Then the plain "% more accurate than …" and, in small
+print, the test score. Each card opens with a one-line bottom line and the section with a key.
+
 ## D-043 — Corners: pressure stats tested, not adopted · 2026-10-19 · rejected
 Question from the user: would corners improve if, like the shooters' opponent factor, we used
 more than past corners? The corner model already uses both sides (a team's corners won ×
