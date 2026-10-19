@@ -316,9 +316,15 @@ def chart_lines(facts: dict, path: Path) -> None:
     ax.axis("off")
     ax.text(0, len(rows) - 0.25, "worst line", color=RED, fontsize=8, ha="center")
     ax.text(1, len(rows) - 0.25, "elite line", color=GREEN, fontsize=8, ha="center")
+    mt = facts["match"]
+    gf, ga = mt["score"].split("-")
+    fixture = (
+        f"{mt['opponent']} {ga}-{gf} {facts['team']}"
+        if mt.get("venue") == "away"
+        else f"{facts['team']} {gf}-{ga} {mt['opponent']}"
+    )
     fig.suptitle(
-        f"{facts['team']} v {facts['match']['opponent']} {facts['match']['score']}: "
-        "the metrics that decide matches",
+        f"{fixture}: the metrics that decide matches",
         fontsize=11,
         color=INK,
         x=0.02,
