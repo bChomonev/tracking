@@ -324,6 +324,7 @@ td.cell { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 td.h-good { background: var(--good-bg); color: var(--good); }
 td.h-mid { background: var(--mid-bg); color: var(--mid); }
 td.h-bad { background: var(--bad-bg); color: var(--bad); }
+tr.fav-miss > td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
 .res { display: inline-block; font: 700 .8rem/1 var(--body); width: 1.6em; padding: 4px 0; text-align: center; border-radius: 3px; color: #fff; }
 .res.W { background: var(--good); } .res.D { background: var(--mid); } .res.L { background: var(--bad); }
 :root:not([data-theme="light"]) .res { color: var(--bg); }
@@ -471,6 +472,7 @@ th[aria-sort] button::after { content: " ▾"; }
         <figure class="proof-chart" id="bt-calib"></figure>
       </div>
       <h3 class="proof-h">This season, prediction by prediction</h3>
+      <p class="proof-note" id="bt-record-note"></p>
       <div class="table-wrap"><table id="bt-record"></table></div>
       <p class="bl-foot" id="bt-foot"></p>
     </section>
@@ -1333,8 +1335,13 @@ th[aria-sort] button::after { content: " ▾"; }
           ["Without team news", "The same score if we had ignored who was out injured or suspended. Lower than the RPS column means team news made this prediction worse."],
           ["Bookmakers RPS", "The same score for the bookmakers' average pre-match odds. Lower than ours means they called it better. — means their odds aren't in yet: they're added when football-data.co.uk publishes them, usually within a few days.", true],
         ].map(([l, tip, end]) => `<th><span class="tip below${end ? " end" : ""}" tabindex="0" data-tip="${esc(tip)}">${l}</span></th>`).join("") + `</tr></thead><tbody>` +
-          R.matches.map((e) => `<tr><td class="l">${esc(short(e.home))} v ${esc(short(e.away))}</td><td class="cell">${esc(e.score)}</td>${e.p.map((x, i) => `<td class="cell ${"HDA"[i] === e.result ? "h-good" : ""}">${pc(x)}</td>`).join("")}<td class="cell">${e.rps.toFixed(3)}</td><td class="cell">${e.rps_base != null ? e.rps_base.toFixed(3) : "—"}</td><td class="cell">${e.avg_rps != null ? e.avg_rps.toFixed(3) : "—"}</td></tr>`).join("") + "</tbody>"
+          R.matches.map((e) => { const fav = e.p.indexOf(Math.max(...e.p)), miss = "HDA"[fav] !== e.result;
+            return `<tr class="${miss ? "fav-miss" : ""}"><td class="l">${esc(short(e.home))} v ${esc(short(e.away))}</td><td class="cell">${esc(e.score)}</td>${e.p.map((x, i) => `<td class="cell ${"HDA"[i] === e.result ? "h-good" : miss && i === fav ? "h-bad" : ""}"${miss && i === fav ? ' title="Our favourite: it didn\'t happen"' : ""}>${pc(x)}</td>`).join("")}<td class="cell">${e.rps.toFixed(3)}</td><td class="cell">${e.rps_base != null ? e.rps_base.toFixed(3) : "—"}</td><td class="cell">${e.avg_rps != null ? e.avg_rps.toFixed(3) : "—"}</td></tr>`; }).join("") + "</tbody>"
         : `<tbody><tr><td class="l">No predictions scored yet. The first ones, for the next round, were saved on ${esc(when(PRD.generated_at, true))}.</td></tr></tbody>`;
+      const favHit = R.matches.filter((e) => "HDA"[e.p.indexOf(Math.max(...e.p))] === e.result).length;
+      $("bt-record-note").textContent = R.matches.length
+        ? `Green: what happened. Red: our favourite (the result we gave the biggest chance), in the games where it didn't happen. Our favourite came in ${favHit} of ${R.matches.length} times so far.`
+        : "";
       $("bt-foot").textContent = `What the ratings use: Understat non-penalty xG created and conceded, goals, and the share of the 5 core elite and worst lines reached, each match opponent-adjusted and weighted so the last ~24 matches count half. Honest result: the line features add very little on top of xG and goals, and the model trails the bookmakers by about ${((pooled.model.rps - (pooled.avg?.rps ?? pooled.model.rps))).toFixed(3)} RPS — they also know injuries and line-ups. Bookmaker odds (football-data.co.uk) are used only as this benchmark.${PRD.calibration_test ? (PRD.calibration_applied ? ` The model's favourites won a little less often than it said, so its chances are softened slightly (by an amount learned only from earlier seasons, ${PRD.temperature.toFixed(2)} this season): RPS ${PRD.calibration_test.rps_raw.toFixed(4)} before, ${PRD.calibration_test.rps_calibrated.toFixed(4)} after.` : ` A softening step for over-confident chances was tested here and didn't help (RPS ${PRD.calibration_test.rps_raw.toFixed(4)} without, ${PRD.calibration_test.rps_calibrated.toFixed(4)} with), so it is off.`) : ""}${PRD.backtest_goals ? ` Scorelines and goal lines come from a separate goals model: over 2.5 goals Brier ${PRD.backtest_goals.over.toFixed(3)} vs ${PRD.backtest_goals.over_base.toFixed(3)} for the league rate and ${PRD.backtest_goals.over_book.toFixed(3)} for the bookmakers.` : ""}`;
     }
     // Match previews: what was tested
