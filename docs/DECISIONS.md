@@ -8,6 +8,14 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-039 — "Next round" follows FotMob matchdays · 2026-10-19 · accepted
+The next round was guessed from Understat's fixture list: from the next kickoff, stop when a
+team appears twice or after 8 days. A Monday leftover (Spurs v Coventry) or a rearranged
+midweek game made the following weekend stop after two or three games. Now FotMob's matchday
+number decides it: the first matchday with at least half its games still to play, plus any
+leftovers of earlier matchdays kicking off before it ends. Falls back to the old window if
+FotMob has no round for a fixture.
+
 ## D-038 — Predictions get their own tab · 2026-10-19 · accepted
 "How good are the predictions?" and "Match previews: what was tested" move out of How we know
 into a Predictions tab (`#predictions[/<league>]`, own league switch); How we know keeps the

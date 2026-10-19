@@ -89,6 +89,31 @@ def test_next_round_stops_when_a_team_plays_again():
     assert [m["id"] for m in P.next_round(fx, datetime(2026, 10, 15))] == ["1", "2"]
 
 
+def test_next_round_uses_matchdays_and_keeps_leftovers():
+    from datetime import datetime
+
+    # 8 teams → 4 games a matchday. Matchday 7 has one Monday leftover; matchday 8 is full
+    # even though team A (Monday) plays again on Saturday; matchday 9 is left out.
+    fx = [
+        {"id": "m7", "played": False, "kickoff": "2026-10-19 19:00:00", "home": "A", "away": "B"},
+        {"id": "a8", "played": False, "kickoff": "2026-10-23 19:00:00", "home": "C", "away": "D"},
+        {"id": "b8", "played": False, "kickoff": "2026-10-24 14:00:00", "home": "A", "away": "E"},
+        {"id": "c8", "played": False, "kickoff": "2026-10-25 14:00:00", "home": "B", "away": "F"},
+        {"id": "d8", "played": False, "kickoff": "2026-10-25 16:30:00", "home": "G", "away": "H"},
+        {"id": "a9", "played": False, "kickoff": "2026-10-31 12:30:00", "home": "C", "away": "A"},
+    ]
+    rounds = {
+        ("A", "B"): 7,
+        ("C", "D"): 8,
+        ("A", "E"): 8,
+        ("B", "F"): 8,
+        ("G", "H"): 8,
+        ("C", "A"): 9,
+    }
+    got = P.next_round(fx, datetime(2026, 10, 19, 10), rounds=rounds)
+    assert [m["id"] for m in got] == ["m7", "a8", "b8", "c8", "d8"]
+
+
 def test_temper_keeps_order_and_softens_above_one():
     p = np.array([[0.7, 0.2, 0.1], [0.2, 0.3, 0.5]])
     assert np.allclose(P.temper(p, 1.0), p)

@@ -197,7 +197,17 @@ def main() -> None:
             ],
         }
 
-    nxt_ms = P.next_round(current, now)
+    # FotMob's matchday numbers decide what "the next round" is (leftover Monday games and
+    # rearranged midweek ones must not cut the following matchday short).
+    fm_round = {(m["home"]["name"], m["away"]["name"]): m.get("round") for m in fm_fix}
+    rounds = {
+        (m["home"], m["away"]): fm_round.get(
+            (names.get(m["home"], m["home"]), names.get(m["away"], m["away"]))
+        )
+        for m in current
+    }
+    rounds = {k: int(v) for k, v in rounds.items() if str(v or "").isdigit()}
+    nxt_ms = P.next_round(current, now, rounds=rounds)
     nxt = [fixture(m) for m in nxt_ms]
 
     # Team news (D-026): FotMob's unavailable lists for the next round, weighted by each

@@ -694,15 +694,35 @@ def simulate(
     }
 
 
-def next_round(fixtures: list[dict], now: datetime, days: int = 8) -> list[dict]:
-    """The next round: upcoming fixtures from the next kickoff, stopping when a team would
-    appear twice (the following round) or after ``days``."""
+def next_round(
+    fixtures: list[dict], now: datetime, days: int = 8, rounds: dict | None = None
+) -> list[dict]:
+    """The next round: upcoming fixtures from the next kickoff.
+
+    With ``rounds`` ((home, away) → matchday, from FotMob) it is the first matchday that still
+    has at least half its games to play, plus any leftovers of earlier matchdays (a Monday
+    game, a rearranged midweek one) kicking off before that matchday ends. Without it, the
+    window stops when a team would appear twice (the following round) or after ``days``."""
     ahead = sorted(
         (m for m in fixtures if not m["played"] and datetime.fromisoformat(m["kickoff"]) > now),
         key=lambda m: m["kickoff"],
     )
     if not ahead:
         return []
+    rnd = {m["id"]: (rounds or {}).get((m["home"], m["away"])) for m in ahead}
+    if rounds and all(r is not None for r in rnd.values()):
+        teams = {t for m in fixtures for t in (m["home"], m["away"])}
+        per_round: dict[int, int] = {}
+        for r in rnd.values():
+            per_round[r] = per_round.get(r, 0) + 1
+        main = min((r for r, n in per_round.items() if 4 * n >= len(teams)), default=None)
+        if main is not None:
+            end = max(m["kickoff"] for m in ahead if rnd[m["id"]] == main)
+            return [
+                m
+                for m in ahead
+                if rnd[m["id"]] == main or (rnd[m["id"]] < main and m["kickoff"] <= end)
+            ]
     first = datetime.fromisoformat(ahead[0]["kickoff"])
     out, seen = [], set()
     for m in ahead:
