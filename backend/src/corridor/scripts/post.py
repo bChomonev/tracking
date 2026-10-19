@@ -72,6 +72,90 @@ numbers (checked separately).
 Return ONLY JSON: {"unsupported": [{"claim": "exact quote", "reason": "..."}]}"""
 
 
+NOTES = """\
+You write short Substack Notes (social posts inside Substack) for the week after this \
+match, from the FACT SHEET only, in the HOUSE STYLE's voice and number rules. Notes are how \
+new readers find the newsletter, so each one must make sense to a United fan who has never \
+heard of it.
+
+Return ONLY JSON:
+{"notes": [{"kind": "matchday" | "data" | "question",
+            "when": "match night" | "day 1" | "day 2" | "day 3" | "day 4" | "before the next match",
+            "text": "the Note",
+            "chart": null | {"title": "short", "unit": "goals" | "km" | "%" | "" ,
+                             "bars": [{"label": "short", "value": number}],
+                             "reference": null | {"label": "short", "value": number}}}]}
+
+Write 6 Notes: 1 "matchday" (one sharp number about the game, for the evening it's played), \
+3 "data" (one striking number each, with a chart of 2-4 bars, e.g. us vs them, or this \
+match vs the elite or worst line as the reference), 2 "question" (a real question to fans \
+that the numbers set up, e.g. who was our best player, ending with a question mark). Order \
+them by "when"; the last one looks ahead to the next match.
+Rules: 2-4 short sentences, at most 280 characters of text where possible. One idea per \
+Note. Every number as in the fact sheet, rounded the way a fan says it (1.19 goals, not \
+1.187; 21 metres, not 21.31), and every comparison with both sides spelled out. Readers \
+are strangers: never write "elite line" or "worst line" bare; say what it is ("what last \
+season's top four managed in a typical win", "what the bottom four did in a typical \
+defeat"), and label chart bars the same way ("Top four, typical win"). Explain any other \
+jargon in passing. No hashtags, no emojis, no "link in bio", no \
+hype. Opinion is marked as opinion. Nothing from "not_measured" as fact. Chart values must \
+be numbers from the fact sheet."""
+
+
+def check_notes(notes: dict, facts: dict) -> list[str]:
+    items = notes.get("notes") if isinstance(notes, dict) else None
+    if not items:
+        return ["no notes"]
+    allowed = allowed_numbers(facts) | {1, 2, 3, 4, 5}
+    found = []
+    for n in items:
+        found += numbers_in(n.get("text", ""))
+        ch = n.get("chart") or {}
+        found += [str(b.get("value")) for b in ch.get("bars", [])]
+        if ch.get("reference"):
+            found.append(str(ch["reference"].get("value")))
+    bad = sorted({x for x in found if not is_supported(x, allowed)})
+    return [f"numbers not in the fact sheet: {', '.join(bad)}"] if bad else []
+
+
+def write_notes(facts: dict) -> tuple[dict, dict]:
+    """Six Note ideas for the week after the match (one call, numbers checked)."""
+    client = OpenAI(
+        base_url=settings.llm_base_url,
+        api_key=settings.llm_api_key,
+        timeout=TIMEOUT_S,
+        max_retries=0,
+    )
+    meta: dict = {"model": settings.llm_model, "calls": 1, "rejected": []}
+    user = "HOUSE STYLE:\n" + STYLE + "\n\nFACT SHEET:\n" + json.dumps(facts, ensure_ascii=False)
+    text, msgs = _ask(client, settings.llm_model, NOTES, user, 6000, "medium")
+    notes = _parse_json(text)
+    problems = check_notes(notes, facts)
+    if problems:
+        meta["rejected"].append(problems)
+        notes = _parse_json(_fix(client, settings.llm_model, msgs, text, problems, 6000))
+        meta["calls"] += 1
+        if check_notes(notes, facts):
+            raise RuntimeError(
+                f"notes quote numbers not in the fact sheet: {check_notes(notes, facts)}"
+            )
+    return notes, meta
+
+
+def notes_markdown(notes: dict, images: dict[int, str]) -> str:
+    out = [
+        "# Note ideas for the week",
+        "",
+        "Pick the ones you like and schedule them in Substack.",
+        "",
+    ]
+    for i, n in enumerate(notes["notes"]):
+        out += [f"## {i + 1}. {n.get('when', '')} · {n.get('kind', '')}", "", n.get("text", ""), ""]
+        if i in images:
+            out += [f"![chart]({images[i]})", ""]
+    return "\n".join(out)
+
+
 def _texts(post: dict) -> list[str]:
     out = [post.get("title", ""), post.get("subtitle", ""), post.get("opener", "")]
     for s in post.get("sections", []):
@@ -328,6 +412,7 @@ def main() -> None:
     ap.add_argument("--team", default=None)
     ap.add_argument("--match", default="latest", help="FotMob match id, or 'latest'")
     ap.add_argument("--no-llm", action="store_true", help="facts and charts only")
+    ap.add_argument("--notes-only", action="store_true", help="only the Note ideas, no column")
     args = ap.parse_args()
     lg = LEAGUES[args.league]
     team = args.team or lg.focus_team
@@ -395,6 +480,32 @@ def main() -> None:
     print(f"facts + charts → {out}")
     if args.no_llm:
         return
+    if not args.notes_only:
+        draft_column(facts, team, mt, out, images)
+    try:
+        notes, nmeta = write_notes(facts)
+    except (
+        RuntimeError,
+        TruncatedError,
+        APIStatusError,
+        APIConnectionError,
+        json.JSONDecodeError,
+    ) as e:
+        print(f"note ideas failed: {e}")
+        return
+    charts = {}
+    for i, n in enumerate(notes["notes"]):
+        if (n.get("chart") or {}).get("bars"):
+            charts[i] = f"note-{i + 1}.png"
+            POST.chart_note(n["chart"], out / charts[i])
+    (out / "notes.json").write_text(
+        json.dumps(notes | {"meta": nmeta}, indent=1, ensure_ascii=False)
+    )
+    (out / "notes.md").write_text(notes_markdown(notes, charts))
+    print(f"notes: {len(notes['notes'])} ideas, {len(charts)} chart(s) → {out / 'notes.md'}")
+
+
+def draft_column(facts: dict, team: str, mt: dict, out: Path, images: dict) -> None:
     plan, post, meta = write(facts, team)
     post["chart_captions"] = POST.captions(facts)
     (out / "plan.json").write_text(json.dumps(plan, indent=1, ensure_ascii=False))

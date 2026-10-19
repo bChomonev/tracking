@@ -8,6 +8,16 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-041 — Six Note ideas after every match · 2026-10-19 · accepted
+Substack Notes are how new readers find the newsletter, so the post step now also writes six
+Note ideas from the same fact sheet (1 match-night, 3 one-number data Notes with a small bar
+chart each, 2 questions to fans), ordered across the week, into `notes.md` / `notes.json` /
+`note-N.png` beside the column. Same number check as the column (text and chart values must
+come from the sheet); written for strangers, so "elite line" / "worst line" are always spelled
+out ("what last season's top four managed in a typical win"). Ideas only: the user picks and
+schedules them in Substack (scheduling through browser automation doesn't work).
+`post --notes-only` regenerates them without redrafting the column.
+
 ## D-040 — Champions League columns; "Who stood out" from role comparisons · 2026-10-19 · accepted
 United's Champions League games get a post-match column like league games (`post
 --competition ucl`; the update job drafts one after each). No prediction section: we don't

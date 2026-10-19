@@ -599,3 +599,46 @@ def slug(text: str) -> str:
 
 def pct(x: float | None) -> int | None:
     return None if x is None else int(round(100 * x)) if not math.isnan(x) else None
+
+
+def chart_note(spec: dict, path: Path) -> None:
+    """A small bar chart for a Note: 2-4 bars from the fact sheet, optionally a dashed
+    reference line (e.g. the worst line), the value written at the end of each bar."""
+    bars = spec["bars"][:4]
+    fig, ax = plt.subplots(figsize=(7.5, 1.1 + 0.85 * len(bars)), dpi=200)
+    ys = list(range(len(bars)))[::-1]
+    vals = [float(b["value"]) for b in bars]
+    cols = [RED if i == 0 else INK for i in range(len(bars))]
+    ax.barh(ys, vals, color=cols, height=0.55)
+    ref = spec.get("reference")
+    allv = vals + ([float(ref["value"])] if ref else [])
+    hi, lo = max(allv + [0.0]), min(allv + [0.0])
+    span = (hi - lo) or 1.0
+    unit = f" {spec['unit']}" if spec.get("unit") else ""
+    for y, v in zip(ys, vals, strict=True):
+        # The label sits past the bar's end, on whichever side the bar grows.
+        x, ha = (v + span * 0.015, "left") if v >= 0 else (v - span * 0.015, "right")
+        ax.text(x, y, f"{v:g}{unit}", va="center", ha=ha, fontsize=11, color=INK, weight="bold")
+    if lo < 0:
+        ax.axvline(0, color=INK, lw=0.8)
+    if ref:
+        ax.axvline(float(ref["value"]), color=MUTED, ls="--", lw=1.2)
+        ax.text(
+            float(ref["value"]) + span * 0.012,
+            len(bars) - 0.35,
+            f"{ref['label']}: {float(ref['value']):g}",
+            fontsize=8.5,
+            color=MUTED,
+            va="top",
+        )
+    ax.set_yticks(ys, [b["label"] for b in bars], fontsize=11)
+    ax.set_xlim(lo - span * 0.3 if lo < 0 else 0, hi + span * 0.3)
+    ax.set_ylim(-0.6, len(bars) - 0.2)
+    for side in ("top", "right", "left"):
+        ax.spines[side].set_visible(False)
+    ax.tick_params(axis="y", length=0)
+    ax.tick_params(axis="x", colors=MUTED, labelsize=8)
+    ax.set_title(spec.get("title", ""), fontsize=10.5, color=INK, loc="left")
+    fig.tight_layout()
+    fig.savefig(path, facecolor="white")
+    plt.close(fig)

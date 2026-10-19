@@ -81,3 +81,31 @@ def test_ucl_view_keeps_league_lines_but_not_for_uefa_running():
     by = {m["key"]: m for m in ucl_view(prof)["metrics"]}
     assert by["npxg"]["best_line"] == line and by["npxg"]["impact"]["tier"] == "decisive"
     assert by["distance_gap_km"]["best_line"] is None and by["distance_gap_km"]["impact"] is None
+
+
+def test_note_numbers_and_chart_values_must_come_from_the_fact_sheet(tmp_path):
+    from corridor.post import chart_note
+    from corridor.scripts.post import check_notes
+
+    facts = {"match": {"xg_for": 0.92, "xg_against": 1.41}, "set_pieces": 1.187}
+    ok = {
+        "notes": [
+            {
+                "text": "Leeds' chances were worth 1.41 goals; ours 0.92.",
+                "chart": {
+                    "bars": [{"label": "Leeds", "value": 1.41}, {"label": "Us", "value": 0.92}],
+                    "reference": None,
+                },
+            }
+        ]
+    }
+    assert check_notes(ok, facts) == []
+    bad = {
+        "notes": [
+            {"text": "Ours were worth 0.92.", "chart": {"bars": [{"label": "x", "value": 2.7}]}}
+        ]
+    }
+    assert "2.7" in check_notes(bad, facts)[0]
+    assert check_notes({"notes": []}, facts)
+    chart_note(ok["notes"][0]["chart"] | {"title": "T", "unit": "goals"}, tmp_path / "n.png")
+    assert (tmp_path / "n.png").stat().st_size > 1000
