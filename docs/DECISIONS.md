@@ -8,15 +8,17 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
-## D-041 — Six Note ideas after every match · 2026-10-19 · accepted
-Substack Notes are how new readers find the newsletter, so the post step now also writes six
-Note ideas from the same fact sheet (1 match-night, 3 one-number data Notes with a small bar
-chart each, 2 questions to fans), ordered across the week, into `notes.md` / `notes.json` /
-`note-N.png` beside the column. Same number check as the column (text and chart values must
-come from the sheet); written for strangers, so "elite line" / "worst line" are always spelled
-out ("what last season's top four managed in a typical win"). Ideas only: the user picks and
-schedules them in Substack (scheduling through browser automation doesn't work).
-`post --notes-only` regenerates them without redrafting the column.
+## D-041 — Two Notes per match: one with the column, one midway · 2026-10-19 · accepted
+Substack Notes are how new readers find the newsletter, but more than two per match would
+turn the column into spam (user's call). The post step writes two Notes from the same fact
+sheet into `notes.md` / `notes.json` / `note-N.png`: one to post with the column (its
+question and answer plus one number; it is given the column's title, subtitle and angle,
+and the published `post-edited.md` wins when it exists, so it can't contradict the column)
+and one "midway" Note with a small bar chart, timed for noon UK on the day halfway to the
+next match in any competition. Same number check as the column; written for strangers, so
+"elite line" / "worst line" are always spelled out; weekdays come from the sheet, never
+guessed. The user schedules them in Substack (scheduling via browser automation doesn't
+work). `post --notes-only` regenerates them without redrafting the column.
 
 ## D-040 — Champions League columns; "Who stood out" from role comparisons · 2026-10-19 · accepted
 United's Champions League games get a post-match column like league games (`post

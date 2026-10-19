@@ -7,6 +7,7 @@ FotMob match page (events, shot map) and the predictions log (what we said befor
 """
 
 import math
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -253,6 +254,7 @@ def match_facts(
             "opponent": mt["opponent"],
             "venue": "home" if home else "away",
             "date": mt["kickoff_utc"][:10],
+            "weekday": datetime.fromisoformat(mt["kickoff_utc"][:10]).strftime("%A"),
             "score": f"{mt['goals_for']}-{mt['goals_against']}",
             "result": {"W": "win", "D": "draw", "L": "defeat"}[mt["result"]],
             "possession_pct": mt.get("possession_pct"),
@@ -354,6 +356,8 @@ def match_facts(
             "anything a player or coach said",
         ],
     }
+    for n in out["next_matches"]:
+        n.setdefault("weekday", datetime.fromisoformat(n["kickoff_utc"][:10]).strftime("%A"))
     # FotMob's headline xG and the sum of its shot map occasionally disagree (Atlético v
     # United: 1.47 vs 1.79). The lines use the headline figure, so the column must too.
     sh, m = out["shots_summary"], out["match"]

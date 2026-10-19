@@ -14,8 +14,10 @@ import html
 import json
 import re
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from datetime import time as dtime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from openai import APIConnectionError, APIStatusError, OpenAI
 
@@ -73,33 +75,33 @@ Return ONLY JSON: {"unsupported": [{"claim": "exact quote", "reason": "..."}]}""
 
 
 NOTES = """\
-You write short Substack Notes (social posts inside Substack) for the week after this \
-match, from the FACT SHEET only, in the HOUSE STYLE's voice and number rules. Notes are how \
-new readers find the newsletter, so each one must make sense to a United fan who has never \
-heard of it.
+You write two short Substack Notes (social posts inside Substack) about this match, from \
+the FACT SHEET only, in the HOUSE STYLE's voice and number rules. Notes are how new readers \
+find the newsletter, so each must make sense to a United fan who has never heard of it. \
+Two per match, never more: the column must not turn into spam.
 
 Return ONLY JSON:
-{"notes": [{"kind": "matchday" | "data" | "question",
-            "when": "match night" | "day 1" | "day 2" | "day 3" | "day 4" | "before the next match",
+{"notes": [{"kind": "with the column" | "midway",
             "text": "the Note",
-            "chart": null | {"title": "short", "unit": "goals" | "km" | "%" | "" ,
+            "chart": null | {"title": "short", "unit": "goals" | "km" | "%" | "",
                              "bars": [{"label": "short", "value": number}],
                              "reference": null | {"label": "short", "value": number}}}]}
 
-Write 6 Notes: 1 "matchday" (one sharp number about the game, for the evening it's played), \
-3 "data" (one striking number each, with a chart of 2-4 bars, e.g. us vs them, or this \
-match vs the elite or worst line as the reference), 2 "question" (a real question to fans \
-that the numbers set up, e.g. who was our best player, ending with a question mark). Order \
-them by "when"; the last one looks ahead to the next match.
-Rules: 2-4 short sentences, at most 280 characters of text where possible. One idea per \
-Note. Every number as in the fact sheet, rounded the way a fan says it (1.19 goals, not \
-1.187; 21 metres, not 21.31), and every comparison with both sides spelled out. Readers \
-are strangers: never write "elite line" or "worst line" bare; say what it is ("what last \
-season's top four managed in a typical win", "what the bottom four did in a typical \
-defeat"), and label chart bars the same way ("Top four, typical win"). Explain any other \
-jargon in passing. No hashtags, no emojis, no "link in bio", no \
-hype. Opinion is marked as opinion. Nothing from "not_measured" as fact. Chart values must \
-be numbers from the fact sheet."""
+1. "with the column": posted with the column (Substack attaches the post's card, so no \
+chart). The column's question and its short answer, plus the one number that makes the \
+case, in 2-3 sentences.
+2. "midway": posted halfway to the next match, standing on its own (no link). The single \
+most striking number from the match that the column didn't lead with, with a chart of 2-4 \
+bars (us vs them, or us vs the top four / bottom four). End with one sentence on why it \
+matters for the next match, or a real question to fans.
+Rules: at most about 280 characters of text each. Every number as in the fact sheet, \
+rounded the way a fan says it (1.19 goals, not 1.187; 21 metres, not 21.31), and every \
+comparison with both sides spelled out. Readers are strangers: never write "elite line" \
+or "worst line" bare; say what it is ("what last season's top four managed in a typical \
+win", "what the bottom four did in a typical defeat"), and label chart bars the same way \
+("Top four, typical win"). Explain any other jargon in passing. Days of the week only from \
+"weekday" fields. No hashtags, no emojis, no hype. Opinion is marked as opinion. \
+Nothing from "not_measured" as fact. Chart values must be numbers from the fact sheet."""
 
 
 def check_notes(notes: dict, facts: dict) -> list[str]:
@@ -118,8 +120,8 @@ def check_notes(notes: dict, facts: dict) -> list[str]:
     return [f"numbers not in the fact sheet: {', '.join(bad)}"] if bad else []
 
 
-def write_notes(facts: dict) -> tuple[dict, dict]:
-    """Six Note ideas for the week after the match (one call, numbers checked)."""
+def write_notes(facts: dict, column: dict | None = None) -> tuple[dict, dict]:
+    """The two Notes for a match (one call, numbers checked)."""
     client = OpenAI(
         base_url=settings.llm_base_url,
         api_key=settings.llm_api_key,
@@ -128,6 +130,12 @@ def write_notes(facts: dict) -> tuple[dict, dict]:
     )
     meta: dict = {"model": settings.llm_model, "calls": 1, "rejected": []}
     user = "HOUSE STYLE:\n" + STYLE + "\n\nFACT SHEET:\n" + json.dumps(facts, ensure_ascii=False)
+    if column:
+        # The "with the column" Note must give the column's answer, not a new one.
+        user += (
+            "\n\nTHE COLUMN (the 'with the column' Note gives exactly this answer):\n"
+            + json.dumps(column, ensure_ascii=False)
+        )
     text, msgs = _ask(client, settings.llm_model, NOTES, user, 6000, "medium")
     notes = _parse_json(text)
     problems = check_notes(notes, facts)
@@ -142,15 +150,33 @@ def write_notes(facts: dict) -> tuple[dict, dict]:
     return notes, meta
 
 
-def notes_markdown(notes: dict, images: dict[int, str]) -> str:
+def midway(facts: dict) -> str:
+    """When to post the midway Note: noon UK on the day halfway between this match and the
+    next one (or three days after, if no next match is known)."""
+    played = datetime.fromisoformat(facts["match"]["date"] + "T12:00:00+00:00")
+    nxt = (facts.get("next_matches") or [{}])[0].get("kickoff_utc")
+    after = datetime.fromisoformat(nxt.replace("Z", "+00:00")) if nxt else None
+    if after and after.tzinfo is None:
+        after = after.replace(tzinfo=UTC)
+    day = (played + (after - played) / 2) if after else played + timedelta(days=3)
+    uk = datetime.combine(day.date(), dtime(12), tzinfo=ZoneInfo("Europe/London"))
+    local = uk.astimezone(ZoneInfo("Europe/Sofia"))
+    return f"{uk:%a %d %b}, 12:00 UK ({local:%H:%M} your time)"
+
+
+def notes_markdown(notes: dict, images: dict[int, str], facts: dict) -> str:
+    when = {
+        "with the column": "with the column (attach the post when you share it)",
+        "midway": midway(facts),
+    }
     out = [
-        "# Note ideas for the week",
+        "# Notes for this match",
         "",
-        "Pick the ones you like and schedule them in Substack.",
+        "Two Notes per match: one with the column, one midway.",
         "",
     ]
     for i, n in enumerate(notes["notes"]):
-        out += [f"## {i + 1}. {n.get('when', '')} · {n.get('kind', '')}", "", n.get("text", ""), ""]
+        out += [f"## {when.get(n.get('kind'), n.get('kind', ''))}", "", n.get("text", ""), ""]
         if i in images:
             out += [f"![chart]({images[i]})", ""]
     return "\n".join(out)
@@ -482,8 +508,18 @@ def main() -> None:
         return
     if not args.notes_only:
         draft_column(facts, team, mt, out, images)
+    column = {}
+    for name, keys in (("post.json", ("title", "subtitle")), ("plan.json", ("angle",))):
+        if (out / name).exists():
+            d = json.loads((out / name).read_text())
+            column |= {k: d[k] for k in keys if d.get(k)}
+    edited = out / "post-edited.md"  # the version actually published, when there is one
+    if edited.exists():
+        lines = edited.read_text().splitlines()
+        column["title"] = lines[0].lstrip("# ").strip()
+        column["subtitle"] = lines[2].strip("* ")
     try:
-        notes, nmeta = write_notes(facts)
+        notes, nmeta = write_notes(facts, column or None)
     except (
         RuntimeError,
         TruncatedError,
@@ -501,8 +537,8 @@ def main() -> None:
     (out / "notes.json").write_text(
         json.dumps(notes | {"meta": nmeta}, indent=1, ensure_ascii=False)
     )
-    (out / "notes.md").write_text(notes_markdown(notes, charts))
-    print(f"notes: {len(notes['notes'])} ideas, {len(charts)} chart(s) → {out / 'notes.md'}")
+    (out / "notes.md").write_text(notes_markdown(notes, charts, facts))
+    print(f"notes: {len(notes['notes'])}, {len(charts)} chart(s) → {out / 'notes.md'}")
 
 
 def draft_column(facts: dict, team: str, mt: dict, out: Path, images: dict) -> None:
