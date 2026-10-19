@@ -8,6 +8,15 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-045 — Prediction charts get a plain bottom line · 2026-10-19 · accepted
+Same problem as D-044 for the two prediction charts. "Average RPS" becomes "How far off the
+predictions were", the base-rate bar becomes "Simple guess (how often home, draw and away
+happen)", and a bottom line says how much of the gap from that guess to the bookmakers our
+model closes (84-95% across the four leagues), with favourite hit rates. The calibration
+chart becomes "Are the percentages honest?", explains what a dot is, labels both axes ("what
+we said" / "how often it happened"), and states the average distance of a dot from the line
+(results-weighted, groups of 100+) and the furthest group.
+
 ## D-044 — Tested-prediction cards lead with a plain verdict · 2026-10-19 · accepted
 The "Match previews: what was tested" cards showed raw Brier / RPS scores (0.206 vs 0.220)
 that a fan can't read ("is it good, can I rely on it?"). Each line now leads with a verdict

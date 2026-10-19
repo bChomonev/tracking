@@ -1319,19 +1319,26 @@ th[aria-sort] button::after { content: " ▾"; }
       const seasons = BT.seasons.map((r) => r.season);
       const lbl = (y) => `${y}-${String((y + 1) % 100).padStart(2, "0")}`;
       $("bt-sub").textContent = `Tested the honest way: settings chosen on 2016-17 to 2019-20 and then frozen; for every season from ${lbl(seasons[0])} to ${lbl(seasons[seasons.length - 1])}, the model is trained only on earlier seasons and every match is predicted with what was known before kickoff. ${pooled.model.n.toLocaleString()} matches. Score: RPS (ranked probability score) — 0 is perfect, lower is better; it rewards putting probability near the right result.`;
-      const rows = [["Our model", pooled.model, "ink"], ["Base rates (home/draw/away frequency)", pooled.base, "muted"], ["Bookmakers, pre-match average", pooled.avg, "good"], ["Bookmakers, closing (sharpest)", pooled.closing, "good"]].filter((r) => r[1]);
+      const rows = [["Our model", pooled.model, "ink"], ["Simple guess (how often home, draw and away happen)", pooled.base, "muted"], ["Bookmakers, pre-match average", pooled.avg, "good"], ["Bookmakers, closing (sharpest)", pooled.closing, "good"]].filter((r) => r[1]);
       const lo = 0.18, hi = 0.24;
-      $("bt-scores").innerHTML = `<figcaption>Average RPS, ${lbl(seasons[0])} onward<small>Shorter is better. The bookmakers see team news and line-ups we don't.</small></figcaption>` +
+      // Plain reading (D-045): how much of the gap from a simple guess to the bookmakers we close.
+      const bk = pooled.avg || pooled.closing, gap = bk ? (pooled.base.rps - pooled.model.rps) / (pooled.base.rps - bk.rps) : null;
+      $("bt-scores").innerHTML = `<figcaption>How far off the predictions were<small>Average RPS per match since ${lbl(seasons[0])}: a shorter bar means less wrong. The bookmakers see team news and line-ups we don't.</small></figcaption>` +
+        `<p class="vd-bottom"><b>Bottom line:</b> ${gap != null ? `the gap between a simple guess and the bookmakers is ${(pooled.base.rps - bk.rps).toFixed(3)}; our model closes ${Math.round(100 * gap)}% of it. ` : ""}Our favourite won ${pc(pooled.model.hit_rate)} of matches${bk ? ` and the bookmakers' ${pc(bk.hit_rate)}` : ""}; just backing the home side every time would win ${pc(pooled.base.hit_rate)}.</p>` +
         rows.map(([name, s, c]) => `<div class="pbar" style="grid-template-columns: 13em minmax(0,1fr) 4.2em"><small>${name}</small><div class="track"><span style="width:${(100 * (s.rps - lo)) / (hi - lo)}%;background:var(--${c})"></span></div><b>${s.rps.toFixed(3)}</b></div><div class="pbar" style="grid-template-columns: 13em minmax(0,1fr) 4.2em"><span></span><small>favourite won ${pc(s.hit_rate)}</small><span></span></div>`).join("");
       const cal = BT.calibration, W = 360, H = 240, pad = 34;
       const X = (v) => pad + (W - pad - 10) * v, Y = (v) => H - pad - (H - pad - 10) * v;
-      $("bt-calib").innerHTML = `<figcaption>Calibration<small>When the model says 30%, does it happen 30% of the time? Dots on the diagonal = honest probabilities.</small></figcaption>
+      const big = cal.filter((c) => c.n >= 100), off = big.length ? big.reduce((a, c) => a + c.n * Math.abs(c.observed - c.predicted), 0) / big.reduce((a, c) => a + c.n, 0) : null;
+      const worst = big.reduce((w, c) => (!w || Math.abs(c.observed - c.predicted) > Math.abs(w.observed - w.predicted) ? c : w), null);
+      $("bt-calib").innerHTML = `<figcaption>Are the percentages honest?<small>Each dot groups every result we gave a similar chance (all the 20-30% calls, all the 30-40% calls…) and shows how often those results really happened. Bigger dot = more matches. On the dashed line = honest; above it = happened more than we said; below = less.</small></figcaption>
+        ${off != null ? `<p class="vd-bottom"><b>Bottom line:</b> honest. On average a dot is ${Math.max(1, Math.round(100 * off))} percentage point${Math.max(1, Math.round(100 * off)) === 1 ? "" : "s"} off the line${worst ? `; the furthest, ${pc(worst.predicted)} said vs ${pc(worst.observed)} happened (${worst.n} results)` : ""}. So when the model says 30%, expect roughly 30%.</p>` : ""}
         <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="Predicted against observed frequency">
           <line x1="${X(0)}" y1="${Y(0)}" x2="${X(1)}" y2="${Y(1)}" stroke="var(--rule)" stroke-dasharray="4 4"></line>
           ${[0, 0.25, 0.5, 0.75, 1].map((t) => `<text x="${X(t)}" y="${H - pad + 16}" text-anchor="${t === 1 ? "end" : "middle"}" style="font:11px var(--body);fill:var(--muted)">${t * 100}%</text><text x="${pad - 6}" y="${Y(t) + 4}" text-anchor="end" style="font:11px var(--body);fill:var(--muted)">${t * 100}%</text>`).join("")}
           <polyline fill="none" stroke="var(--ink)" stroke-width="1.5" points="${cal.map((c) => `${X(c.predicted).toFixed(1)},${Y(c.observed).toFixed(1)}`).join(" ")}"></polyline>
           ${cal.map((c) => `<circle cx="${X(c.predicted).toFixed(1)}" cy="${Y(c.observed).toFixed(1)}" r="${Math.max(3, Math.min(8, Math.sqrt(c.n) / 6)).toFixed(1)}" fill="var(--red)"><title>predicted ${pc(c.predicted)}, happened ${pc(c.observed)} (${c.n})</title></circle>`).join("")}
-          <text x="${(W + pad) / 2}" y="${H - 4}" text-anchor="middle" style="font:11px var(--body);fill:var(--muted)">predicted</text>
+          <text x="${(W + pad) / 2}" y="${H - 4}" text-anchor="middle" style="font:11px var(--body);fill:var(--muted)">what we said</text>
+          <text x="${pad + 6}" y="16" style="font:11px var(--body);fill:var(--muted)">how often it happened</text>
         </svg>`;
       const R = PRD.record;
       $("bt-record").innerHTML = R.matches.length
