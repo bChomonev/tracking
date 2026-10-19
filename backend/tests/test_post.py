@@ -28,3 +28,56 @@ def test_markdown_places_charts_and_the_ai_note():
     md = to_markdown(post, {"lines": "lines.png", "shots": "shots.png", "xg": "xg.png"})
     assert md.index("## H0") < md.index("lines.png") < md.index("## H1") < md.index("shots.png")
     assert "AI assistant" in md
+
+
+def test_standouts_count_ties_so_common_numbers_are_not_notable():
+    from corridor.post import standouts
+
+    # 30 full-backs' games: everyone dispossessed 0 times; duels won 1..30.
+    pool = [
+        {
+            "match_id": i,
+            "team": "X",
+            "name": f"p{i}",
+            "role": "FB",
+            "minutes": 90,
+            "duels_won": i,
+            "dispossessed": 0,
+        }
+        for i in range(1, 31)
+    ]
+    me = {
+        "match_id": 99,
+        "team": "Us",
+        "name": "Dalot",
+        "role": "FB",
+        "minutes": 90,
+        "duels_won": 31,
+        "dispossessed": 0,
+    }
+    (row,) = standouts(pool + [me], 99, "Us")
+    assert [t["stat"] for t in row["best_of_the_season_for_his_role"]] == ["duels won"]
+    best = row["best_of_the_season_for_his_role"][0]
+    assert best["games_with_better"] == 0 and best["games_with_the_same"] == 0
+    assert best["games_compared"] == 30
+
+
+def test_ucl_view_keeps_league_lines_but_not_for_uefa_running():
+    from corridor.post import ucl_view
+
+    line = {"value": 1.0}
+    prof = {
+        "metrics": [
+            {"key": "npxg", "best_line": line, "worst_line": line, "impact": {"tier": "decisive"}},
+            {
+                "key": "distance_gap_km",
+                "best_line": line,
+                "worst_line": line,
+                "impact": {"tier": "decisive"},
+            },
+        ],
+        "ucl": {"matches": [], "metrics": [{"key": "npxg"}, {"key": "distance_gap_km"}]},
+    }
+    by = {m["key"]: m for m in ucl_view(prof)["metrics"]}
+    assert by["npxg"]["best_line"] == line and by["npxg"]["impact"]["tier"] == "decisive"
+    assert by["distance_gap_km"]["best_line"] is None and by["distance_gap_km"]["impact"] is None

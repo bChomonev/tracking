@@ -40,8 +40,10 @@ Return ONLY JSON:
  "opener": "the one-line friendly greeting (vary it)",
  "sections": [{"heading": "short", "bullets": ["point, with the exact number(s) it uses"]}],
  "numbers_used": ["every number the column will quote, exactly as in the fact sheet"]}
-4-6 sections, 2-4 bullets each, at most about a dozen numbers in total. Bullets state \
-facts from the sheet or clearly-labelled opinion. Nothing from "not_measured" as fact."""
+4-6 sections, 2-4 bullets each, at most about a dozen numbers in total, plus the player \
+numbers in a "Who stood out" section built from "standouts" (each with its yardstick). \
+Bullets state facts from the sheet or clearly-labelled opinion. Nothing from \
+"not_measured" as fact."""
 
 DRAFT = """\
 You write the column from an approved PLAN, in the HOUSE STYLE. 600-900 words.
@@ -271,10 +273,58 @@ def to_html(post: dict, images: dict[str, str]) -> str:
     )
 
 
+def next_matches(team: str, after: str, season: int, site: Path, n: int = 2) -> list[dict]:
+    """The team's next games in any competition after ``after`` (ISO kickoff): league games
+    carry our odds; Champions League games carry none (we don't predict them)."""
+    out = []
+    pred_path = site / "predictions.json"
+    if pred_path.exists():
+        for f in json.loads(pred_path.read_text())["next_round"]:
+            if team not in (f["home"], f["away"]):
+                continue
+            h = f["home"] == team
+            out.append(
+                {
+                    "competition": "league",
+                    "opponent": f["away"] if h else f["home"],
+                    "venue": "home" if h else "away",
+                    "kickoff_utc": f["kickoff"].replace(" ", "T"),
+                    "pct_win": round(100 * f["p"][0 if h else 2]),
+                    "pct_draw": round(100 * f["p"][1]),
+                    "pct_loss": round(100 * f["p"][2 if h else 0]),
+                }
+            )
+    try:
+        ucl = fotmob.league_matches(f"{season}/{season + 1}", fotmob.CHAMPIONS_LEAGUE)
+    except Exception:  # noqa: BLE001 — no fixture list → league games only
+        ucl = []
+    for m in ucl:
+        h, a = m["home"]["name"], m["away"]["name"]
+        if team not in (h, a) or m["status"].get("finished") or m["status"].get("cancelled"):
+            continue
+        out.append(
+            {
+                "competition": "Champions League",
+                "opponent": a if h == team else h,
+                "venue": "home" if h == team else "away",
+                "kickoff_utc": m["status"]["utcTime"],
+                "prediction": None,
+            }
+        )
+    out = [m for m in out if m["kickoff_utc"][:16] > after[:16]]
+    return sorted(out, key=lambda m: m["kickoff_utc"])[:n]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2026)
     ap.add_argument("--league", choices=tuple(LEAGUES), default="pl")
+    ap.add_argument(
+        "--competition",
+        choices=("league", "ucl"),
+        default="league",
+        help="ucl = the team's Champions League match (no prediction section)",
+    )
     ap.add_argument("--team", default=None)
     ap.add_argument("--match", default="latest", help="FotMob match id, or 'latest'")
     ap.add_argument("--no-llm", action="store_true", help="facts and charts only")
@@ -283,56 +333,45 @@ def main() -> None:
     team = args.team or lg.focus_team
     site = site_dir(args.season, lg)
     league = json.loads((site / "league.json").read_text())
+    ucl = args.competition == "ucl"
     prof = league["teams"][team]
+    matches = prof["ucl"]["matches"] if ucl else prof["matches"]
     mt = (
-        prof["matches"][-1]
+        matches[-1]
         if args.match == "latest"
-        else next(m for m in prof["matches"] if m["match_id"] == int(args.match))
+        else next(m for m in matches if m["match_id"] == int(args.match))
     )
     details = fotmob.match_details(mt["match_id"])
-    players = json.loads((processed_dir(args.season, lg) / "player_matches.json").read_text())
-
-    log_path = site / "predictions_log.json"
-    log = json.loads(log_path.read_text()) if log_path.exists() else {}
-    home, away = (team, mt["opponent"]) if mt["is_home"] else (mt["opponent"], team)
-    pre = next(
-        (
-            {
-                "home": e["home"],
-                "away": e["away"],
-                "pct_home_win": round(100 * e["p"][0]),
-                "pct_draw": round(100 * e["p"][1]),
-                "pct_away_win": round(100 * e["p"][2]),
-            }
-            for e in log.values()
-            if e["home"] == home
-            and e["away"] == away
-            and e["kickoff"][:10] == mt["kickoff_utc"][:10]
-        ),
-        None,
+    pdir = (
+        DATA_DIR / "processed" / str(args.season) / "ucl" if ucl else processed_dir(args.season, lg)
     )
-    nxt = None
-    pred_path = site / "predictions.json"
-    if pred_path.exists():
-        f = next(
+    players = json.loads((pdir / "player_matches.json").read_text())
+
+    pre = None
+    log_path = site / "predictions_log.json"
+    if not ucl and log_path.exists():
+        log = json.loads(log_path.read_text())
+        home, away = (team, mt["opponent"]) if mt["is_home"] else (mt["opponent"], team)
+        pre = next(
             (
-                x
-                for x in json.loads(pred_path.read_text())["next_round"]
-                if team in (x["home"], x["away"])
+                {
+                    "home": e["home"],
+                    "away": e["away"],
+                    "pct_home_win": round(100 * e["p"][0]),
+                    "pct_draw": round(100 * e["p"][1]),
+                    "pct_away_win": round(100 * e["p"][2]),
+                }
+                for e in log.values()
+                if e["home"] == home
+                and e["away"] == away
+                and e["kickoff"][:10] == mt["kickoff_utc"][:10]
             ),
             None,
         )
-        if f:
-            h = f["home"] == team
-            nxt = {
-                "opponent": f["away"] if h else f["home"],
-                "venue": "home" if h else "away",
-                "kickoff_utc": f["kickoff"],
-                "pct_win": round(100 * f["p"][0 if h else 2]),
-                "pct_draw": round(100 * f["p"][1]),
-                "pct_loss": round(100 * f["p"][2 if h else 0]),
-            }
-    facts = POST.match_facts(league, team, mt["match_id"], details, players, pre, nxt)
+    nxt = next_matches(team, mt["kickoff_utc"], args.season, site)
+    facts = POST.match_facts(
+        league, team, mt["match_id"], details, players, pre, nxt, competition=args.competition
+    )
 
     out = (
         DATA_DIR

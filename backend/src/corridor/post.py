@@ -56,6 +56,118 @@ def events(details: dict, home: bool) -> list[dict]:
     return sorted(out, key=lambda x: x["minute"] or 0)
 
 
+# Running numbers in the Champions League come from UEFA's tracking, which measures
+# differently from FotMob's league data: never placed against the (FotMob) league lines.
+RUNNING = {
+    "distance_km",
+    "distance_gap_km",
+    "sprints",
+    "sprints_gap",
+    "distance_oop_adj_km",
+    "high_intensity_runs",
+}
+ROLE_NAMES = {
+    "CB": "centre-back",
+    "FB": "full-back",
+    "CM": "central midfielder",
+    "AM": "attacking midfielder",
+    "W": "winger",
+    "ST": "striker",
+}
+# (key, words, direction): the per-player numbers a column can compare with the same role.
+STANDOUT_STATS = (
+    ("duels_won", "duels won", 1),
+    ("recoveries", "ball recoveries", 1),
+    ("tackles", "tackles", 1),
+    ("interceptions", "interceptions", 1),
+    ("line_breaking_passes", "line-breaking passes", 1),
+    ("passes_into_final_third", "passes into the final third", 1),
+    ("chances_created", "chances created", 1),
+    ("box_touches", "touches in the opponent's box", 1),
+    ("sprints", "sprints", 1),
+    ("duels_lost", "duels lost", -1),
+    ("dispossessed", "times dispossessed", -1),
+    ("dribbled_past", "times dribbled past", -1),
+)
+
+
+def ucl_view(prof: dict) -> dict:
+    """The team's Champions League matches shaped like a league profile: each FotMob metric
+    carries the league's elite and worst lines and tiers (same provider, same definitions);
+    running metrics (UEFA) carry none."""
+    league = {m["key"]: m for m in prof["metrics"]}
+    metrics = []
+    for m in prof["ucl"]["metrics"]:
+        base = league.get(m["key"]) if m["key"] not in RUNNING else None
+        metrics.append(
+            m
+            | {
+                "best_line": (base or {}).get("best_line"),
+                "worst_line": (base or {}).get("worst_line"),
+                "impact": (base or {}).get("impact"),
+            }
+        )
+    return {
+        "matches": prof["ucl"]["matches"],
+        "metrics": metrics,
+        "focus": prof.get("focus"),
+        "proof": {},
+        "shooting": None,
+    }
+
+
+def standouts(players: list[dict], match_id: int, team: str, min_minutes: int = 45) -> list:
+    """Each player's match numbers against every game this season (same competition, same
+    role, 60+ minutes): how many of those games had more (or, for bad numbers, worse). The
+    column picks the best and worst from here; it never has to work out a rank itself."""
+    pool = [
+        p for p in players if (p.get("minutes") or 0) >= 60 and p.get("role") not in (None, "GK")
+    ]
+    out = []
+    for p in players:
+        if p["match_id"] != match_id or p["team"] != team or p.get("role") in (None, "GK"):
+            continue
+        if (p.get("minutes") or 0) < min_minutes:
+            continue
+        top, bottom = [], []
+        for k, words, d in STANDOUT_STATS:
+            v = p.get(k)
+            peers = [
+                q[k] for q in pool if q["role"] == p["role"] and q.get(k) is not None and q is not p
+            ]
+            if v is None or len(peers) < 20:
+                continue
+            better = sum((x > v) if d > 0 else (x < v) for x in peers)
+            worse = sum((x < v) if d > 0 else (x > v) for x in peers)
+            same = len(peers) - better - worse
+            row = {"stat": words, "value": _r(v, 2), "games_compared": len(peers)}
+            # Notable only when few games matched it: 0 dispossessions ties with hundreds.
+            if better + same <= 0.1 * len(peers):
+                top.append(row | {"games_with_better": better, "games_with_the_same": same})
+            elif worse + same <= 0.1 * len(peers):
+                bottom.append(row | {"games_with_worse": worse, "games_with_the_same": same})
+        out.append(
+            {
+                "name": p["name"],
+                "role": ROLE_NAMES.get(p["role"], p["role"]),
+                "minutes": int(p["minutes"]),
+                "fotmob_rating": p.get("rating"),
+                "goals": int(p.get("goals") or 0),
+                "assists": int(p.get("assists") or 0),
+                "duels_won": p.get("duels_won"),
+                "duels_lost": p.get("duels_lost"),
+                "touches": p.get("touches"),
+                "best_of_the_season_for_his_role": sorted(
+                    top, key=lambda r: r["games_with_better"]
+                )[:3],
+                "worst_of_the_season_for_his_role": sorted(
+                    bottom, key=lambda r: r["games_with_worse"]
+                )[:3],
+            }
+        )
+    return sorted(out, key=lambda r: -r["minutes"])
+
+
 def match_facts(
     league: dict,
     team: str,
@@ -63,14 +175,16 @@ def match_facts(
     details: dict,
     players: list[dict],
     pre: dict | None,
-    nxt: dict | None,
+    nxt: list[dict] | dict | None,
+    competition: str = "league",
 ) -> dict[str, Any]:
-    prof = league["teams"][team]
+    ucl = competition == "ucl"
+    prof = ucl_view(league["teams"][team]) if ucl else league["teams"][team]
     i = match_index(prof, match_id)
     mt = prof["matches"][i]
     home = mt["is_home"]
     tiers = (prof.get("focus") or {}).get("tiers", {})
-    decisive = set(tiers.get("decisive", {}).get("metrics", []))
+    decisive = set(tiers.get("decisive", {}).get("metrics", [])) - (RUNNING if ucl else set())
 
     def metric_row(m: dict) -> dict:
         v = m["matches"][i]["value"]
@@ -130,9 +244,10 @@ def match_facts(
         key=lambda r: (-r["shots"], -r["minutes"]),
     )
     table = next((r for r in league["table"] if r["team"] == team), {})
+    rec = (league["teams"][team].get("ucl") or {}).get("record", {}) if ucl else {}
     out: dict[str, Any] = {
         "team": team,
-        "competition": league["competition"],
+        "competition": "UEFA Champions League" if ucl else league["competition"],
         "season": league["season"],
         "match": {
             "opponent": mt["opponent"],
@@ -147,12 +262,27 @@ def match_facts(
         },
         "events": events(details, home),
         "shots_summary": shots_summary(details, home),
-        "running_vs_opponent": running(prof, i),
+        "running_vs_opponent": running(prof, i)
+        | (
+            {"measured_by": "UEFA tracking (not comparable with league running numbers)"}
+            if ucl
+            else {}
+        )
+        if running(prof, i)
+        else None,
         "lines": {
             "what_they_are": (
                 "Elite line = what last season's top four looked like in their typical league "
                 "win; worst line = the bottom four in their typical defeat. 'decides_matches' "
                 "marks the metrics that, tested on later seasons, moved results the most."
+                + (
+                    " This is a Champions League match measured against the "
+                    f"{league['competition']} lines (same data provider, same definitions). "
+                    "Running is measured by UEFA in"
+                    " the Champions League, so it is not placed against the lines."
+                    if ucl
+                    else ""
+                )
             ),
             "decisive_metrics_at_elite_line": sum(
                 1
@@ -183,7 +313,26 @@ def match_facts(
             "pct_of_such_teams_lost": hist(place.get("worst_weighted"), "L"),
         },
         "players": shooters[:14],
+        "standouts": {
+            "how_to_read": (
+                "Each player's numbers in this match, compared with every "
+                + ("Champions League" if ucl else league["competition"])
+                + " game this season by a player in the same role who played 60+ minutes. "
+                "games_with_better / games_with_the_same = how many of those games had a better "
+                "or the same number (0 and 0 = the best of the season); games_with_worse likewise "
+                "for the worst. Only numbers that 10% of games or fewer matched are listed."
+            ),
+            "players": standouts(players, match_id, team),
+        },
         "season_so_far": {
+            "champions_league_league_phase_position": rec.get("league_position"),
+            "champions_league_teams": rec.get("teams"),
+            "champions_league_points": rec.get("points"),
+            "champions_league_played": rec.get("played"),
+            "league_competition": league["competition"],
+        }
+        if ucl
+        else {
             "league_position": table.get("position"),
             "points": table.get("points"),
             "played": table.get("played"),
@@ -194,7 +343,10 @@ def match_facts(
             "league_rank_for_npxg_wasted": (prof.get("shooting") or {}).get("league_rank_wasted"),
         },
         "prediction_before_kickoff": pre,
-        "next_match": nxt,
+        "prediction_note": "No prediction: we don't predict Champions League games."
+        if ucl
+        else None,
+        "next_matches": nxt if isinstance(nxt, list) else ([nxt] if nxt else []),
         "not_measured": [
             "tactics, formations and instructions",
             "individual defensive errors other than errors leading directly to a goal",
@@ -202,6 +354,21 @@ def match_facts(
             "anything a player or coach said",
         ],
     }
+    # FotMob's headline xG and the sum of its shot map occasionally disagree (Atlético v
+    # United: 1.47 vs 1.79). The lines use the headline figure, so the column must too.
+    sh, m = out["shots_summary"], out["match"]
+    gaps = [
+        f"{who}: match xG {m[k]} vs shot-map sum {sh[side]['npxg']}"
+        for who, side, k in (("us", "us", "xg_for"), ("them", "them", "xg_against"))
+        if m.get(k) is not None and abs(m[k] - sh[side]["npxg"]) > 0.1
+    ]
+    if gaps:
+        out["xg_note"] = (
+            "FotMob's match xG and its shot map disagree ("
+            + "; ".join(gaps)
+            + "). Quote the match xG (xg_for / xg_against) for totals; use the shot map only "
+            "for counts and where shots came from."
+        )
     return out
 
 

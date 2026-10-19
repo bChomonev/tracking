@@ -26,3 +26,23 @@ def test_pl_ready_three_hours_after_kickoff_ucl_after_twelve():
 def test_already_built_matches_are_skipped():
     finished = {"pl": [_m(1, "2026-10-10T16:30:00Z")], "ucl": []}
     assert pending(finished, {"pl": [1], "ucl": []}, NOW) == []
+
+
+def test_drafts_a_column_for_united_league_and_champions_league_games(monkeypatch):
+    from corridor.scripts import update
+
+    calls = []
+    monkeypatch.setattr(update, "run_step", lambda *a: calls.append(a))
+    monkeypatch.setattr(update, "notify", lambda *a: None)
+    update.draft_posts(
+        [
+            ("pl", {"id": 1, "label": "Leeds United 1 - 1 Manchester United"}),
+            ("ucl", {"id": 2, "label": "Como 1 - 2 Manchester United"}),
+            ("ucl", {"id": 3, "label": "Inter 1 - 0 Arsenal"}),
+            ("laliga", {"id": 4, "label": "Getafe 0 - 0 Rayo Vallecano"}),
+        ]
+    )
+    assert calls == [
+        ("post", "--competition", "league", "--match", "1"),
+        ("post", "--competition", "ucl", "--match", "2"),
+    ]

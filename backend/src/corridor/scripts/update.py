@@ -255,13 +255,19 @@ def _finish(args, site: Path, state: dict, state_path: Path, new, labels, now) -
 
 
 def draft_posts(new: list[tuple]) -> None:
-    """A Substack draft for each new United league match (D-034). Never published: it
-    lands in data/posts/ and a notification says it's ready for editing."""
+    """A Substack draft for each new United league or Champions League match (D-034, D-040).
+    Never published: it lands in data/posts/ and a notification says it's ready for editing."""
     for comp, m in new:
-        if comp != "pl" or TEAM not in m["label"]:
+        if comp not in ("pl", "ucl") or TEAM not in m["label"]:
             continue
         try:
-            run_step("post", "--match", str(m["id"]))
+            run_step(
+                "post",
+                "--competition",
+                "ucl" if comp == "ucl" else "league",
+                "--match",
+                str(m["id"]),
+            )
             notify("Post-match draft ready", f"{m['label']} — data/posts/")
         except RuntimeError:
             log.info("post draft failed for %s", m["label"])

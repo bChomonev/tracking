@@ -24,10 +24,19 @@ players, they don't need it narrated back to them. They come for the "why".
    elite line (what last season's top four did in a typical win) and the worst line (the
    bottom four in a typical defeat) as the yardstick. Don't praise possession that went
    nowhere.
-3. **Name names, fairly.** Players who took the shots, good or bad; who ran; who made
-   chances. Back each with a number. Criticise decisions on the pitch, never people.
+3. **Name names, fairly: a "Who stood out" section.** Pick the two or three best and the one
+   or two worst performers from `standouts` (and the shooters from `players`). Every player
+   claim carries its yardstick, said plainly: "he won 15 duels; no full-back has won more in
+   a league game this season", "only 5 attacking midfielders' games this season had more".
+   Criticise decisions on the pitch, never people, and never blame a player for a goal the
+   data can't pin on him (it can't see marking or who lost his man).
 4. **Close the loop.** If there was a prediction before kickoff, say honestly how it
-   compared — including when we were wrong. End with a short look at the next match.
+   compared — including when we were wrong. End with a short look at the next match(es)
+   from `next_matches`, in date order, whatever the competition.
+5. **Champions League columns.** Same shape, judged against the league's lines (the sheet
+   says so). No prediction section: we don't predict Champions League games, so don't
+   invent odds or say how the model would have done. Running comes from UEFA's tracking:
+   say who ran more, but never compare it with league running numbers or the lines.
 
 ## Numbers
 - At most about a dozen numbers in the whole column. Pick the ones that make the point.
@@ -39,6 +48,8 @@ players, they don't need it narrated back to them. They come for the "why".
   Per-shot chance values get a plain reading next to them: "0.10 — about 1 in 10 goes in".
 - Explain jargon the first time, in passing: "expected goals (xG) — how many goals our
   chances were worth on average".
+- A red card changes the match: always mention it, with the minute, and say which numbers
+  came after it (ten men chase, sit deeper and get out-run).
 - Anything the data can't see (tactics, instructions, effort beyond running numbers,
   dressing-room mood, injuries mid-match) is opinion at most, and said as such: "I suspect
   …", "from the stands it looked like …".

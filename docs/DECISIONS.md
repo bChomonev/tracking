@@ -8,6 +8,19 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-040 — Champions League columns; "Who stood out" from role comparisons · 2026-10-19 · accepted
+United's Champions League games get a post-match column like league games (`post
+--competition ucl`; the update job drafts one after each). No prediction section: we don't
+predict Champions League games (the model rates teams within their own league). FotMob
+metrics are judged against the league's elite and worst lines (same provider and
+definitions); UEFA's running numbers are reported as who-ran-more only, never against the
+lines. Every fact sheet now carries `standouts`: each player's match numbers against every
+game this season by a player in the same role (60+ minutes, same competition), counting
+ties, so a column can say "no full-back has won more" without working out a rank.
+`next_matches` lists the next games in any competition (odds only for league games). When
+FotMob's match xG and its shot-map sum disagree by more than 0.1, the sheet says so and
+the column quotes the match figure (the one the lines use).
+
 ## D-039 — "Next round" follows FotMob matchdays · 2026-10-19 · accepted
 The next round was guessed from Understat's fixture list: from the next kickoff, stop when a
 team appears twice or after 8 days. A Monday leftover (Spurs v Coventry) or a rearranged
