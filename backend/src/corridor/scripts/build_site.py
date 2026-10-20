@@ -12,10 +12,31 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from corridor import cup
+from corridor.ingest import fotmob
 from corridor.ingest.http import DATA_DIR
 from corridor.leagues import LEAGUES, site_dir
 
 TEMPLATE = Path(__file__).resolve().parents[4] / "web" / "united.html"
+
+
+def add_next_cup(leagues: dict, season: int, now: str) -> None:
+    """Each focus team's next Champions League game, fixture and numbers only (D-049)."""
+    rows_path = DATA_DIR / "processed" / str(season) / "ucl" / "team_matches.json"
+    if not rows_path.exists():
+        return
+    rows = json.loads(rows_path.read_text())
+    teams = {r["team"] for r in rows}
+    if not any(lg.get("focus_team") in teams for lg in leagues.values()):
+        return
+    try:
+        fixtures = fotmob.league_matches(f"{season}/{season + 1}", fotmob.CHAMPIONS_LEAGUE)
+    except Exception as e:  # noqa: BLE001 — no fixture list → no card, the site still builds
+        print(f"next Champions League game skipped: {e}")
+        return
+    for lg in leagues.values():
+        if lg.get("focus_team") in teams:
+            lg["next_cup"] = cup.next_cup_match(lg["focus_team"], fixtures, leagues, rows, now)
 
 
 def main() -> None:
@@ -33,7 +54,9 @@ def main() -> None:
             if (d / f"{name}.json").exists():
                 league[name] = json.loads((d / f"{name}.json").read_text())
         leagues[key] = league
-    site = {"generated_at": datetime.now(UTC).isoformat(), "leagues": leagues}
+    now = datetime.now(UTC)
+    add_next_cup(leagues, args.season, now.isoformat())
+    site = {"generated_at": now.isoformat(), "leagues": leagues}
     analysis_path = out / "analysis.json"
     analysis = json.loads(analysis_path.read_text()) if analysis_path.exists() else None
 

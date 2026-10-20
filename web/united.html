@@ -241,6 +241,15 @@ tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600
 .fx-why { font-size: .82rem; color: var(--muted); margin: 0; }
 .pj-bar { display: inline-block; height: 10px; border-radius: 2px; vertical-align: 0; margin-right: 6px; }
 #team-next .fx { max-width: 560px; }
+#team-next .fx-list { display: grid; gap: 12px; }
+#team-next .fx.cup { max-width: 720px; }
+.cup-cmp { font-size: .85rem; table-layout: fixed; }
+.cup-cmp td, .cup-cmp thead th { white-space: normal; overflow-wrap: anywhere; }
+.cup-cmp .num { white-space: nowrap; }
+.cup-cmp th, .cup-cmp td { padding: 5px 6px; border-bottom: 1px solid var(--rule); vertical-align: top; text-align: left; }
+.cup-cmp thead th { font: 600 .78rem/1.2 var(--body); color: var(--muted); }
+.cup-cmp tbody th { font: 400 .8rem/1.3 var(--body); color: var(--muted); width: 30%; white-space: normal; text-transform: none; letter-spacing: 0; }
+.cup-cmp .cup-res { display: block; }
 #team-next h3 { font-size: 1.05rem; text-transform: uppercase; margin: 0 0 8px; letter-spacing: .04em; }
 
 /* Match preview */
@@ -994,10 +1003,36 @@ th[aria-sort] button::after { content: " ▾"; }
       $("pr-record").insertAdjacentHTML("beforeend", ` <a href="#predictions/${LK}">How good are these predictions? →</a>`);
     }
   };
+  // The next Champions League game: fixture and both sides' numbers, never a prediction
+  // (the model is league-only, D-049).
+  const cupCard = (c) => {
+    const S = c.sides, T = [c.home, c.away];
+    const name = (t) => (S[t].league ? `<a href="${hTeam(t, S[t].league.league_key)}">${esc(short(t))}</a>` : esc(short(t)));
+    const lg = (t, f) => (S[t].league ? f(S[t].league) : "—");
+    const row = (label, f, tip) => `<tr><th scope="row"${tip ? ` title="${esc(tip)}"` : ""}>${label}</th>${T.map((t) => `<td>${f(t)}</td>`).join("")}</tr>`;
+    const cupRes = (t) => (S[t].cup.length ? S[t].cup.map((m) => `<span class="cup-res"><b class="num">${m.goals_for}–${m.goals_against}</b> ${m.venue === "home" ? "v" : "at"} ${esc(short(m.opponent))}</span>`).join("") : "No games yet");
+    return `<article class="fx me cup">
+      <div class="fx-when">Champions League · ${esc(fxWhen(c.kickoff))}</div>
+      <div class="fx-teams"><span>${name(c.home)}</span><small>v</small><span class="away">${name(c.away)}</span></div>
+      <p class="fx-why">No prediction: our model is built and tested on league games only. Here's how both sides have played this season.</p>
+      <table class="cup-cmp"><thead><tr><th></th>${T.map((t) => `<th scope="col">${esc(short(t))}</th>`).join("")}</tr></thead><tbody>
+        ${row("League position", (t) => lg(t, (l) => `${ord(l.position)} of ${l.teams_in_league}, ${esc(l.competition)}`))}
+        ${row("League record", (t) => lg(t, (l) => `W${l.w} D${l.d} L${l.l} · <b class="num">${l.points}</b> pts from ${l.played}`))}
+        ${row("Goals per league game, scored–conceded", (t) => lg(t, (l) => `<span class="num">${l.goals_for_pg.toFixed(1)}–${l.goals_against_pg.toFixed(1)}</span>`))}
+        ${row("Chances per league game (xG), created–allowed", (t) => lg(t, (l) => `<span class="num">${l.xg_for_pg.toFixed(2)}–${l.xg_against_pg.toFixed(2)}</span>`), "xG: what the chances were worth in goals, from how often shots like them go in")}
+        ${row("Average possession", (t) => lg(t, (l) => (l.possession_pct != null ? `<span class="num">${l.possession_pct}%</span>` : "—")))}
+        ${row("Last 5 league games (oldest first)", (t) => lg(t, (l) => `<span class="form">${l.form.map((x) => `<span class="res ${x}">${x}</span>`).join("")}</span>`))}
+        ${row("Champions League so far", cupRes)}
+      </tbody></table>
+      <p class="fx-why">League numbers come from different leagues, so read them as each side's form, not a head-to-head.</p>
+    </article>`;
+  };
   const teamNext = (P) => {
     const nx = (PRD?.next_round || []).find((f) => f.home === P.team || f.away === P.team);
     const pj = (PRD?.projection || []).find((r) => r.team === P.team);
-    $("team-next").innerHTML = nx || pj ? `${nx ? `<h3>Next match</h3>${fixtureCard(nx)}` : ""}${pj ? `<p class="fx-why" style="margin-top:8px">Season projection: <b class="num">${pj.points.toFixed(0)}</b> points (80% range ${pj.points_p10.toFixed(0)}–${pj.points_p90.toFixed(0)}) · top 4 ${pc(pj.top4)} · relegation ${pc(pj.relegation, pj.relegation > 0 && pj.relegation < 0.01 ? 1 : 0)} · <a href="#${LK}" class="back">see all predictions</a></p>` : ""}` : "";
+    const cp = L.next_cup && [L.next_cup.home, L.next_cup.away].includes(P.team) ? L.next_cup : null;
+    const cards = [nx && [nx.kickoff, fixtureCard(nx)], cp && [cp.kickoff, cupCard(cp)]].filter(Boolean).sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    $("team-next").innerHTML = cards.length || pj ? `${cards.length ? `<h3>${cards.length > 1 ? "Next matches" : "Next match"}</h3><div class="fx-list">${cards.map((c) => c[1]).join("")}</div>` : ""}${pj ? `<p class="fx-why" style="margin-top:8px">Season projection: <b class="num">${pj.points.toFixed(0)}</b> points (80% range ${pj.points_p10.toFixed(0)}–${pj.points_p90.toFixed(0)}) · top 4 ${pc(pj.top4)} · relegation ${pc(pj.relegation, pj.relegation > 0 && pj.relegation < 0.01 ? 1 : 0)} · <a href="#${LK}" class="back">see all predictions</a></p>` : ""}` : "";
   };
 
   // ===== Match preview (D-024): prediction, team news, line-ups, shooters, corners =====

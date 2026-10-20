@@ -8,6 +8,17 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-049 — The next Champions League game on the team page, without a prediction · 2026-10-20 · accepted
+United's "Next match" card only showed Premier League games, so Como on Wednesday looked
+missing. `build_site` now adds `next_cup` for each focus team (from FotMob's Champions League
+fixtures): the fixture plus both sides' numbers this season, side by side. That's league
+position and record, goals and xG per league game, average possession and the last 5 league
+results (from whichever of our four leagues the side plays in), and their Champions League
+results so far. There's no prediction and no "expected" score: the model is built and tested
+on league games only (the 2026-10-19 decision stands). The card says so, and notes that the
+league numbers come from different leagues. If the fixture list can't be fetched, the card is
+left out and the site still builds.
+
 ## D-048 — A Reddit post and comment for every match · 2026-10-20 · accepted
 Reddit (r/reddevils) is where United fans who like numbers already are, but it removes or
 ignores link-dumps. So each match now also gets `reddit.md`: a post of 120-220 words that is
