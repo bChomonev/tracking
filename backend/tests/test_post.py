@@ -1,3 +1,4 @@
+from corridor import post as POST
 from corridor.scripts.post import check, to_markdown
 
 
@@ -109,3 +110,28 @@ def test_note_numbers_and_chart_values_must_come_from_the_fact_sheet(tmp_path):
     assert check_notes({"notes": []}, facts)
     chart_note(ok["notes"][0]["chart"] | {"title": "T", "unit": "goals"}, tmp_path / "n.png")
     assert (tmp_path / "n.png").stat().st_size > 1000
+
+
+def test_seo_puts_home_side_first_and_uses_search_names():
+    facts = {
+        "team": "Manchester United",
+        "competition": "Premier League",
+        "match": {
+            "opponent": "Leeds United",
+            "venue": "away",
+            "date": "2026-10-18",
+            "score": "2-1",
+            "xg_for": 0.92,
+            "xg_against": 1.41,
+            "possession_pct": 39.0,
+        },
+        "running_vs_opponent": {"distance_more_than_opponent_km": -4.2},
+    }
+    s = POST.seo(facts)
+    assert s["title"] == "Leeds United 1-2 Man Utd: xG, stats and who stood out"
+    assert (
+        "18 Oct 2026" in s["description"]
+        and "out-run by Leeds United by 4.2 km" in s["description"]
+    )
+    assert len(s["description"]) <= 160
+    assert s["slug"] == "leeds-united-1-2-man-utd-xg-stats"

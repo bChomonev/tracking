@@ -440,6 +440,33 @@ def captions(facts: dict) -> dict[str, str]:
     }
 
 
+SEO_NAMES = {"Manchester United": "Man Utd"}  # what people type into Google
+
+
+def seo(facts: dict) -> dict[str, str]:
+    """Search title, description and URL slug, written from the data (D-047).
+
+    The column's own title is for fans ("Did we deserve the point?"); Google matches on
+    team names, the score and "xG"/"stats", so those go here, home side first."""
+    m = facts["match"]
+    us = SEO_NAMES.get(facts["team"], facts["team"])
+    them = SEO_NAMES.get(m["opponent"], m["opponent"])
+    gf, ga = m["score"].split("-")
+    home, away, hg, ag = (us, them, gf, ga) if m["venue"] == "home" else (them, us, ga, gf)
+    title = f"{home} {hg}-{ag} {away}: xG, stats and who stood out"
+    day = datetime.strptime(m["date"], "%Y-%m-%d").strftime("%-d %b %Y")
+    desc = (
+        f"{facts['competition']}, {day}. xG: {us} {m['xg_for']:.2f}, {them} "
+        f"{m['xg_against']:.2f}; {m['possession_pct']:.0f}% possession"
+    )
+    run = facts.get("running_vs_opponent") or {}
+    km = run.get("distance_more_than_opponent_km")
+    if km:
+        desc += f"; {'out-ran' if km > 0 else 'out-run by'} {them} by {abs(km):.1f} km"
+    desc += ". Who stood out, player by player."
+    return {"title": title, "description": desc, "slug": slug(f"{home} {hg} {ag} {away} xg stats")}
+
+
 # ---------------------------------------------------------------------------- charts
 
 

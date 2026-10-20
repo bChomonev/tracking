@@ -8,6 +8,15 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-047 — Columns get a search title and description · 2026-10-20 · accepted
+Column titles are written for fans ("Did we deserve the point at Elland Road?") and never
+name the teams, so Google has little to match. Each draft now also writes `seo.json`: a
+search title built from the data, home side first, with the names people search for ("Leeds
+United 1-1 Man Utd: xG, stats and who stood out"), a description of 160 characters or less
+(competition, date, xG, possession, running gap) and a URL slug. These go into Substack's
+SEO fields for each post; readers still see the column's own title. Written without the LLM,
+so the numbers can't be wrong.
+
 ## D-046 — Previews fall back to our own last XI · 2026-10-20 · accepted
 Barcelona v Real Madrid (and 8 of 11 La Liga fixtures, all PL / Serie A / Bundesliga ones)
 showed an empty shooters table: days before a match FotMob's page often has no line-up yet

@@ -551,6 +551,8 @@ def draft_column(facts: dict, team: str, mt: dict, out: Path, images: dict) -> N
         "match_id": mt["match_id"],
     }
     (out / "post.json").write_text(json.dumps(post, indent=1, ensure_ascii=False))
+    seo = POST.seo(facts)
+    (out / "seo.json").write_text(json.dumps(seo, indent=1, ensure_ascii=False))
     (out / "post.md").write_text(to_markdown(post, images))
     (out / "post.html").write_text(to_html(post, images))
     words = len(re.findall(r"\w+", " ".join(p for s in post["sections"] for p in s["paragraphs"])))
@@ -559,6 +561,7 @@ def draft_column(facts: dict, team: str, mt: dict, out: Path, images: dict) -> N
         f"{meta.get('seconds')}s, {len(meta.get('review', []))} review note(s) "
         f"→ {out / 'post.html'}"
     )
+    print(f"seo: {seo['title']} | {seo['description']}")
 
 
 if __name__ == "__main__":
