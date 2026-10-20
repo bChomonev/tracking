@@ -152,3 +152,4 @@ def test_reddit_check_needs_link_line_and_fact_sheet_numbers():
     assert check_reddit(good | {"comment": "We ran 7.7 km more."}, facts)
     md = reddit_markdown(good, "https://x.test/p/a", {"xg": "xg.png"})
     assert "More: https://x.test/p/a" in md and "xg.png" in md and "{LINK}" not in md
+    assert "old.reddit.com/r/reddevils/submit?selftext=true&title=Leeds+1-1+United" in md

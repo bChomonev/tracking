@@ -17,6 +17,9 @@ words or less for the post-match thread, with no link. It goes through the same 
 as the Notes and agrees with the published column when there is one. The user posts it
 themselves; `--only notes|reddit` reruns one piece (replaces `--notes-only`), and `--link`
 sets the column URL (the default is the SEO slug, D-047).
+The browser extension blocks reddit.com and Reddit refuses scripted reads, so we can't save
+Reddit drafts; instead `reddit.md` starts with a pre-filled old.reddit submit link (title and
+text in the URL) that the user opens, reviews and submits.
 
 ## D-047 — Columns get a search title and description · 2026-10-20 · accepted
 Column titles are written for fans ("Did we deserve the point at Elland Road?") and never

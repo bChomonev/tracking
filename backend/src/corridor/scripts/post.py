@@ -17,6 +17,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from datetime import time as dtime
 from pathlib import Path
+from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 from openai import APIConnectionError, APIStatusError, OpenAI
@@ -201,8 +202,19 @@ def write_reddit(facts: dict, column: dict | None = None) -> tuple[dict, dict]:
     return _short(REDDIT, check_reddit, "reddit", facts, column)
 
 
+REDDIT_SUB = "reddevils"
+
+
+def reddit_submit_url(title: str, body: str, sub: str = REDDIT_SUB) -> str:
+    """old.reddit's submit page, pre-filled: open it, review, attach nothing, press submit.
+    (old.reddit fills both fields; the new site may fill only the title.)"""
+    q = urlencode({"selftext": "true", "title": title, "text": body})
+    return f"https://old.reddit.com/r/{sub}/submit?{q}"
+
+
 def reddit_markdown(r: dict, link: str, images: dict[str, str]) -> str:
     chart = images.get(r.get("chart") or "", "")
+    body = r["body"].replace("{LINK}", link)
     return "\n".join(
         [
             "# Reddit for this match",
@@ -210,13 +222,16 @@ def reddit_markdown(r: dict, link: str, images: dict[str, str]) -> str:
             "Post it yourself, after the column is live. Read the sub's rules first; if"
             " blog links aren't allowed as posts, use the comment only.",
             "",
+            f"**[Open the post, pre-filled, on Reddit]({reddit_submit_url(r['title'], body)})**"
+            " (a text post; review and edit it there, then press submit)",
+            "",
             "## Post (r/reddevils, image or text post)",
             "",
             f"**Title:** {r['title']}",
             "",
             f"**Image:** {chart}" if chart else "",
             "",
-            r["body"].replace("{LINK}", link),
+            body,
             "",
             "## Comment for the post-match thread (no link)",
             "",
