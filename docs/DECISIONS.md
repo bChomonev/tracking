@@ -8,6 +8,14 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-046 — Previews fall back to our own last XI · 2026-10-20 · accepted
+Barcelona v Real Madrid (and 8 of 11 La Liga fixtures, all PL / Serie A / Bundesliga ones)
+showed an empty shooters table: days before a match FotMob's page often has no line-up yet
+(lineupType missing, or "standard" with no starters), and shooters are built from the XI.
+Now, when FotMob has no starters for a side, the preview uses that team's last league
+starting XI from our own player data (players FotMob lists as unavailable are still struck
+through and left out), labelled "last XI"; "official" is only shown when starters exist.
+
 ## D-045 — Prediction charts get a plain bottom line · 2026-10-19 · accepted
 Same problem as D-044 for the two prediction charts. "Average RPS" becomes "How far off the
 predictions were", the base-rate bar becomes "Simple guess (how often home, draw and away

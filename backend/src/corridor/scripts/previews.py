@@ -119,6 +119,24 @@ def main() -> None:
         if not m["status"].get("finished")
     }
 
+    # Each team's last league starting XI from our own data: the fallback when FotMob has no
+    # line-up yet (days before a match its page often has none), so shooters still show.
+    ko = {r["match_id"]: r["kickoff_utc"] for r in teams_now}
+    last_match: dict[str, int] = {}
+    for p in players_now:
+        if p.get("started") and ko.get(p["match_id"], "") >= ko.get(
+            last_match.get(p["team"], 0), ""
+        ):
+            last_match[p["team"]] = p["match_id"]
+    our_last_xi = {
+        team: [
+            {"id": p["player_id"], "name": p["name"], "role": p.get("role")}
+            for p in players_now
+            if p["team"] == team and p["match_id"] == mid and p.get("started")
+        ]
+        for team, mid in last_match.items()
+    }
+
     previews = {}
     for f in pred["next_round"]:
         fm = fm_fixtures.get((f["home"], f["away"]))
@@ -130,7 +148,9 @@ def main() -> None:
         # "standard" = the confirmed XI; "predicted" = FotMob's predicted XI (from its data
         # partner); "lastStarting11" = each side's previous XI; "unavailable" = none yet.
         lineup_type = lineup.get("lineupType")
-        official = lineup_type == "standard"
+        has_xi = any((lineup.get(k) or {}).get("starters") for k in ("homeTeam", "awayTeam"))
+        official = lineup_type == "standard" and has_xi
+        fallback = False
         sides = {}
         for key, team, opp in (
             ("homeTeam", f["home"], f["away"]),
@@ -157,8 +177,13 @@ def main() -> None:
             news.sort(key=lambda x: -x["minutes"])
             fs, fx = facs.get(opp, (1.0, 1.0))
             xi, shooters = [], []
-            for s in t.get("starters") or []:
-                role = role_from_position_id(s.get("positionId"), s.get("usualPlayingPositionId"))
+            starters = t.get("starters") or []
+            if not starters and our_last_xi.get(team):
+                starters, fallback = our_last_xi[team], True
+            for s in starters:
+                role = s.get("role") or role_from_position_id(
+                    s.get("positionId"), s.get("usualPlayingPositionId")
+                )
                 unavailable = s["id"] in out_ids
                 xi.append({"name": s["name"], "role": role, "out": unavailable})
                 if unavailable or role == "GK":
@@ -201,11 +226,15 @@ def main() -> None:
         rg = ref_games.get(ref or "", [0, 0])
         previews[f["id"]] = {
             "fotmob_id": fm["id"],
-            "lineup": {
+            "lineup": "last_xi"
+            if fallback and not has_xi
+            else {
                 "standard": "official",
                 "predicted": "predicted",
                 "lastStarting11": "last_xi",
-            }.get(lineup_type or "", "none"),
+            }.get(lineup_type or "", "none")
+            if has_xi
+            else "none",
             "fetched_at": datetime.now(UTC).isoformat(),
             "sides": sides,
             "corners": {
