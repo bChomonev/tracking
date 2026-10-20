@@ -8,6 +8,16 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-048 — A Reddit post and comment for every match · 2026-10-20 · accepted
+Reddit (r/reddevils) is where United fans who like numbers already are, but it removes or
+ignores link-dumps. So each match now also gets `reddit.md`: a post of 120-220 words that is
+worth reading without clicking (two or three findings, each with its comparison, one line of
+opinion or a question, then one closing line with the newsletter link) and a comment of 50
+words or less for the post-match thread, with no link. It goes through the same number check
+as the Notes and agrees with the published column when there is one. The user posts it
+themselves; `--only notes|reddit` reruns one piece (replaces `--notes-only`), and `--link`
+sets the column URL (the default is the SEO slug, D-047).
+
 ## D-047 — Columns get a search title and description · 2026-10-20 · accepted
 Column titles are written for fans ("Did we deserve the point at Elland Road?") and never
 name the teams, so Google has little to match. Each draft now also writes `seo.json`: a

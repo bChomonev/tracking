@@ -135,3 +135,20 @@ def test_seo_puts_home_side_first_and_uses_search_names():
     )
     assert len(s["description"]) <= 160
     assert s["slug"] == "leeds-united-1-2-man-utd-xg-stats"
+
+
+def test_reddit_check_needs_link_line_and_fact_sheet_numbers():
+    from corridor.scripts.post import check_reddit, reddit_markdown
+
+    facts = {"match": {"xg_for": 0.92, "xg_against": 1.41}}
+    good = {
+        "title": "Leeds 1-1 United",
+        "body": "xG 0.92 to 1.41.\n\nMore: {LINK}",
+        "comment": "Their chances: 1.41.",
+        "chart": "xg",
+    }
+    assert check_reddit(good, facts) == []
+    assert check_reddit(good | {"body": "xG 0.92 to 1.41."}, facts)
+    assert check_reddit(good | {"comment": "We ran 7.7 km more."}, facts)
+    md = reddit_markdown(good, "https://x.test/p/a", {"xg": "xg.png"})
+    assert "More: https://x.test/p/a" in md and "xg.png" in md and "{LINK}" not in md

@@ -104,24 +104,68 @@ win", "what the bottom four did in a typical defeat"), and label chart bars the 
 Nothing from "not_measured" as fact. Chart values must be numbers from the fact sheet."""
 
 
+REDDIT = """\
+You write a Reddit post and a Reddit comment about this match for United fans (r/reddevils), \
+from the FACT SHEET only, in the HOUSE STYLE's number rules but Reddit's tone: a fan who \
+counts things, talking to other fans. Reddit removes or ignores link-dumps, so the post must \
+be worth reading without clicking anything.
+
+Return ONLY JSON:
+{"title": "the post title", "body": "the post, Reddit markdown",
+ "chart": "lines" | "shots" | "xg", "comment": "the comment"}
+
+title: plain and specific, with the teams and the finding, e.g. "Leeds 1-1 United: we were \
+out-run for the 6th time in 7 league games, and what that has cost teams this season". No \
+clickbait, no question-only titles.
+body: 120-220 words. Two or three findings, each one or two sentences with its number and \
+what it's compared with (both sides spelled out), as short paragraphs or a short bullet \
+list. Then one short line of opinion (marked as opinion, no numbers in it, one clear \
+point) or a real question to the thread. End \
+with exactly this line on its own: "Full breakdown, player by player, in my (free) \
+newsletter: {LINK}". Nothing else promotional.
+chart: which of the column's charts goes with the post (the one that shows the main finding).
+comment: for the post-match thread, at most 50 words, no link, no mention of the \
+newsletter: the single most telling number with its comparison, in words a casual fan \
+gets at a glance (no "metrics", no "lines").
+Rules: numbers rounded the way a fan says them (1.19 goals, not 1.187), every number from \
+the fact sheet. Never write "elite line" or "worst line" bare; say what it is ("what last \
+season's top four managed in a typical win"). Explain xG in passing the first time. Days of \
+the week only from "weekday" fields. No emojis, no hashtags, no hype. Nothing from \
+"not_measured" as fact. The THE COLUMN block, when given, is the published column: agree \
+with it."""
+
+
+def check_numbers(texts: list[str], facts: dict) -> list[str]:
+    allowed = allowed_numbers(facts) | {1, 2, 3, 4, 5}
+    bad = sorted({x for t in texts for x in numbers_in(t) if not is_supported(x, allowed)})
+    return [f"numbers not in the fact sheet: {', '.join(bad)}"] if bad else []
+
+
 def check_notes(notes: dict, facts: dict) -> list[str]:
     items = notes.get("notes") if isinstance(notes, dict) else None
     if not items:
         return ["no notes"]
-    allowed = allowed_numbers(facts) | {1, 2, 3, 4, 5}
     found = []
     for n in items:
-        found += numbers_in(n.get("text", ""))
+        found.append(n.get("text", ""))
         ch = n.get("chart") or {}
         found += [str(b.get("value")) for b in ch.get("bars", [])]
         if ch.get("reference"):
             found.append(str(ch["reference"].get("value")))
-    bad = sorted({x for x in found if not is_supported(x, allowed)})
-    return [f"numbers not in the fact sheet: {', '.join(bad)}"] if bad else []
+    return check_numbers(found, facts)
 
 
-def write_notes(facts: dict, column: dict | None = None) -> tuple[dict, dict]:
-    """The two Notes for a match (one call, numbers checked)."""
+def check_reddit(r: dict, facts: dict) -> list[str]:
+    if not isinstance(r, dict) or not r.get("body") or not r.get("comment"):
+        return ["needs title, body and comment"]
+    problems = check_numbers([r.get("title", ""), r["body"], r["comment"]], facts)
+    if "{LINK}" not in r["body"]:
+        problems.append('the body must end with the newsletter line containing "{LINK}"')
+    return problems
+
+
+def _short(prompt: str, checker, what: str, facts: dict, column: dict | None):
+    """One call for a short piece (Notes, Reddit), numbers checked, one retry."""
     client = OpenAI(
         base_url=settings.llm_base_url,
         api_key=settings.llm_api_key,
@@ -131,23 +175,55 @@ def write_notes(facts: dict, column: dict | None = None) -> tuple[dict, dict]:
     meta: dict = {"model": settings.llm_model, "calls": 1, "rejected": []}
     user = "HOUSE STYLE:\n" + STYLE + "\n\nFACT SHEET:\n" + json.dumps(facts, ensure_ascii=False)
     if column:
-        # The "with the column" Note must give the column's answer, not a new one.
-        user += (
-            "\n\nTHE COLUMN (the 'with the column' Note gives exactly this answer):\n"
-            + json.dumps(column, ensure_ascii=False)
+        # Short pieces must give the column's answer, not a new one.
+        user += "\n\nTHE COLUMN (give exactly this answer; don't contradict it):\n" + json.dumps(
+            column, ensure_ascii=False
         )
-    text, msgs = _ask(client, settings.llm_model, NOTES, user, 6000, "medium")
-    notes = _parse_json(text)
-    problems = check_notes(notes, facts)
+    text, msgs = _ask(client, settings.llm_model, prompt, user, 6000, "medium")
+    obj = _parse_json(text)
+    problems = checker(obj, facts)
     if problems:
         meta["rejected"].append(problems)
-        notes = _parse_json(_fix(client, settings.llm_model, msgs, text, problems, 6000))
+        obj = _parse_json(_fix(client, settings.llm_model, msgs, text, problems, 6000))
         meta["calls"] += 1
-        if check_notes(notes, facts):
-            raise RuntimeError(
-                f"notes quote numbers not in the fact sheet: {check_notes(notes, facts)}"
-            )
-    return notes, meta
+        if checker(obj, facts):
+            raise RuntimeError(f"{what}: {checker(obj, facts)}")
+    return obj, meta
+
+
+def write_notes(facts: dict, column: dict | None = None) -> tuple[dict, dict]:
+    """The two Notes for a match."""
+    return _short(NOTES, check_notes, "notes", facts, column)
+
+
+def write_reddit(facts: dict, column: dict | None = None) -> tuple[dict, dict]:
+    """A Reddit post (worth reading without the link) and a post-match-thread comment."""
+    return _short(REDDIT, check_reddit, "reddit", facts, column)
+
+
+def reddit_markdown(r: dict, link: str, images: dict[str, str]) -> str:
+    chart = images.get(r.get("chart") or "", "")
+    return "\n".join(
+        [
+            "# Reddit for this match",
+            "",
+            "Post it yourself, after the column is live. Read the sub's rules first; if"
+            " blog links aren't allowed as posts, use the comment only.",
+            "",
+            "## Post (r/reddevils, image or text post)",
+            "",
+            f"**Title:** {r['title']}",
+            "",
+            f"**Image:** {chart}" if chart else "",
+            "",
+            r["body"].replace("{LINK}", link),
+            "",
+            "## Comment for the post-match thread (no link)",
+            "",
+            r["comment"],
+            "",
+        ]
+    )
 
 
 def midway(facts: dict) -> str:
@@ -438,7 +514,10 @@ def main() -> None:
     ap.add_argument("--team", default=None)
     ap.add_argument("--match", default="latest", help="FotMob match id, or 'latest'")
     ap.add_argument("--no-llm", action="store_true", help="facts and charts only")
-    ap.add_argument("--notes-only", action="store_true", help="only the Note ideas, no column")
+    ap.add_argument(
+        "--only", choices=("notes", "reddit"), help="only this piece, no column (reruns)"
+    )
+    ap.add_argument("--link", help="the column's URL for the Reddit post (default: SEO slug)")
     args = ap.parse_args()
     lg = LEAGUES[args.league]
     team = args.team or lg.focus_team
@@ -506,7 +585,7 @@ def main() -> None:
     print(f"facts + charts → {out}")
     if args.no_llm:
         return
-    if not args.notes_only:
+    if not args.only:
         draft_column(facts, team, mt, out, images)
     column = {}
     for name, keys in (("post.json", ("title", "subtitle")), ("plan.json", ("angle",))):
@@ -518,27 +597,39 @@ def main() -> None:
         lines = edited.read_text().splitlines()
         column["title"] = lines[0].lstrip("# ").strip()
         column["subtitle"] = lines[2].strip("* ")
-    try:
-        notes, nmeta = write_notes(facts, column or None)
-    except (
+    errors = (
         RuntimeError,
         TruncatedError,
         APIStatusError,
         APIConnectionError,
         json.JSONDecodeError,
-    ) as e:
-        print(f"note ideas failed: {e}")
-        return
-    charts = {}
-    for i, n in enumerate(notes["notes"]):
-        if (n.get("chart") or {}).get("bars"):
-            charts[i] = f"note-{i + 1}.png"
-            POST.chart_note(n["chart"], out / charts[i])
-    (out / "notes.json").write_text(
-        json.dumps(notes | {"meta": nmeta}, indent=1, ensure_ascii=False)
     )
-    (out / "notes.md").write_text(notes_markdown(notes, charts, facts))
-    print(f"notes: {len(notes['notes'])}, {len(charts)} chart(s) → {out / 'notes.md'}")
+    if args.only != "reddit":
+        try:
+            notes, nmeta = write_notes(facts, column or None)
+            charts = {}
+            for i, n in enumerate(notes["notes"]):
+                if (n.get("chart") or {}).get("bars"):
+                    charts[i] = f"note-{i + 1}.png"
+                    POST.chart_note(n["chart"], out / charts[i])
+            (out / "notes.json").write_text(
+                json.dumps(notes | {"meta": nmeta}, indent=1, ensure_ascii=False)
+            )
+            (out / "notes.md").write_text(notes_markdown(notes, charts, facts))
+            print(f"notes: {len(notes['notes'])}, {len(charts)} chart(s) → {out / 'notes.md'}")
+        except errors as e:
+            print(f"note ideas failed: {e}")
+    if args.only != "notes":
+        try:
+            reddit, rmeta = write_reddit(facts, column or None)
+            link = args.link or f"https://chomanalysis.substack.com/p/{POST.seo(facts)['slug']}"
+            (out / "reddit.json").write_text(
+                json.dumps(reddit | {"meta": rmeta}, indent=1, ensure_ascii=False)
+            )
+            (out / "reddit.md").write_text(reddit_markdown(reddit, link, images))
+            print(f"reddit: {reddit['title']} → {out / 'reddit.md'}")
+        except errors as e:
+            print(f"reddit text failed: {e}")
 
 
 def draft_column(facts: dict, team: str, mt: dict, out: Path, images: dict) -> None:
