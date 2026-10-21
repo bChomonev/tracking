@@ -8,6 +8,61 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-051 — Game state: the shot numbers split by the score at the time · 2026-10-21 · accepted (revisit at season's end)
+The page said *what* (shot quality at both ends is bad); whole-match totals could not say
+whether that is how United play or how they chase. The cached FotMob pages hold every shot
+with its minute and every goal with its minute, so each shot is now tagged with the score
+when it was taken: **level, ahead or behind**, from the team's view. Own goals are credited by
+FotMob to the side that benefits. The clock is 90 minutes: an added-time goal or shot sits at
+the end of its half. Red cards are ignored for now.
+
+**Metrics** (stack "By game state", 21 rows, `profile._state_metrics`): per state, chance
+quality created and conceded per 90 minutes *in that state*, npxG per shot for and against,
+shots and shots faced per 90, and shot distance. A match counts for a state only if it spent
+20+ minutes there (`MIN_STATE_MINUTES`); per-shot quality also needs 3+ shots. Each row gets
+elite and worst lines from the usual pools, measured in the same state, an impact test, a
+site row and fact-sheet rows; the fact sheet also gets a `game_state` block (minutes shares,
+the key numbers per state with their lines) and the match fact sheet a `game_state` block
+for the column. Minutes shares are context, not a line: they follow from results.
+
+**Kept out of the share, the weighted scores, the tiers and the line counts** (`proof.STATE`,
+`SHARE_EXCLUDED`, `compare(uncounted=…)`): they re-measure the whole-match metrics on a slice,
+so counting both would double-count. The adoption test (walk-forward AUC of the weighted
+scores, as in D-050) was run anyway. With the state rows in, the AUC rose in every league on
+both sides — PL elite 0.762 → 0.769, danger 0.772 → 0.774; La Liga 0.769 → 0.791, 0.799 →
+0.807; Serie A 0.677 → 0.682, 0.689 → 0.693; Bundesliga 0.720 → 0.759, 0.745 → 0.786 — but
+the test only covers this season (108–176 team-matches per league; with three FotMob seasons
+the walk-forward can score only the last one), and the top-group hit rate fell in the PL
+(0.73 → 0.70) and La Liga (0.80 → 0.70). Too thin to re-score every team on the site now.
+**Revisit at the end of 2026-27** with a full season in the test; if it holds, bring the
+when-level rows into the scores.
+
+**What the impact test found** (lines from 2024-25 and 2025-26, tested on the next season):
+- "When level" chance quality created and conceded per 90 are *decisive* in all four leagues,
+  with lifts equal to or above the whole-match versions (PL +0.27 / +0.29 vs +0.27 / +0.27).
+- Shots faced per 90 when level separates results more than whole-match shots faced
+  everywhere (PL +0.22 vs +0.18, La Liga +0.29 vs +0.21, Serie A +0.28 vs +0.16,
+  Bundesliga +0.30 vs +0.20): the whole-match number is diluted by sides sitting on a lead.
+- npxG per shot when level is weaker than the whole-match version (helps, not decisive:
+  PL +0.16 vs +0.25). Part of the whole-match shot-quality signal *is* the score effect.
+- Ahead and behind rows mostly have no line in a tested pair: top-four wins rarely spend 20+
+  minutes behind and bottom-four defeats rarely 20+ minutes ahead, so those pools fall under
+  the 10-game minimum. They are still ranked against the league each season.
+- Trait check (2025-26, team medians for matches 1–19 vs 20–38, correlation across teams):
+  the when-level rows are noisier than whole-match ones because they rest on fewer shots —
+  PL npxG per 90 when level r = 0.66 (whole match 0.72), npxG per shot when level 0.08 (0.45).
+  So quote per-shot quality when level over a season, not after a handful of games.
+
+**United, 7 matches:** level 61% of minutes (league 50%), ahead 17% (15th of 20). When level:
+16.7 shots per 90 (most in the league, league 12.5) at 0.064 npxG per shot (19th) from 20.5 m
+(19th); 9.4 shots faced per 90 (fewest) at 0.135 npxGA per shot (20th). Last season, when
+level, it was 15.1 shots at 0.102 from 16.5 m. The long-range volume is not a chasing habit.
+
+Also fixed on the way: the analyst's `NOT_MEASURED` list still said player-level shooting
+was not in the sheet (it has been since D-025), which made the critic drop every player
+interpretation in the 2026-10-21 run. The line now names what really is not split by state
+(possession, passing, pressing, running).
+
 ## D-050 — Passing metrics: shown with lines, but kept out of the scores · 2026-10-21 · accepted
 Three passing metrics join the progression stack. All three are FotMob numbers.
 - Pass accuracy: completed passes ÷ attempted.

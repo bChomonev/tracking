@@ -120,10 +120,11 @@ def hits_line(value: float | None, line_value: float, direction: int, side: Side
     return value * direction <= line_value * direction
 
 
-def compare(profile: dict, line: dict) -> dict:
+def compare(profile: dict, line: dict, uncounted: frozenset[str] = frozenset()) -> dict:
     """Annotate a team profile (in place) with a line and summarise how often the team hits
     it. For the best line a hit is good (reached the elite median); for the worst line a hit
-    is bad (as bad as the bottom four's median in defeat)."""
+    is bad (as bad as the bottom four's median in defeat). Metrics in ``uncounted`` get their
+    line but stay out of the hit counts (the game-state rows, D-051)."""
     side: Side = line["side"]
     hits_per_match = [0] * len(profile["matches"])
     counted_per_match = [0] * len(profile["matches"])
@@ -139,12 +140,13 @@ def compare(profile: dict, line: dict) -> dict:
         for i, x in enumerate(m["matches"]):
             hit = hits_line(x["value"], ln["value"], d, side)
             hits.append(hit)
-            if hit is not None:
+            if hit is not None and m["key"] not in uncounted:
                 counted_per_match[i] += 1
                 hits_per_match[i] += hit
         typical_hit = hits_line(m["value"], ln["value"], d, side)
-        compared += 1
-        typical_hits += bool(typical_hit)
+        if m["key"] not in uncounted:
+            compared += 1
+            typical_hits += bool(typical_hit)
         m[f"{side}_line"] = {
             **ln,
             "weak_end": weak_end,

@@ -280,6 +280,7 @@ def build_facts(
         "proof": _proof_facts(profile, labels),
         "what_decides_matches": _focus_facts(profile, labels),
         "shooting": _shooting_facts(profile),
+        "game_state": _game_state_facts(profile),
         "next_match": _next_match_facts(profile, predictions, previews),
         "players": players,
         "notes": [
@@ -296,6 +297,11 @@ def build_facts(
             "Shot-map metrics (shot distance, outside-box share, blocked share, set-piece and "
             "counter-attack npxG) exclude penalties and own goals. In goals_by_type, "
             "of_which_from_outside_box is a subset of the other categories.",
+            "game_state splits the shot numbers by the score at the time (level, ahead, "
+            "behind). A match counts for a state only if it spent 20+ minutes in it, so the "
+            "'typical match' there is the median of those matches. The 'when level' numbers "
+            "are the cleanest read of how the team plays: whole-match numbers are shaped by "
+            "the score, these are not.",
         ],
         "not_measured": NOT_MEASURED,
     }
@@ -495,5 +501,68 @@ NOT_MEASURED = [
     "crosses, cut-backs or how a specific chance was created",
     "individual errors leading to goals",
     "tactical instructions, fitness, injuries, morale or confidence",
-    "player-level shooting (shots, shot quality) — only team-level shot data is in this sheet",
+    "possession, passing, pressing or running split by game state (only shots are split)",
 ]
+
+
+STATE_LABELS = {"level": "when level", "ahead": "when ahead", "behind": "when behind"}
+
+
+def _game_state_facts(profile: dict) -> dict | None:
+    """The shot numbers by the score at the time (D-051), with their lines, in one place."""
+    ctx = (profile.get("context") or {}).get("game_state_minutes")
+    by_key = {m["key"]: m for m in profile["metrics"] if m["stack"] == "state"}
+    if not ctx or not by_key:
+        return None
+
+    def fact(key: str) -> dict | None:
+        m = by_key.get(key)
+        if not m:
+            return None
+        dec = m["decimals"]
+        out = {
+            "typical_match": _r(m["value"], dec),
+            "league_rank": m["rank"],
+            "teams_ranked": m["of"],
+            "league_average": _r(m["league_avg"], dec),
+            "matches_with_20_plus_minutes": sum(1 for x in m["matches"] if x["value"] is not None),
+        }
+        for side, word in (("best", "elite_line"), ("worst", "worst_line")):
+            b = m.get(f"{side}_line")
+            if b:
+                out[word] = _r(b["value"], dec)
+                out[f"typical_match_{'reaches' if side == 'best' else 'at_or_below'}_{word}"] = b[
+                    "typical_hits"
+                ]
+        imp = m.get("impact")
+        if imp:
+            out["decides_matches"] = TIER_WORDS[imp["tier"]]
+        return out
+
+    states = {}
+    for s, word in STATE_LABELS.items():
+        states[word] = {
+            "share_of_minutes_pct": ctx[s]["team_pct"],
+            "league_average_share_pct": ctx[s]["league_avg_pct"],
+            f"rank_for_most_time_{s}": f"{ctx[s]['rank_most_time']} of {ctx[s]['of']}",
+            "chance_quality_created_npxg_per_90": fact(f"{s}_npxg_p90"),
+            "chance_quality_conceded_npxga_per_90": fact(f"{s}_npxg_p90_conceded"),
+            "npxg_per_shot": fact(f"{s}_npxg_per_shot"),
+            "npxga_per_shot_faced": fact(f"{s}_npxg_per_shot_conceded"),
+            "shots_per_90": fact(f"{s}_shots_p90"),
+            "shots_faced_per_90": fact(f"{s}_shots_p90_conceded"),
+            "shot_distance_m": fact(f"{s}_shot_distance_m"),
+        }
+    return {
+        "what_it_is": (
+            "The shot numbers split by the score at the time of each shot: level, ahead or "
+            "behind, as rates per 90 minutes spent in that state. A match counts for a "
+            "state only if it spent 20+ minutes there. Whole-match numbers are shaped by the "
+            "score (a side 2-0 up sits back); the 'when level' numbers are not, so they are "
+            "the fairest read of how the team plays. Lines come from the same pools as the "
+            "other metrics (last season's top four in wins, bottom four in defeats), "
+            "measured in the same state. These metrics are not counted in the elite or "
+            "relegation impact scores or the tiers; they explain them."
+        ),
+        **states,
+    }

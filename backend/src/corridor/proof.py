@@ -13,7 +13,9 @@ Two datasets, never mixed (different providers):
 
 Caveat (stated on the page): metrics are whole-match totals, so they are partly shaped by
 the scoreline (a team 2-0 up may sit back). This is association, not a controlled
-experiment.
+experiment. The game-state rows (D-051) are the answer to that caveat: the same shot
+metrics measured only while the score was level, ahead or behind. They get lines and an
+impact test here but stay out of the share and the weighted scores (``STATE``).
 """
 
 from collections.abc import Sequence
@@ -23,7 +25,7 @@ from typing import Any
 import numpy as np
 
 from corridor.best_line import Side, build_line, hits_line
-from corridor.profile import METRICS, derive
+from corridor.profile import METRICS, STATE_KEYS, derive
 
 # FotMob shares in 10% steps; Understat's 5 metrics give shares 0, .2 … 1, one bin each.
 FOTMOB_BINS = tuple(round(x * 0.1, 1) for x in range(10)) + (1.0001,)
@@ -110,7 +112,7 @@ def evaluate(
             for side in ("best", "worst")
         }
         tested = [m.key for m in metrics if all(m.key in ln["metrics"] for ln in lines.values())]
-        keys = [k for k in tested if k not in STYLE]  # the ones the share counts
+        keys = [k for k in tested if k not in SHARE_EXCLUDED]  # the ones the share counts
         pairs.append({"lines_from": prev_label, "tested_on": label, "metrics": keys})
         for r in rows:
             rec = {"season": label, "result": r["result"]}
@@ -322,4 +324,9 @@ OUTCOME_LINKED = {"goals_prevented", "finishing_delta", "big_chances_missed"}
 # a given match barely moves the result (lift under 0.07 each), and adding them lowered the
 # walk-forward AUC of the weighted score.
 STYLE = {"pass_accuracy_pct", "opp_half_pass_pct", "long_ball_pct"}
+# Game-state metrics (D-051): lines and an impact test each, but out of the share, the
+# weighted scores and the tiers for now — they re-measure the whole-match metrics on a
+# slice, so counting both would double-count the same thing.
+STATE = frozenset(STATE_KEYS)
+SHARE_EXCLUDED = STYLE | STATE
 FOTMOB_METRICS = tuple(m for m in METRICS if m.key not in OUTCOME_LINKED)

@@ -148,7 +148,11 @@ def focus(prof: dict, fm: dict) -> dict:
                 m["impact"] = imp[m["key"]]
     tiers = {}
     for _, tier in proof.TIERS:
-        ms = [m for m in prof["metrics"] if m.get("impact", {}).get("tier") == tier]
+        ms = [
+            m
+            for m in prof["metrics"]
+            if m.get("impact", {}).get("tier") == tier and m["key"] not in proof.STATE
+        ]
         ms.sort(key=lambda m: -m["impact"]["impact"])
         status = [
             "best"
@@ -163,7 +167,9 @@ def focus(prof: dict, fm: dict) -> dict:
             "status": status,
             **{s: status.count(s) for s in ("best", "between", "worst")},
         }
-    untested = [m["key"] for m in prof["metrics"] if "impact" not in m]
+    untested = [
+        m["key"] for m in prof["metrics"] if "impact" not in m and m["key"] not in proof.STATE
+    ]
     return {"tiers": tiers, "untested": untested}
 
 
@@ -176,7 +182,7 @@ def build_team(
     prof["season"] = ctx["season"]
     prof["competition"] = ctx["competition"]
     for line in lines.values():
-        compare(prof, line)
+        compare(prof, line, uncounted=proof.STATE)
     if rec and "best_line" in prof:
         prof["proof"] = place(prof, ctx["rows"], rec)
         prof["focus"] = focus(prof, rec["fotmob"])

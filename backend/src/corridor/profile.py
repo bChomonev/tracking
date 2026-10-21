@@ -11,6 +11,10 @@ from statistics import mean, median
 import numpy as np
 
 from corridor.engine.player_effort import percentile_ranks
+from corridor.ingest.fotmob import STATES
+
+MIN_STATE_MINUTES = 20.0  # a match counts for a state only if it spent this long in it
+MIN_STATE_SHOTS = 3  # per-shot quality needs at least this many shots in the state
 
 
 @dataclass(frozen=True)
@@ -29,7 +33,93 @@ STACKS = {
     "progression": "Progression & territory",
     "attack": "Attack",
     "defence": "Defence",
+    "state": "By game state",
 }
+
+STATE_WORDS = {"level": "level", "ahead": "ahead", "behind": "behind"}
+
+
+def _state_metrics() -> tuple["ProfileMetric", ...]:
+    """Shot-derived metrics split by the score at the time (D-051). Each is measured over
+    the minutes the team spent in that state, so a match counts only if it spent 20+
+    minutes there; per-shot quality also needs 3+ shots."""
+    out = []
+    for s in STATES:
+        w = STATE_WORDS[s]
+        guard = f" Only matches with 20+ minutes {w} count."
+        out += [
+            ProfileMetric(
+                f"{s}_npxg_p90",
+                f"When {w}: chance quality created (npxG per 90)",
+                "state",
+                +1,
+                "",
+                f"Expected goals created per 90 minutes while the score was {w}, penalties "
+                f"excluded.{guard} Higher is better.",
+                2,
+            ),
+            ProfileMetric(
+                f"{s}_npxg_p90_conceded",
+                f"When {w}: chance quality conceded (npxGA per 90)",
+                "state",
+                -1,
+                "",
+                f"Expected goals the opponent created per 90 minutes while the score was {w}, "
+                f"penalties excluded.{guard} Lower is better.",
+                2,
+            ),
+            ProfileMetric(
+                f"{s}_npxg_per_shot",
+                f"When {w}: npxG per shot",
+                "state",
+                +1,
+                "",
+                f"How good the average shot was while the score was {w} (0.10 = 1 in 10)."
+                f"{guard} Higher is better.",
+                3,
+            ),
+            ProfileMetric(
+                f"{s}_npxg_per_shot_conceded",
+                f"When {w}: npxGA per shot faced",
+                "state",
+                -1,
+                "",
+                f"How good the average shot the team allowed was while the score was {w}."
+                f"{guard} Lower is better.",
+                3,
+            ),
+            ProfileMetric(
+                f"{s}_shots_p90",
+                f"When {w}: shots per 90",
+                "state",
+                +1,
+                "",
+                f"Non-penalty shots per 90 minutes while the score was {w}.{guard} Higher is "
+                "better, but read it with npxG per shot: many hopeful shots are not a plan.",
+                1,
+            ),
+            ProfileMetric(
+                f"{s}_shots_p90_conceded",
+                f"When {w}: shots faced per 90",
+                "state",
+                -1,
+                "",
+                f"Non-penalty shots the opponent took per 90 minutes while the score was {w}."
+                f"{guard} Lower is better.",
+                1,
+            ),
+            ProfileMetric(
+                f"{s}_shot_distance_m",
+                f"When {w}: shot distance",
+                "state",
+                -1,
+                "m",
+                f"Average distance from goal of the team's shots while the score was {w}."
+                f"{guard} Lower is better: closer shots are better chances.",
+            ),
+        ]
+    return tuple(out)
+
 
 METRICS: tuple[ProfileMetric, ...] = (
     ProfileMetric(
@@ -391,7 +481,9 @@ METRICS: tuple[ProfileMetric, ...] = (
         ),
         2,
     ),
+    *_state_metrics(),
 )
+STATE_KEYS = frozenset(m.key for m in METRICS if m.stack == "state")
 
 
 def derive(r: dict) -> dict:
@@ -434,6 +526,20 @@ def derive(r: dict) -> dict:
         if not side:
             d["outside_box_shot_pct"] = 100 * r["shots_outside_box"] / n if has else None
             d["blocked_shot_pct"] = 100 * r["shots_blocked"] / n if has else None
+    for s in STATES:
+        mins = r.get(f"{s}_minutes")
+        ok = mins is not None and mins >= MIN_STATE_MINUTES
+        for side in ("", "_conceded"):
+            n, xg = r.get(f"{s}_np_shots{side}"), r.get(f"{s}_npxg{side}")
+            d[f"{s}_shots_p90{side}"] = 90 * n / mins if ok and n is not None else None
+            d[f"{s}_npxg_p90{side}"] = 90 * xg / mins if ok and xg is not None else None
+            d[f"{s}_npxg_per_shot{side}"] = (
+                xg / n if ok and n and n >= MIN_STATE_SHOTS and xg is not None else None
+            )
+        n = r.get(f"{s}_np_shots")
+        d[f"{s}_shot_distance_m"] = (
+            r[f"{s}_shot_distance_sum_m"] / n if ok and n and n >= MIN_STATE_SHOTS else None
+        )
     d["points"] = {"W": 3, "D": 1, "L": 0}[r["result"]]
     return d
 
@@ -576,6 +682,7 @@ def team_profile(rows: list[dict], team: str) -> dict:
                     "xg_conceded",
                     "us_xpts",
                     "ppda",
+                    *(f"{s}_minutes" for s in STATES),
                 )
             }
             | {"opponent_league_position": positions[r["opponent"]]}
@@ -640,6 +747,7 @@ def _context(
 
     return {
         "goals_by_type": goals,
+        "game_state_minutes": _state_minutes_context(rows, mine, team),
         "possession_vs_distance": {
             "correlation_all_team_matches": round(corr, 2) if corr is not None else None,
             "team_avg_possession_pct": round(poss[team], 1),
@@ -662,6 +770,34 @@ def _context(
             "note": "Opponent strength = current league position. Lower PPDA = harder press.",
         },
     }
+
+
+def _state_minutes_context(rows: list[dict], mine: list[dict], team: str) -> dict | None:
+    """Share of the team's minutes spent level, ahead and behind, against the league and
+    ranked (most time ahead = 1st). A result, not a performance: context, not a line."""
+    if not any(r.get("level_minutes") is not None for r in mine):
+        return None
+    shares = {}
+    for t, rs in _by_team(rows).items():
+        tot = sum(sum(r.get(f"{s}_minutes") or 0 for s in STATES) for r in rs)
+        if tot:
+            shares[t] = {s: 100 * sum(r.get(f"{s}_minutes") or 0 for r in rs) / tot for s in STATES}
+    out = {
+        "note": (
+            "Share of minutes played level, ahead and behind on a 90-minute clock. This "
+            "follows from results, so it has no line; it says which state the other "
+            "numbers come from."
+        )
+    }
+    for s in STATES:
+        ordered = sorted(shares, key=lambda t: shares[t][s], reverse=True)
+        out[s] = {
+            "team_pct": round(shares[team][s], 1),
+            "league_avg_pct": round(mean(v[s] for v in shares.values()), 1),
+            "rank_most_time": ordered.index(team) + 1,
+            "of": len(ordered),
+        }
+    return out
 
 
 def _by_team(rows: list[dict]) -> dict[str, list[dict]]:

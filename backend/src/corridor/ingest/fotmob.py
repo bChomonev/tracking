@@ -219,6 +219,7 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
         pl.setdefault("errors_led_to_goal", 0.0)
         pl["yellow"], pl["red"] = cards.get(pl["player_id"], (0, 0))
     reds = red_card_minutes(d)
+    goals = goal_times(d)
     records = []
     for i, side in enumerate(sides):
         own, opp = team_vals[i], team_vals[1 - i]
@@ -247,6 +248,7 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
         own_shots = shot_profile(shots, side["id"])
         opp_shots = shot_profile(shots, sides[1 - i]["id"])
         rec |= own_shots | {f"{k}_conceded": v for k, v in opp_shots.items()}
+        rec |= state_profile(shots, goals, side["id"], i == 0)
         team_players = [pl for pl in players if pl["team_id"] == side["id"]]
         for k in PLAYER_SUMS:
             vals = [pl[k] for pl in team_players if pl.get(k) is not None]
@@ -322,6 +324,70 @@ def shot_profile(shots: list[dict], team_id: int) -> dict[str, float | int]:
         "goals_penalty": sum(s.get("situation") == "Penalty" for s in goals),
         "goals_outside_box": sum(not s.get("isFromInsideBox") for s in goals),
     }
+
+
+STATES = ("level", "ahead", "behind")
+"""Game states from the team's point of view (D-051). Set by the score on a 90-minute
+clock: added-time goals and shots sit at the end of their half, red cards are ignored."""
+MATCH_MINUTES = 90.0
+
+
+def goal_times(d: dict) -> list[tuple[float, bool]]:
+    """(minute, counts for the home side) for every goal, in order. Own goals are credited
+    by FotMob to the side that benefits (``isHome``), so no special case is needed."""
+    events = ((d["content"].get("matchFacts") or {}).get("events") or {}).get("events") or []
+    out = []
+    for e in events:
+        if e.get("type") == "Goal":
+            minute = float(e.get("time") or 0) + (e.get("overloadTime") or 0) / 100
+            out.append((minute, bool(e.get("isHome"))))
+    return sorted(out)
+
+
+def _state(goals: list[tuple[float, bool]], minute: float, is_home: bool) -> str:
+    h = sum(1 for t, home in goals if t < minute and home)
+    a = sum(1 for t, home in goals if t < minute and not home)
+    diff = h - a if is_home else a - h
+    return "level" if diff == 0 else "ahead" if diff > 0 else "behind"
+
+
+def state_minutes(goals: list[tuple[float, bool]], is_home: bool) -> dict[str, float]:
+    """Minutes spent in each state on a 90-minute clock."""
+    out = dict.fromkeys(STATES, 0.0)
+    prev = 0.0
+    for t, _ in [*goals, (MATCH_MINUTES, None)]:
+        t = min(t, MATCH_MINUTES)
+        if t > prev:
+            out[_state(goals, prev + 1e-6, is_home)] += t - prev
+            prev = t
+    return out
+
+
+def state_profile(
+    shots: list[dict], goals: list[tuple[float, bool]], team_id: int, is_home: bool
+) -> dict[str, float | int]:
+    """Shots for and against by the score at the time of the shot (penalties and own
+    goals excluded), plus minutes in each state. Rates are derived in corridor.profile."""
+    out: dict[str, float | int] = {}
+    for s, mins in state_minutes(goals, is_home).items():
+        out[f"{s}_minutes"] = round(mins, 2)
+        for suffix in ("", "_conceded"):
+            out[f"{s}_np_shots{suffix}"] = 0
+            out[f"{s}_npxg{suffix}"] = 0.0
+            out[f"{s}_shots_inside_box{suffix}"] = 0
+        out[f"{s}_shot_distance_sum_m"] = 0.0
+    for sh in shots:
+        if sh.get("isOwnGoal") or sh.get("situation") == "Penalty":
+            continue
+        minute = float(sh.get("min") or 0) + (sh.get("minAdded") or 0) / 100
+        s = _state(goals, minute, is_home)
+        suffix = "" if sh["teamId"] == team_id else "_conceded"
+        out[f"{s}_np_shots{suffix}"] += 1
+        out[f"{s}_npxg{suffix}"] += sh.get("expectedGoals") or 0.0
+        out[f"{s}_shots_inside_box{suffix}"] += bool(sh.get("isFromInsideBox"))
+        if not suffix:
+            out[f"{s}_shot_distance_sum_m"] += math.hypot(105 - sh["x"], 34 - sh["y"])
+    return out
 
 
 _CONCEDED = {

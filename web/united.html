@@ -304,6 +304,7 @@ tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600
 .record small { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
 
 /* Stack dossiers */
+.stack-note { font-size: 13px; color: var(--muted); margin: 0 0 8px; line-height: 1.45; }
 .stacks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr)); gap: 20px; }
 .stack { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 18px 8px; min-width: 0; }
 .stack header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
@@ -817,8 +818,11 @@ th[aria-sort] button::after { content: " ▾"; }
   $("stacks").innerHTML = C.stacks.map((s) => {
     const imp = (m) => (m.impact ? m.impact.impact : -1);
     const ms = C.metrics.filter((m) => m.stack === s.id).sort((a, b) => imp(b) - imp(a));
+    const gs = s.id === "state" && C.context && C.context.game_state_minutes;
+    const gsNote = gs ? `<p class="stack-note">Shot numbers split by the score at the time, as rates per 90 minutes in that state; a match counts for a state only with 20+ minutes in it. Whole-match numbers are shaped by the score, these are not. ${esc(TN)} spent <span class="num">${gs.level.team_pct.toFixed(0)}%</span> of minutes level (league <span class="num">${gs.level.league_avg_pct.toFixed(0)}%</span>), <span class="num">${gs.ahead.team_pct.toFixed(0)}%</span> ahead (<span class="num">${gs.ahead.league_avg_pct.toFixed(0)}%</span>, ${ord(gs.ahead.rank_most_time)} most) and <span class="num">${gs.behind.team_pct.toFixed(0)}%</span> behind (<span class="num">${gs.behind.league_avg_pct.toFixed(0)}%</span>). Not counted in the impact scores or the tiers: they explain them.</p>` : "";
     return `<article class="stack" aria-label="${esc(s.name)}">
       <header><h3>${esc(s.name)}</h3><span class="score num tier-${tier(s.score)}" title="Average percentile">${s.score ?? "—"}</span></header>
+      ${gsNote}
       ${ms.map((m) => `<details class="metric" id="m-${m.key}">
         <summary>
           <span class="m-label">${esc(m.label)}${m.impact ? ` <span class="imp-tag ${m.impact.tier}" title="Measured on ${esc(LN)} matches">${esc(TIER[m.impact.tier][0])}</span>` : ""}${m.skew?.flag ? ' <span class="skew-tag" title="One match skews the season average">skewed</span>' : ""}</span>
@@ -877,7 +881,7 @@ th[aria-sort] button::after { content: " ▾"; }
     const w = cols.filter((k) => lineTier(metricBy[k], vals(k)) === "bad").length;
     return `<td class="lines-cell e"><b>${e}</b>/${nDec}<small>${all.best} of ${all.of} all</small></td><td class="lines-cell w"><b>${w}</b>/${nDec}<small>${all.worst} of ${all.of} all</small></td>`;
   };
-  const tested = C.metrics.filter((m) => m.impact && m.best_line && m.worst_line);
+  const tested = C.metrics.filter((m) => m.impact && m.best_line && m.worst_line && m.stack !== "state");
   const typicalAll = { best: tested.filter((m) => m.best_line.typical_hits).length, worst: tested.filter((m) => m.worst_line.typical_hits).length, of: tested.length };
   $("matches-key").innerHTML = withLines
     ? `<span class="sw h-good"></span> reached the elite line (top-four level in a win) <span class="sw"></span> in between <span class="sw h-bad"></span> at the worst line (relegation level) · the two reference rows show each line's value · hover a number for why`

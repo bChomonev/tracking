@@ -267,6 +267,7 @@ def match_facts(
         },
         "events": events(details, home),
         "shots_summary": shots_summary(details, home),
+        "game_state": game_state(prof, i),
         "running_vs_opponent": running(prof, i)
         | (
             {"measured_by": "UEFA tracking (not comparable with league running numbers)"}
@@ -376,6 +377,42 @@ def match_facts(
             + "). Quote the match xG (xg_for / xg_against) for totals; use the shot map only "
             "for counts and where shots came from."
         )
+    return out
+
+
+STATE_WORDS = {"level": "level", "ahead": "ahead", "behind": "behind"}
+
+
+def game_state(prof: dict, i: int) -> dict | None:
+    """Minutes by score state and the team's shot numbers in each (D-051). The per-state
+    metric rows themselves are in ``lines.metrics`` (keys starting level_/ahead_/behind_)."""
+    mt = prof["matches"][i]
+    if mt.get("level_minutes") is None:
+        return None
+    by_key = {m["key"]: m for m in prof["metrics"] if m["stack"] == "state"}
+    out: dict[str, Any] = {
+        "how_to_read": (
+            "Minutes the score was level, we were ahead and we were behind (90-minute clock), "
+            "and our shot numbers in each state as rates per 90 minutes in that state. States "
+            "with under 20 minutes have no numbers. The 'when level' numbers are the fairest "
+            "read of how we played: whole-match numbers are shaped by the score."
+        )
+    }
+    for s, w in STATE_WORDS.items():
+        rec: dict[str, Any] = {"minutes": _r(mt.get(f"{s}_minutes"), 0)}
+        for key, label in (
+            ("npxg_p90", "npxg_per_90"),
+            ("npxg_p90_conceded", "npxga_per_90"),
+            ("npxg_per_shot", "npxg_per_shot"),
+            ("npxg_per_shot_conceded", "npxga_per_shot_faced"),
+            ("shots_p90", "shots_per_90"),
+            ("shots_p90_conceded", "shots_faced_per_90"),
+            ("shot_distance_m", "shot_distance_m"),
+        ):
+            m = by_key.get(f"{s}_{key}")
+            if m:
+                rec[label] = _r(m["matches"][i]["value"], m["decimals"])
+        out[f"when_{w}"] = rec
     return out
 
 

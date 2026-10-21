@@ -120,7 +120,7 @@ def test_impact_tiers():
 
 def test_style_metrics_get_tested_but_stay_out_of_the_share(monkeypatch):
     assert {"pass_accuracy_pct", "opp_half_pass_pct", "long_ball_pct"} <= proof.STYLE
-    monkeypatch.setattr(proof, "STYLE", {"ppda"})
+    monkeypatch.setattr(proof, "SHARE_EXCLUDED", {"ppda"})
     seasons = [("A", _season(1)), ("B", _season(2))]
     out = proof.evaluate(seasons, proof.UNDERSTAT_METRICS, proof.UNDERSTAT_BINS)
     assert "ppda" not in out["pairs"][0]["metrics"] and "npxg" in out["pairs"][0]["metrics"]
