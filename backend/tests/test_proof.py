@@ -116,3 +116,13 @@ def test_impact_tiers():
     assert imp["a"]["tier"] == "decisive" and not imp["a"]["provisional"]
     assert imp["b"]["tier"] == "no_effect" and imp["b"]["provisional"]
     assert imp["b"]["lost_when_at_worst"] is None
+
+
+def test_style_metrics_get_tested_but_stay_out_of_the_share(monkeypatch):
+    assert {"pass_accuracy_pct", "opp_half_pass_pct", "long_ball_pct"} <= proof.STYLE
+    monkeypatch.setattr(proof, "STYLE", {"ppda"})
+    seasons = [("A", _season(1)), ("B", _season(2))]
+    out = proof.evaluate(seasons, proof.UNDERSTAT_METRICS, proof.UNDERSTAT_BINS)
+    assert "ppda" not in out["pairs"][0]["metrics"] and "npxg" in out["pairs"][0]["metrics"]
+    assert "ppda" in {m["key"] for m in out["best"]["by_metric"]}  # still gets an impact
+    assert "ppda" not in out["weighted"]["weights"]["best"]

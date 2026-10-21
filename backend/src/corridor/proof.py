@@ -109,7 +109,8 @@ def evaluate(
             side: build_line(prev, prev_label, rows, side=side, metrics=metrics, derived=True)
             for side in ("best", "worst")
         }
-        keys = [m.key for m in metrics if all(m.key in ln["metrics"] for ln in lines.values())]
+        tested = [m.key for m in metrics if all(m.key in ln["metrics"] for ln in lines.values())]
+        keys = [k for k in tested if k not in STYLE]  # the ones the share counts
         pairs.append({"lines_from": prev_label, "tested_on": label, "metrics": keys})
         for r in rows:
             rec = {"season": label, "result": r["result"]}
@@ -119,12 +120,13 @@ def evaluate(
                 rec[f"{side}_share"] = hit / n if n else None
                 rec[f"{side}_by"] = by = {}
                 for m in metrics:
-                    if m.key not in keys:
+                    if m.key not in tested:
                         continue
                     h = hits_line(r.get(m.key), ln["metrics"][m.key]["value"], m.direction, side)
                     if h is None:
                         continue
-                    by[m.key] = h
+                    if m.key in keys:
+                        by[m.key] = h
                     bucket = per_metric.setdefault(f"{side}:{m.key}", {"hit": [], "miss": []})
                     outcome = 1 if r["result"] == TARGET[side][0] else 0
                     bucket["hit" if h else "miss"].append(outcome)
@@ -315,4 +317,9 @@ def fotmob_seasons(raw: list[tuple[str, list[dict]]]) -> list[tuple[str, list[di
 # chances missed is the flip side of big chances scored. Testing them against results
 # would be circular.
 OUTCOME_LINKED = {"goals_prevented", "finishing_delta", "big_chances_missed"}
+# Passing style (D-050): each gets its own lines and impact test, but stays out of the share
+# and the weighted score. Good passing sides win more over a season, yet reaching the line in
+# a given match barely moves the result (lift under 0.07 each), and adding them lowered the
+# walk-forward AUC of the weighted score.
+STYLE = {"pass_accuracy_pct", "opp_half_pass_pct", "long_ball_pct"}
 FOTMOB_METRICS = tuple(m for m in METRICS if m.key not in OUTCOME_LINKED)

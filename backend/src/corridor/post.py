@@ -209,6 +209,9 @@ def match_facts(
             "worst_line": _r(wl["value"], m["decimals"] + 1) if wl else None,
             "status": status,
             "season_typical_match": _r(m["value"], m["decimals"] + 1),
+            "season_rank": f"{m['rank']} of {m['of']} teams in this competition"
+            if m.get("rank")
+            else None,
             "decides_matches": m.get("impact", {}).get("tier") == "decisive",
         }
 

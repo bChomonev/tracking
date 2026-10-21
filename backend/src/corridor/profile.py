@@ -128,6 +128,37 @@ METRICS: tuple[ProfileMetric, ...] = (
         ),
     ),
     ProfileMetric(
+        "pass_accuracy_pct",
+        "Pass accuracy",
+        "progression",
+        +1,
+        "%",
+        "Share of the team's passes that found a teammate. Higher is better.",
+    ),
+    ProfileMetric(
+        "opp_half_pass_pct",
+        "Passes in opp. half",
+        "progression",
+        +1,
+        "%",
+        (
+            "Share of the team's completed passes played in the opponent's half: how far up"
+            " the pitch it keeps the ball. Higher is better."
+        ),
+        0,
+    ),
+    ProfileMetric(
+        "long_ball_pct",
+        "Long balls",
+        "progression",
+        -1,
+        "%",
+        (
+            "Share of the team's completed passes that were long balls. A style number: "
+            "better sides usually play shorter, so lower counts as better."
+        ),
+    ),
+    ProfileMetric(
         "line_breaking_passes",
         "Line-breaking passes",
         "progression",
@@ -381,6 +412,14 @@ def derive(r: dict) -> dict:
     )
     own, opp = r.get("opp_half_passes"), r.get("opp_half_passes_conceded")
     d["territory_pct"] = 100 * own / (own + opp) if own is not None and own + opp else None
+    passes, acc = r.get("passes"), r.get("accurate_passes")
+    d["pass_accuracy_pct"] = 100 * acc / passes if passes and acc is not None else None
+    d["opp_half_pass_pct"] = 100 * own / acc if acc and own is not None else None
+    d["long_ball_pct"] = (
+        100 * r["accurate_long_balls"] / acc
+        if acc and r.get("accurate_long_balls") is not None
+        else None
+    )
     d["npxg_per_shot"] = r["npxg"] / r["shots"] if r.get("shots") else None
     d["npxg_per_shot_conceded"] = (
         r["npxg_conceded"] / r["shots_conceded"] if r.get("shots_conceded") else None

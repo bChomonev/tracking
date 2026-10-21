@@ -842,7 +842,7 @@ th[aria-sort] button::after { content: " ▾"; }
 
   // ---- Matches table. PL: impact-weighted scores + the decisive metrics, shaded by line.
   // UCL (no lines): a fixed set of metrics, shaded by percentile in the UCL pool.
-  const colLabel = { distance_oop_adj_km: "Run w/o ball (km)", distance_gap_km: "Run vs opp (km)", sprints_gap: "Sprints vs opp", outside_box_shot_pct: "Shots outside box %", ppda: "PPDA", territory_pct: "Territory %", box_touches: "Box touches", npxg: "npxG", npxg_per_shot: "npxG / shot", npxg_conceded: "npxGA", npxg_per_shot_conceded: "npxGA / shot", big_chances: "Big chances", big_chances_conceded: "Big chances conceded" };
+  const colLabel = { distance_oop_adj_km: "Run w/o ball (km)", distance_gap_km: "Run vs opp (km)", sprints_gap: "Sprints vs opp", outside_box_shot_pct: "Shots outside box %", ppda: "PPDA", territory_pct: "Territory %", pass_accuracy_pct: "Pass acc. %", opp_half_pass_pct: "Passes opp. half %", long_ball_pct: "Long balls %", box_touches: "Box touches", npxg: "npxG", npxg_per_shot: "npxG / shot", npxg_conceded: "npxGA", npxg_per_shot_conceded: "npxGA / shot", big_chances: "Big chances", big_chances_conceded: "Big chances conceded" };
   const withLines = C === P && P.focus;
   const cols = (withLines ? P.focus.tiers.decisive.metrics : ["distance_oop_adj_km", "distance_gap_km", "sprints_gap", "ppda", "territory_pct", "box_touches", "npxg", "npxg_per_shot", "outside_box_shot_pct", "npxg_conceded", "npxg_per_shot_conceded"]).filter((k) => metricBy[k]);
   const lineTier = (m, v) => {

@@ -1,5 +1,5 @@
 from corridor.ingest.uefa import match_to_fotmob, physical
-from corridor.profile import team_profile
+from corridor.profile import derive, team_profile
 
 
 def _row(team, opp, mid, npxg, day):
@@ -80,3 +80,19 @@ def test_uefa_physical_units():
     assert (
         p["distance_m"] == 112210 and p["opp_sprints"] == 156 and p["opp_possession_pct_uefa"] == 57
     )
+
+
+def test_passing_metrics_use_completed_passes():
+    # FotMob's own-half + opposition-half passes add up to the accurate (completed) passes.
+    r = {
+        "passes": 669.0,
+        "accurate_passes": 588.0,
+        "opp_half_passes": 391.0,
+        "opp_half_passes_conceded": 200.0,
+    }
+    r |= {"accurate_long_balls": 25.0, "npxg": 1.0, "shots": 10, "xg": 1.0, "result": "D"}
+    d = derive(r)
+    assert round(d["pass_accuracy_pct"], 1) == 87.9
+    assert round(d["opp_half_pass_pct"], 1) == 66.5
+    assert round(d["long_ball_pct"], 2) == 4.25
+    assert derive({"result": "W", "passes": 0})["pass_accuracy_pct"] is None

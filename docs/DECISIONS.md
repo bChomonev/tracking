@@ -8,6 +8,32 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-050 — Passing metrics: shown with lines, but kept out of the scores · 2026-10-21 · accepted
+Three passing metrics join the progression stack. All three are FotMob numbers.
+- Pass accuracy: completed passes ÷ attempted.
+- Passes in the opponent's half: the share of *completed* passes. FotMob's own-half and
+  opposition-half counts add up to completed passes, not attempted ones.
+- Long balls: the share of completed passes. Lower counts as better, because better sides
+  play shorter.
+
+Like every other profile metric, each gets elite and worst lines, an impact test, a site row
+and a fact-sheet row. The fact sheet also gains each metric's season rank (`season_rank`).
+
+Passing doesn't get counted in the share of lines reached or in the weighted elite and danger
+scores (`proof.STYLE`). The reasons:
+- Over a season, good passing sides take more points. Across 156 team-seasons, controlling for
+  xG difference, the extra correlation is +0.18 for accuracy and +0.23 for the opponent-half
+  share.
+- In a single match, reaching the line barely moves the result. The lift is below 0.07, so
+  all three are tiered "no effect".
+- Counting them lowered the walk-forward AUC of the weighted score: 0.762 → 0.760 for elite
+  and 0.772 → 0.763 for worst. It also nudged United's elite score up, just for passing well.
+
+With them out, every existing score is unchanged. Forward and backward passes aren't in
+FotMob's data. Whether passing improves the predictions is a separate test that hasn't been
+run yet. A quick check showed recent passing form cuts goal-difference error by about 2% on
+top of xG form.
+
 ## D-049 — The next Champions League game on the team page, without a prediction · 2026-10-20 · accepted
 United's "Next match" card only showed Premier League games, so Como on Wednesday looked
 missing. `build_site` now adds `next_cup` for each focus team (from FotMob's Champions League
