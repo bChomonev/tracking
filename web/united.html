@@ -1,4 +1,6 @@
 <title>Football Explained</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -305,6 +307,44 @@ tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600
 
 /* Stack dossiers */
 .stack-note { font-size: 13px; color: var(--muted); margin: 0 0 8px; line-height: 1.45; }
+.gs-bars { margin: 2px 0 10px; }
+.gs-bar-row { display: grid; grid-template-columns: 4.5em minmax(0, 1fr) auto; align-items: center; gap: 10px; margin: 4px 0; font-size: .82rem; }
+.gs-bar-label { color: var(--muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gs-bar { display: flex; height: 12px; border-radius: 4px; overflow: hidden; background: var(--track); }
+.gs-bar i { display: block; height: 100%; }
+.gs-bar-nums { color: var(--muted); white-space: nowrap; }
+.gs-level { background: var(--muted); } .gs-ahead { background: var(--good); } .gs-behind { background: var(--bad); }
+.gs-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .78rem; color: var(--muted); margin-top: 4px; }
+.gs-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 3px; }
+.gs-read { font-weight: 600; margin: 0 0 10px; line-height: 1.4; }
+.gs-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 0 0 10px; }
+.gs-table col.gs-c0 { width: 34%; }
+.gs-table th, .gs-table td { padding: 6px 4px; border-top: 1px solid var(--rule); text-align: right; font-size: .92rem; vertical-align: middle; }
+.gs-table thead th { border-top: none; color: var(--muted); font: 600 .74rem/1.2 var(--body); text-transform: uppercase; letter-spacing: .05em; padding-bottom: 8px; }
+.gs-table th[scope="row"] { text-align: left; font-weight: 600; font-size: .84rem; line-height: 1.25; overflow-wrap: anywhere; }
+.gs-table th[scope="row"] .imp-tag { display: block; width: max-content; margin: 3px 0 0; }
+.gs-table .gs-group td { border-top: none; text-align: left; color: var(--muted); font: 600 .72rem/1 var(--body); text-transform: uppercase; letter-spacing: .06em; padding: 12px 4px 4px; }
+.gs-table .short { display: none; }
+.gs-cell { background: none; border: 0; padding: 2px 0; color: inherit; font: inherit; cursor: pointer; white-space: nowrap; display: inline-flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.gs-cell .num { font-size: .98rem; }
+.gs-cell .gs-sub { display: inline-flex; align-items: center; gap: 3px; }
+.gs-cell:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; border-radius: 3px; }
+.gs-cell[aria-expanded="true"] .num { text-decoration: underline; text-decoration-color: var(--red); text-underline-offset: 3px; }
+.gs-cell.empty { color: var(--muted); }
+.gs-chip { margin-left: 0; min-width: 2.2em; padding: 1px 4px; font-size: .72rem; }
+.gs-chip small { font-size: .62rem; }
+.gs-mk { font: 700 .68rem/1 var(--body); margin-left: 1px; }
+.gs-mk.ok { color: var(--good); } .gs-mk.miss { color: var(--bad); }
+.gs-details .metric { border-top: 1px solid var(--rule); }
+@media (max-width: 520px) {
+  .gs-table .full { display: none; } .gs-table .short { display: inline; }
+  .gs-table col.gs-c0 { width: 25%; }
+  .gs-table th, .gs-table td { padding: 6px 2px; font-size: .84rem; }
+  .gs-table th[scope="row"] .imp-tag { display: none; }
+  .gs-chip small { display: none; }
+  .gs-chip { margin-left: 3px; min-width: 1.7em; padding: 2px 3px; }
+  .gs-bar-row { grid-template-columns: 3.5em minmax(0, 1fr) auto; }
+}
 .stacks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr)); gap: 20px; }
 .stack { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 18px 8px; min-width: 0; }
 .stack header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
@@ -815,20 +855,7 @@ th[aria-sort] button::after { content: " ▾"; }
   };
   const opps = C.matches.map((m) => short(m.opponent));
   const oppOf = (id) => { const mt = C.matches.find((x) => x.match_id === id); return mt ? `${short(mt.opponent)} (${mt.is_home ? "H" : "A"})` : ""; };
-  $("stacks").innerHTML = C.stacks.map((s) => {
-    const imp = (m) => (m.impact ? m.impact.impact : -1);
-    const ms = C.metrics.filter((m) => m.stack === s.id).sort((a, b) => imp(b) - imp(a));
-    const gs = s.id === "state" && C.context && C.context.game_state_minutes;
-    const gsNote = gs ? `<p class="stack-note">Shot numbers split by the score at the time, as rates per 90 minutes in that state; a match counts for a state only with 20+ minutes in it. Whole-match numbers are shaped by the score, these are not. ${esc(TN)} spent <span class="num">${gs.level.team_pct.toFixed(0)}%</span> of minutes level (league <span class="num">${gs.level.league_avg_pct.toFixed(0)}%</span>), <span class="num">${gs.ahead.team_pct.toFixed(0)}%</span> ahead (<span class="num">${gs.ahead.league_avg_pct.toFixed(0)}%</span>, ${ord(gs.ahead.rank_most_time)} most) and <span class="num">${gs.behind.team_pct.toFixed(0)}%</span> behind (<span class="num">${gs.behind.league_avg_pct.toFixed(0)}%</span>). Not counted in the impact scores or the tiers: they explain them.</p>` : "";
-    return `<article class="stack" aria-label="${esc(s.name)}">
-      <header><h3>${esc(s.name)}</h3><span class="score num tier-${tier(s.score)}" title="Average percentile">${s.score ?? "—"}</span></header>
-      ${gsNote}
-      ${ms.map((m) => `<details class="metric" id="m-${m.key}">
-        <summary>
-          <span class="m-label">${esc(m.label)}${m.impact ? ` <span class="imp-tag ${m.impact.tier}" title="Measured on ${esc(LN)} matches">${esc(TIER[m.impact.tier][0])}</span>` : ""}${m.skew?.flag ? ' <span class="skew-tag" title="One match skews the season average">skewed</span>' : ""}</span>
-          <span class="m-value"><span class="num">${esc(showVal(m, m.value))}</span><span class="rank">${ord(m.rank)}/${m.of}</span></span>
-          <span class="bar" aria-hidden="true"><i class="tier-${tier(m.percentile)}" style="width:${Math.max(2, m.percentile ?? 0)}%"></i></span>
-        </summary>
+  const detailOf = (m) => `
         <div class="m-detail">
           <p>${esc(tipOf(m))}</p>
           <p>Typical match (median) <span class="num">${esc(showVal(m, m.value))}</span> · season average <span class="num">${esc(showVal(m, m.season_average))}</span>${m.rank_by_average !== m.rank ? ` (${ord(m.rank_by_average)} by average)` : ""}</p>
@@ -839,9 +866,105 @@ th[aria-sort] button::after { content: " ▾"; }
           ${spark(m)}
           <div class="legend">${m.matches.map((x, i) => `<span>${esc(opps[i])} <span class="num">${esc(showVal(m, x.value))}</span></span>`).join("")}<span>- - league avg</span>${m.best_line ? '<span class="line-ok">— best line</span>' : ""}${m.worst_line ? '<span class="line-miss">— worst line</span>' : ""}</div>
         </div>
-      </details>`).join("")}
+`;
+  const listMetric = (m) => `<details class="metric" id="m-${m.key}">
+        <summary>
+          <span class="m-label">${esc(m.label)}${m.impact ? ` <span class="imp-tag ${m.impact.tier}" title="Measured on ${esc(LN)} matches">${esc(TIER[m.impact.tier][0])}</span>` : ""}${m.skew?.flag ? ' <span class="skew-tag" title="One match skews the season average">skewed</span>' : ""}</span>
+          <span class="m-value"><span class="num">${esc(showVal(m, m.value))}</span><span class="rank">${ord(m.rank)}/${m.of}</span></span>
+          <span class="bar" aria-hidden="true"><i class="tier-${tier(m.percentile)}" style="width:${Math.max(2, m.percentile ?? 0)}%"></i></span>
+        </summary>
+${detailOf(m)}      </details>`;
+
+  // ---- Game state: a matrix (metric × level / ahead / behind) instead of a list, because the
+  // reader wants to compare the same number across states and for/against in one state.
+  const GS_STATES = ["level", "ahead", "behind"];
+  const GS_ROWS = [
+    ["for", "Chance quality (npxG)", "Chances", "npxg_p90"],
+    ["for", "Shots", "Shots", "shots_p90"],
+    ["for", "npxG per shot", "Per shot", "npxg_per_shot"],
+    ["for", "Shot distance", "Distance", "shot_distance_m"],
+    ["against", "Chance quality conceded (npxGA)", "Chances", "npxg_p90_conceded"],
+    ["against", "Shots faced", "Shots", "shots_p90_conceded"],
+    ["against", "npxGA per shot faced", "Per shot", "npxg_per_shot_conceded"],
+  ];
+  // Superlatives for the one-line read, written from league ranks: [top-three, bottom-three].
+  const GS_WORDS = {
+    npxg_p90: ["the {o}most chance quality created", "the {o}least chance quality created"],
+    shots_p90: ["{o}most shots in the league", "{o}fewest shots in the league"],
+    shot_distance_m: ["from the {o}closest in", "from the {o}furthest out"],
+    npxg_per_shot: ["at the {o}best quality", "at the {o}worst quality"],
+    npxg_p90_conceded: ["the {o}least chance quality conceded", "the {o}most chance quality conceded"],
+    shots_p90_conceded: ["{o}fewest shots faced", "{o}most shots faced"],
+    npxg_per_shot_conceded: ["of the {o}lowest quality", "of the {o}highest quality"],
+  };
+  const gsRead = (by) => {
+    const phrase = (key) => {
+      const m = by[`level_${key}`];
+      if (!m || m.rank == null) return null;
+      const fromTop = m.rank, fromBottom = m.of - m.rank + 1;
+      const o = (k) => (k === 1 ? "" : k === 2 ? "2nd-" : "3rd-");
+      if (fromTop <= 3) return GS_WORDS[key][0].replace("{o}", o(fromTop));
+      if (fromBottom <= 3) return GS_WORDS[key][1].replace("{o}", o(fromBottom));
+      return null;
+    };
+    const part = (side) => GS_ROWS.filter((r) => r[0] === side).map((r) => phrase(r[3])).filter(Boolean).join(", ");
+    const f = part("for"), a = part("against");
+    if (!f && !a) return `When level, nothing in the league's top or bottom three.`;
+    return `When level: ${[f, a].filter(Boolean).join("; ")}.`;
+  };
+  const gsBar = (x, label) => `<div class="gs-bar-row"><span class="gs-bar-label">${label}</span><span class="gs-bar" aria-hidden="true">${GS_STATES.map((st) => `<i class="gs-${st}" style="width:${x[st].toFixed(1)}%"></i>`).join("")}</span><span class="gs-bar-nums num">${GS_STATES.map((st) => `${x[st].toFixed(0)}%`).join(" · ")}</span></div>`;
+  const stateStack = (s, ms) => {
+    const gs = C.context && C.context.game_state_minutes;
+    const by = Object.fromEntries(ms.map((m) => [m.key, m]));
+    const cell = (key, st) => {
+      const m = by[`${st}_${key}`];
+      if (!m) return `<td class="gs-cell empty" title="Fewer than 20 minutes ${st} in the typical match">—</td>`;
+      const sfx = ord(m.rank).slice(String(m.rank).length);
+      const marks = (m.best_line?.typical_hits ? `<span class="gs-mk ok" title="Typical match reaches the elite line (${esc(showVal(m, m.best_line.value))})">E</span>` : "") +
+        (m.worst_line?.typical_hits ? `<span class="gs-mk miss" title="Typical match at or below the worst line (${esc(showVal(m, m.worst_line.value))})">W</span>` : "");
+      return `<td><button type="button" class="gs-cell" data-key="${m.key}" aria-expanded="false" aria-controls="m-${m.key}" title="${esc(m.label)}: ${esc(showVal(m, m.value))}, ${ord(m.rank)} of ${m.of}. Tap for detail."><span class="num">${esc(showVal(m, m.value))}</span><span class="gs-sub"><span class="gs-chip pct-chip tier-${tier(m.percentile)}">${m.rank}<small>${sfx}</small></span>${marks}</span></button></td>`;
+    };
+    const row = ([side, full, shortLbl, key]) => {
+      const lv = by[`level_${key}`];
+      return `<tr><th scope="row"><span class="full">${esc(full)}</span><span class="short">${esc(shortLbl)}</span>${lv?.impact ? ` <span class="imp-tag ${lv.impact.tier}" title="When level, measured on ${esc(LN)} matches">${esc(TIER[lv.impact.tier][0])}</span>` : ""}</th>${GS_STATES.map((st) => cell(key, st)).join("")}</tr>`;
+    };
+    const group = (side, label) => `<tr class="gs-group"><td colspan="4">${label}</td></tr>` + GS_ROWS.filter((r) => r[0] === side).map(row).join("");
+    const lg = gs ? Object.fromEntries(GS_STATES.map((st) => [st, gs[st].league_avg_pct])) : null;
+    const tm = gs ? Object.fromEntries(GS_STATES.map((st) => [st, gs[st].team_pct])) : null;
+    return `<article class="stack gs" aria-label="${esc(s.name)}">
+      <header><h3>${esc(s.name)}</h3><span class="score num tier-${tier(s.score)}" title="Average percentile">${s.score ?? "—"}</span></header>
+      ${gs ? `<div class="gs-bars">${gsBar(tm, TN)}${gsBar(lg, "League")}<div class="gs-legend"><span><i class="gs-level"></i> level</span><span><i class="gs-ahead"></i> ahead</span><span><i class="gs-behind"></i> behind</span><span>share of minutes${gs.ahead.rank_most_time ? ` · ${esc(TN)} ${ord(gs.ahead.rank_most_time)} of ${gs.ahead.of} for time ahead` : ""}</span></div></div>` : ""}
+      <p class="gs-read">${esc(gsRead(by))}</p>
+      <table class="gs-table"><colgroup><col class="gs-c0"><col><col><col></colgroup>
+        <thead><tr><th scope="col"><span class="full">Per 90 min in that state</span><span class="short">Per 90</span></th>${GS_STATES.map((st) => `<th scope="col">${st[0].toUpperCase() + st.slice(1)}</th>`).join("")}</tr></thead>
+        <tbody>${group("for", "For")}${group("against", "Against")}</tbody>
+      </table>
+      <p class="stack-note">Shots split by the score at the time, as rates per 90 minutes in that state; a match counts for a state only with 20+ minutes in it. Whole-match numbers are shaped by the score, these are not. Chip = league rank (green top third, amber middle, red bottom). E / W = the typical match reaches the elite line / sits at the worst line. Tap a number for its detail. Not counted in the impact scores or the tiers: they explain them.</p>
+      <div class="gs-details">${ms.map((m) => `<div hidden data-for="${m.key}">${listMetric(m)}</div>`).join("")}</div>
+    </article>`;
+  };
+
+  $("stacks").innerHTML = C.stacks.map((s) => {
+    const imp = (m) => (m.impact ? m.impact.impact : -1);
+    const ms = C.metrics.filter((m) => m.stack === s.id).sort((a, b) => imp(b) - imp(a));
+    if (s.id === "state") return stateStack(s, ms);
+    return `<article class="stack" aria-label="${esc(s.name)}">
+      <header><h3>${esc(s.name)}</h3><span class="score num tier-${tier(s.score)}" title="Average percentile">${s.score ?? "—"}</span></header>
+      ${ms.map(listMetric).join("")}
     </article>`;
   }).join("");
+  for (const btn of $("stacks").querySelectorAll(".gs-cell[data-key]")) {
+    btn.addEventListener("click", () => {
+      const art = btn.closest(".gs"), key = btn.dataset.key, open = btn.getAttribute("aria-expanded") === "true";
+      for (const b of art.querySelectorAll(".gs-cell[data-key]")) b.setAttribute("aria-expanded", "false");
+      for (const d of art.querySelectorAll(".gs-details > div")) {
+        d.hidden = open || d.dataset.for !== key;
+        const det = d.querySelector("details");
+        if (det) det.open = !d.hidden;
+      }
+      if (!open) btn.setAttribute("aria-expanded", "true");
+    });
+  }
 
 
   // ---- Matches table. PL: impact-weighted scores + the decisive metrics, shaded by line.

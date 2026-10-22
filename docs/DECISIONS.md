@@ -58,6 +58,18 @@ when-level rows into the scores.
 (19th); 9.4 shots faced per 90 (fewest) at 0.135 npxGA per shot (20th). Last season, when
 level, it was 15.1 shots at 0.102 from 16.5 m. The long-range volume is not a chasing habit.
 
+**Layout (2026-10-22, user's call):** the stack is a matrix, not the list the other stacks
+use. The data is seven numbers measured in three states, so the reader wants the same number
+across level / ahead / behind in one row and for / against in one column. A minutes-by-state
+bar for the team and the league sits on top; each cell shows the value, a league-rank chip
+coloured by tier, and E / W when the typical match reaches the elite line or sits at the
+worst line; impact tags appear on the level rows only (ahead and behind rarely have a tested
+line). A one-line read is written from the level column's top-three and bottom-three ranks,
+by code, never a model. Tapping a cell opens the same detail block the other stacks use. On
+phones the row labels shorten and the chips show the rank number alone. The page also gained
+charset and viewport metas (the artifact wrapper adds them when published; local previews
+did not have them).
+
 Also fixed on the way: the analyst's `NOT_MEASURED` list still said player-level shooting
 was not in the sheet (it has been since D-025), which made the critic drop every player
 interpretation in the 2026-10-21 run. The line now names what really is not split by state
