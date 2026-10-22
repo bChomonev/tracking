@@ -340,6 +340,8 @@ tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600
 .gs-mk { font: 700 .68rem/1 var(--body); margin-left: 1px; }
 .gs-mk.ok { color: var(--good); } .gs-mk.miss { color: var(--bad); }
 .gs-details .metric { border-top: 1px solid var(--rule); }
+.gs-table th, .gs-table td { position: relative; }
+.gs-table th:hover, .gs-table td:hover, .gs-table th:focus-within, .gs-table td:focus-within { z-index: 3; }
 @media (max-width: 520px) {
   .gs-table .full { display: none; } .gs-table .short { display: inline; }
   .gs-table col.gs-c0 { width: 25%; }
@@ -896,14 +898,20 @@ ${detailOf(m)}      </details>`;
   // reader wants to compare the same number across states and for/against in one state.
   const GS_STATES = ["level", "ahead", "behind"];
   const GS_ROWS = [
-    ["for", "Chance quality (npxG)", "Chances", "npxg_p90"],
-    ["for", "Shots", "Shots", "shots_p90"],
-    ["for", "npxG per shot", "Per shot", "npxg_per_shot"],
-    ["for", "Shot distance", "Distance", "shot_distance_m"],
-    ["against", "Chance quality conceded (npxGA)", "Chances", "npxg_p90_conceded"],
-    ["against", "Shots faced", "Shots", "shots_p90_conceded"],
-    ["against", "npxGA per shot faced", "Per shot", "npxg_per_shot_conceded"],
+    ["for", "Chance quality (npxG)", "Chances", "npxg_p90", "Expected goals the team created per 90 minutes in that state, penalties left out: how many goals its chances were worth. Higher is better."],
+    ["for", "Shots", "Shots", "shots_p90", "Non-penalty shots the team took per 90 minutes in that state. More is better only if the shots are good: read it with npxG per shot."],
+    ["for", "npxG per shot", "Per shot", "npxg_per_shot", "How good the team's average shot was in that state: its chance of going in (0.10 = about 1 in 10). Higher is better."],
+    ["for", "Shot distance", "Distance", "shot_distance_m", "Average distance from goal of the team's shots in that state, in metres. The penalty spot is 11 m out, the edge of the box about 16.5 m. Lower is better."],
+    ["against", "Chance quality conceded (npxGA)", "Chances", "npxg_p90_conceded", "Expected goals the opponent created per 90 minutes in that state, penalties left out. Lower is better."],
+    ["against", "Shots faced", "Shots", "shots_p90_conceded", "Non-penalty shots the opponent took per 90 minutes in that state. Fewer is better."],
+    ["against", "npxGA per shot faced", "Per shot", "npxg_per_shot_conceded", "How good the average shot the team allowed was in that state (0.10 = about 1 in 10). Lower is better: it means the opponent only got hopeful shots."],
   ];
+  const GS_HEAD_TIPS = {
+    level: "While the score was level, from the team's point of view. Rates are per 90 minutes spent level; a match counts only with 20+ minutes level.",
+    ahead: "While the team was in front. Rates are per 90 minutes spent ahead; a match counts only with 20+ minutes ahead.",
+    behind: "While the team was behind. Rates are per 90 minutes spent behind; a match counts only with 20+ minutes behind.",
+  };
+  const GS_GROUP_TIPS = { for: "The team's own shots and chances.", against: "The shots and chances the opponent got against the team." };
   // Superlatives for the one-line read, written from league ranks: [top-three, bottom-three].
   const GS_WORDS = {
     npxg_p90: ["the {o}most chance quality created", "the {o}least chance quality created"],
@@ -941,11 +949,11 @@ ${detailOf(m)}      </details>`;
         (m.worst_line?.typical_hits ? `<span class="gs-mk miss" title="Typical match at or below the worst line (${esc(showVal(m, m.worst_line.value))})">W</span>` : "");
       return `<td><button type="button" class="gs-cell" data-key="${m.key}" aria-expanded="false" aria-controls="m-${m.key}" title="${esc(m.label)}: ${esc(showVal(m, m.value))}, ${ord(m.rank)} of ${m.of}. Tap for detail."><span class="num">${esc(showVal(m, m.value))}</span><span class="gs-sub"><span class="gs-chip pct-chip tier-${tier(m.percentile)}">${m.rank}<small>${sfx}</small></span>${marks}</span></button></td>`;
     };
-    const row = ([side, full, shortLbl, key]) => {
+    const row = ([side, full, shortLbl, key, tip]) => {
       const lv = by[`level_${key}`];
-      return `<tr><th scope="row"><span class="full">${esc(full)}</span><span class="short">${esc(shortLbl)}</span>${lv?.impact ? ` <span class="imp-tag ${lv.impact.tier}" title="When level, measured on ${esc(LN)} matches">${esc(TIER[lv.impact.tier][0])}</span>` : ""}</th>${GS_STATES.map((st) => cell(key, st)).join("")}</tr>`;
+      return `<tr><th scope="row"><span class="tip below" tabindex="0" data-tip="${esc(tip)}"><span class="full">${esc(full)}</span><span class="short">${esc(shortLbl)}</span></span>${lv?.impact ? ` <span class="imp-tag ${lv.impact.tier}" title="When level, measured on ${esc(LN)} matches">${esc(TIER[lv.impact.tier][0])}</span>` : ""}</th>${GS_STATES.map((st) => cell(key, st)).join("")}</tr>`;
     };
-    const group = (side, label) => `<tr class="gs-group"><td colspan="4">${label}</td></tr>` + GS_ROWS.filter((r) => r[0] === side).map(row).join("");
+    const group = (side, label) => `<tr class="gs-group"><td colspan="4"><span class="tip below" tabindex="0" data-tip="${esc(GS_GROUP_TIPS[side])}">${label}</span></td></tr>` + GS_ROWS.filter((r) => r[0] === side).map(row).join("");
     const lg = gs ? Object.fromEntries(GS_STATES.map((st) => [st, gs[st].league_avg_pct])) : null;
     const tm = gs ? Object.fromEntries(GS_STATES.map((st) => [st, gs[st].team_pct])) : null;
     return `<article class="stack gs" aria-label="${esc(s.name)}">
@@ -953,7 +961,7 @@ ${detailOf(m)}      </details>`;
       ${gs ? `<div class="gs-bars">${gsBar(tm, TN)}${gsBar(lg, "League")}<div class="gs-legend"><span><i class="gs-level"></i> level</span><span><i class="gs-ahead"></i> ahead</span><span><i class="gs-behind"></i> behind</span><span>share of minutes${gs.ahead.rank_most_time ? ` · ${esc(TN)} ${ord(gs.ahead.rank_most_time)} of ${gs.ahead.of} for time ahead` : ""}</span></div></div>` : ""}
       <p class="gs-read">${esc(gsRead(by))}</p>
       <table class="gs-table"><colgroup><col class="gs-c0"><col><col><col></colgroup>
-        <thead><tr><th scope="col"><span class="full">Per 90 min in that state</span><span class="short">Per 90</span></th>${GS_STATES.map((st) => `<th scope="col">${st[0].toUpperCase() + st.slice(1)}</th>`).join("")}</tr></thead>
+        <thead><tr><th scope="col"><span class="full">Per 90 min in that state</span><span class="short">Per 90</span></th>${GS_STATES.map((st, i) => `<th scope="col"><span class="tip below${i === GS_STATES.length - 1 ? " end" : ""}" tabindex="0" data-tip="${esc(GS_HEAD_TIPS[st])}">${st[0].toUpperCase() + st.slice(1)}</span></th>`).join("")}</tr></thead>
         <tbody>${group("for", "For")}${group("against", "Against")}</tbody>
       </table>
       <p class="stack-note">Shots split by the score at the time, as rates per 90 minutes in that state; a match counts for a state only with 20+ minutes in it. Whole-match numbers are shaped by the score, these are not. Chip = league rank (green top third, amber middle, red bottom). E / W = the typical match reaches the elite line / sits at the worst line. Tap a number for its detail. Not counted in the impact scores or the tiers: they explain them.</p>
