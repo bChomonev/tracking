@@ -8,6 +8,30 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-052 — Players' running in the Champions League, from UEFA · 2026-10-22 · accepted
+Champions League player rows had running data from FotMob for only about a third of games,
+and none for United v Como. UEFA's player statistics cover every game, so `build_season
+--competition ucl` now joins them in (`uefa.player_stats`, `uefa.lineup`):
+- **Name matching.** Each FotMob player is matched by name within his own squad. The rules,
+  in order: exact match, a shared surname, one name contained in the other ('Allan' ~ 'Allan
+  Elias'), a one-word short form ('Samu'), and finally a close spelling. All 1,698
+  player-games matched. Every non-identical pair was checked by eye.
+- **One provider.** FotMob's own running fields are cleared for the Champions League, so it
+  never mixes with UEFA's.
+- **New fields:** `high_intensity_runs`, `off_ball_km`, and `off_ball_km_p90`.
+  - `off_ball_km` uses `distance_covered_opponent_team_in_possession`, which excludes
+    dead-ball time. The team metric uses `not_in_possession`, which includes it. That's left
+    as is for now.
+  - `off_ball_km_p90` is per 90 minutes, scaled to an opponent with half the ball, as in
+    D-017, so facing a side that keeps the ball doesn't flatter anyone.
+
+The column fact sheet's `standouts` now gives every player `running_vs_his_role`, not just
+the extremes: km, sprints and high-intensity runs per 90, and the adjusted off-ball km. Each
+comes with how many same-role games (60+ minutes, same competition) had more. Off-ball km
+also joins the best/worst lists. Per-90 rates flatter players who came off the bench (fresh
+legs), so the column should say so when it uses them. In the league, FotMob gives only
+distance and sprints per player, so league columns get just those two.
+
 ## D-051 — Game state: the shot numbers split by the score at the time · 2026-10-21 · accepted (revisit at season's end)
 The page said *what* (shot quality at both ends is bad); whole-match totals could not say
 whether that is how United play or how they chase. The cached FotMob pages hold every shot

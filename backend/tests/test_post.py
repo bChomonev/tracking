@@ -153,3 +153,16 @@ def test_reddit_check_needs_link_line_and_fact_sheet_numbers():
     md = reddit_markdown(good, "https://x.test/p/a", {"xg": "xg.png"})
     assert "More: https://x.test/p/a" in md and "xg.png" in md and "{LINK}" not in md
     assert "old.reddit.com/r/reddevils/submit?selftext=true&title=Leeds+1-1+United" in md
+
+
+def test_running_vs_role_is_per_90_and_counts_games_with_more():
+    pool = [
+        {"role": "CM", "minutes": 90, "distance_m": 9000 + 100 * i, "sprints": float(i)}
+        for i in range(30)
+    ]
+    me = {"role": "CM", "minutes": 45, "distance_m": 5000, "sprints": 2.0}
+    rows = {r["stat"]: r for r in POST.running_vs_role(me, pool)}
+    assert rows["km covered per 90"]["value"] == 10.0  # 5 km in 45 minutes
+    assert rows["km covered per 90"]["games_with_more"] == 19  # 10.1 … 11.9 km
+    assert rows["sprints per 90"]["games_with_more"] == 25  # 4 per 90; 5 … 29 are more
+    assert all("opponent had the ball" not in s for s in rows)  # no data, no row

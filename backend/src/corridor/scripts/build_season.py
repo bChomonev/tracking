@@ -96,6 +96,40 @@ def _join_uefa(season: int, team_rows: list[dict]) -> None:
     print(f"UEFA: joined physical data for {joined}/{len(team_rows)} team-matches")
 
 
+# FotMob's own running numbers, which it has for only some Champions League games: replaced
+# by UEFA's (every game, one provider), or cleared when a player can't be matched (D-052).
+FOTMOB_RUNNING = ("distance_m", "running_m", "sprinting_m", "sprints", "top_speed_kmh")
+
+
+def _join_uefa_players(team_rows: list[dict], player_rows: list[dict]) -> None:
+    """Each player's UEFA tracking numbers, matched to the FotMob player by name within his
+    squad. Off-ball running is scaled by the opponent's possession (UEFA's figure)."""
+    games = {}
+    for r in team_rows:
+        if r.get("uefa_match_id"):
+            games[(r["match_id"], r["team"])] = r
+    cache: dict[str, tuple[dict, dict]] = {}
+    joined = total = 0
+    for p in player_rows:
+        for k in FOTMOB_RUNNING:
+            p[k] = None
+        r = games.get((p["match_id"], p["team"]))
+        if not r or not p.get("minutes"):
+            continue
+        total += 1
+        mid = r["uefa_match_id"]
+        if mid not in cache:
+            cache[mid] = (uefa.lineup(mid), uefa.player_stats(mid))
+        names, stats = cache[mid]
+        side = "homeTeam" if r["is_home"] else "awayTeam"
+        squad = {pid: x["name"] for pid, x in names.items() if x["side"] == side}
+        pid = uefa.match_player(p["name"], squad)
+        if pid and pid in stats:
+            p.update(uefa.player_physical(stats[pid], r.get("opp_possession_pct_uefa")))
+            joined += 1
+    print(f"UEFA: joined player tracking for {joined}/{total} player-matches")
+
+
 def _write(out, team_rows: list[dict], player_rows: list[dict]) -> None:
     for r in team_rows:
         r.pop("fixture", None)
@@ -115,7 +149,8 @@ def main() -> None:
     if args.competition == "ucl":
         _, team_rows, player_rows = _fotmob_season(season, fotmob.CHAMPIONS_LEAGUE)
         _join_uefa(season, team_rows)
-        for p in player_rows:  # FotMob has no UCL tracking; players stay event-only
+        _join_uefa_players(team_rows, player_rows)
+        for p in player_rows:
             p["competition"] = "ucl"
         _write(DATA_DIR / "processed" / str(season) / "ucl", team_rows, player_rows)
         return

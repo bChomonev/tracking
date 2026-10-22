@@ -6,6 +6,7 @@ Stats appear ~17 h after kickoff.
 """
 
 import difflib
+import unicodedata
 from typing import Any
 
 from corridor.ingest.http import fetch_json
@@ -90,3 +91,84 @@ def match_to_fotmob(fm: dict, uefa: list[dict]) -> dict | None:
         )
 
     return max(cands, key=sim) if cands else None
+
+
+PLAYER_STATS = "https://matchstats.uefa.com/v1/player-statistics"
+
+
+def player_stats(match_id: str | int) -> dict[str, dict[str, Any]]:
+    """{uefa_player_id: {stat_name: value}} for everyone in the squad (unused subs carry no
+    numbers). Re-fetched if the cached copy predates the tracking data."""
+    url = f"{PLAYER_STATS}/{match_id}"
+    data = fetch_json("uefa", url)
+    if not any(s["name"] == "distance_covered" for p in data for s in p.get("statistics", [])):
+        data = fetch_json("uefa", url, refresh=True)
+    return {str(p["playerId"]): {s["name"]: s.get("value") for s in p["statistics"]} for p in data}
+
+
+def lineup(match_id: str | int) -> dict[str, dict[str, str]]:
+    """{uefa_player_id: {"name", "side": "homeTeam" | "awayTeam"}} for both squads."""
+    data = fetch_json("uefa", f"{MATCHES}/{match_id}/lineups")
+    return {
+        str(x["player"]["id"]): {"name": x["player"]["internationalName"], "side": side}
+        for side in ("homeTeam", "awayTeam")
+        for group in ("field", "bench")
+        for x in (data.get(side) or {}).get(group, [])
+    }
+
+
+def player_physical(stats: dict[str, Any], opp_possession_pct: float | None) -> dict:
+    """One player's tracking numbers. ``off_ball_km_p90`` is distance run while the opponent
+    had the ball, per 90 minutes and scaled to an opponent with half the ball, so a player
+    isn't flattered by facing a side that kept it (as the team metric, D-017)."""
+    km = _f(stats.get("distance_covered"))
+    oop = _f(stats.get("distance_covered_opponent_team_in_possession"))
+    mins = _f(stats.get("minutes_played_official"))
+    adj = (
+        oop * 90 / mins * 50 / opp_possession_pct
+        if oop is not None and mins and opp_possession_pct
+        else None
+    )
+    return {
+        "distance_m": km * 1000 if km is not None else None,
+        "sprints": _f(stats.get("sprints")),
+        "top_speed_kmh": _f(stats.get("top_speed")),
+        "high_intensity_runs": _f(stats.get("high_intensity_runs")),
+        "off_ball_km": oop,
+        "off_ball_km_p90": adj,
+    }
+
+
+def _norm(name: str) -> str:
+    s = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower()
+    return " ".join(s.replace("-", " ").replace(".", " ").split())
+
+
+def match_player(name: str, candidates: dict[str, str]) -> str | None:
+    """The UEFA id whose name best matches a FotMob name (same squad only): exact, then a
+    shared surname, then one name inside the other, a one-word short form, and finally the
+    closest spelling if it is close enough."""
+    n = _norm(name)
+    norm = {pid: _norm(c) for pid, c in candidates.items()}
+    for pid, c in norm.items():
+        if c == n:
+            return pid
+    last = n.split()[-1]
+    same = [pid for pid, c in norm.items() if c.split()[-1] == last]
+    if len(same) == 1:
+        return same[0]
+    words = set(n.split())
+    contained = [
+        pid for pid, c in norm.items() if words <= set(c.split()) or set(c.split()) <= words
+    ]
+    if len(contained) == 1:  # 'Allan' ~ 'Allan Elias', 'Alexsandro Ribeiro' ~ 'Alexsandro'
+        return contained[0]
+    short = [pid for pid, c in norm.items() if " " not in c and n.split()[0].startswith(c)]
+    if len(short) == 1 and len(norm[short[0]]) >= 4:  # 'Samuel Aghehowa' ~ 'Samu'
+        return short[0]
+    best = max(
+        norm, key=lambda pid: difflib.SequenceMatcher(None, n, norm[pid]).ratio(), default=None
+    )
+    if best and difflib.SequenceMatcher(None, n, norm[best]).ratio() >= 0.75:
+        return best
+    return None

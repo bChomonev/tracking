@@ -86,6 +86,7 @@ STANDOUT_STATS = (
     ("chances_created", "chances created", 1),
     ("box_touches", "touches in the opponent's box", 1),
     ("sprints", "sprints", 1),
+    ("off_ball_km_p90", "km run while the opponent had the ball (per 90, possession-adjusted)", 1),
     ("duels_lost", "duels lost", -1),
     ("dispossessed", "times dispossessed", -1),
     ("dribbled_past", "times dribbled past", -1),
@@ -115,6 +116,54 @@ def ucl_view(prof: dict) -> dict:
         "proof": {},
         "shooting": None,
     }
+
+
+# (key, words, per 90?): every player's running, each against the same role's games (D-052).
+RUNNING_STATS = (
+    ("distance_m", "km covered per 90", True),
+    ("sprints", "sprints per 90", True),
+    ("high_intensity_runs", "high-intensity runs per 90", True),
+    (
+        "off_ball_km_p90",
+        "km run while the opponent had the ball, per 90, possession-adjusted",
+        False,
+    ),
+)
+
+
+def _rate(p: dict, key: str, per90: bool) -> float | None:
+    v, mins = p.get(key), p.get("minutes") or 0
+    if v is None or (per90 and not mins):
+        return None
+    v = v / 1000 if key == "distance_m" else v
+    return v * 90 / mins if per90 else v
+
+
+def running_vs_role(p: dict, pool: list[dict]) -> list[dict]:
+    """The player's running per 90 minutes, with how many games by players in the same role
+    (60+ minutes, this competition) ran more. Shown for everyone, not only the extremes."""
+    out = []
+    for k, words, per90 in RUNNING_STATS:
+        v = _rate(p, k, per90)
+        peers = [
+            x
+            for q in pool
+            if q["role"] == p["role"] and q is not p
+            for x in [_rate(q, k, per90)]
+            if x is not None
+        ]
+        if v is None or len(peers) < 20:
+            continue
+        out.append(
+            {
+                "stat": words,
+                "value": _r(v, 2),
+                "games_compared": len(peers),
+                "games_with_more": sum(x > v for x in peers),
+                "pct_of_games_with_more": round(100 * sum(x > v for x in peers) / len(peers)),
+            }
+        )
+    return out
 
 
 def standouts(players: list[dict], match_id: int, team: str, min_minutes: int = 45) -> list:
@@ -164,6 +213,7 @@ def standouts(players: list[dict], match_id: int, team: str, min_minutes: int = 
                 "worst_of_the_season_for_his_role": sorted(
                     bottom, key=lambda r: r["games_with_worse"]
                 )[:3],
+                "running_vs_his_role": running_vs_role(p, pool),
             }
         )
     return sorted(out, key=lambda r: -r["minutes"])
@@ -326,7 +376,15 @@ def match_facts(
                 + " game this season by a player in the same role who played 60+ minutes. "
                 "games_with_better / games_with_the_same = how many of those games had a better "
                 "or the same number (0 and 0 = the best of the season); games_with_worse likewise "
-                "for the worst. Only numbers that 10% of games or fewer matched are listed."
+                "for the worst. Only numbers that 10% of games or fewer matched are listed. "
+                "running_vs_his_role is given for every player: per-90 running and how many "
+                "of the same role's games had more (pct_of_games_with_more: 10 = top tenth, "
+                "90 = bottom tenth). Running is "
+                + (
+                    "UEFA's tracking, only ever compared with other Champions League games."
+                    if ucl
+                    else "FotMob's tracking."
+                )
             ),
             "players": standouts(players, match_id, team),
         },

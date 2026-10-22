@@ -96,3 +96,23 @@ def test_passing_metrics_use_completed_passes():
     assert round(d["opp_half_pass_pct"], 1) == 66.5
     assert round(d["long_ball_pct"], 2) == 4.25
     assert derive({"result": "W", "passes": 0})["pass_accuracy_pct"] is None
+
+
+def test_uefa_player_names_and_off_ball_running():
+    from corridor.ingest import uefa
+
+    squad = {"1": "Nicolás Paz", "2": "Allan Elias", "3": "Samu", "4": "Tasos Douvikas"}
+    assert uefa.match_player("Nico Paz", squad) == "1"
+    assert uefa.match_player("Allan", squad) == "2"
+    assert uefa.match_player("Samuel Aghehowa", squad) == "3"
+    assert uefa.match_player("Anastasios Douvikas", squad) == "4"
+    assert uefa.match_player("Harry Maguire", squad) is None
+    s = {
+        "distance_covered": "10.0",
+        "distance_covered_opponent_team_in_possession": "6.0",
+        "minutes_played_official": "45",
+        "sprints": "9",
+    }
+    p = uefa.player_physical(s, 60.0)  # opponent had 60% of the ball
+    assert p["distance_m"] == 10000 and p["off_ball_km"] == 6.0
+    assert round(p["off_ball_km_p90"], 2) == 10.0  # 6 km × 90/45 × 50/60
