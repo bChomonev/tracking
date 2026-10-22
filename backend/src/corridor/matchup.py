@@ -299,9 +299,9 @@ def _read(
         who = ", ".join(x["name"] for x in b["attackers"])
         whom = ", ".join(x["name"] for x in b["defenders"])
         lines.append(
-            f"{A}'s {b['attackers_role']} ({who}) average the {ordinal(b['attackers_percentile'])} "
-            f"percentile of their role for creation; {D}'s {b['defenders_role']} ({whom}) the "
-            f"{ordinal(b['defenders_percentile'])} for duels and recoveries."
+            f"{A}'s {b['attackers_role']} ({who}) are better than {b['attackers_percentile']}% of "
+            f"players in their role for creation; {D}'s {b['defenders_role']} ({whom}) better "
+            f"than {b['defenders_percentile']}% of theirs for duels and recoveries."
         )
     return lines
 
@@ -333,12 +333,14 @@ def build(
     return {
         "how_to_read": (
             "Both sides' typical (median) league match this season. Pairings put one side's "
-            "attack against the other's defence; 'if both play as usual' is attack × defence ÷ "
-            "league average. The model's expectation differs because it uses rolling, "
+            "attack against the other's defence; 'if_both_play_as_usual' is attack × defence ÷ "
+            "league average (a strong attack against a weak defence gives more than either "
+            "number alone). The model's expectation differs because it uses rolling, "
             "opponent-adjusted ratings. Battles come from the likely line-ups: attackers are "
             "measured on creation, defenders on duels won and recoveries — the data cannot say "
-            "which defender allowed a chance. E / W = the typical match reaches the elite line "
-            "/ sits at the worst line."
+            "which defender allowed a chance. A percentile of 60 means better than 60% of "
+            "league players in the same role; say it that way. E / W = the typical match "
+            "reaches the elite line / sits at the worst line."
         ),
         "home": home,
         "away": away,

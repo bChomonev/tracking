@@ -317,12 +317,16 @@ tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600
 .hp-mins small { color: var(--muted); }
 .hp-card table { margin: 6px 0 0; }
 .hp-table td { padding: 7px 4px; vertical-align: middle; }
-.hp-table .hp-att { text-align: right; white-space: nowrap; }
-.hp-table .hp-def { text-align: left; white-space: nowrap; }
-.hp-table .hp-def .gs-chip { margin: 0 5px 0 0; } .hp-table .hp-att .gs-chip { margin: 0 0 0 5px; }
-.hp-table .hp-lab { text-align: center; font-size: .78rem; color: var(--muted); line-height: 1.25; }
-.hp-table .hp-lab .imp-tag { display: block; width: max-content; margin: 3px auto 0; }
-.hp-table .hp-usual { text-align: right; color: var(--muted); }
+.hp-table .hp-att, .hp-table .hp-def { white-space: nowrap; }
+.hp-table .gs-chip { margin: 0 0 0 5px; }
+.hp-table .hp-lab { font-size: .8rem; color: var(--ink); line-height: 1.25; font-weight: 600; }
+.hp-table .hp-lab .imp-tag { display: block; width: max-content; margin: 3px 0 0; }
+.hp-table .hp-usual { text-align: right; white-space: nowrap; }
+.hp-table .hp-usual small { display: block; color: var(--muted); font-size: .68rem; }
+.hp-table thead th { text-align: left; } .hp-table thead th:last-child { text-align: right; }
+.hp-table .hp-att, .hp-table .hp-def { text-align: left; }
+.hp-table td.hp-lab { text-align: left; }
+.hp-ex { margin-top: 8px; line-height: 1.45; }
 .hp-both { margin: 8px 0 0; }
 .hp-h3 { font-size: 1.25rem; text-transform: uppercase; margin: 18px 0 8px; }
 .hp-h3 small { display: block; font: 400 .82rem/1.4 var(--body); color: var(--muted); text-transform: none; }
@@ -1215,25 +1219,29 @@ ${detailOf(m)}      </details>`;
     $("mvh-sec").hidden = !M;
     if (!M) return;
     const sh = M.shape[M.home], sa = M.shape[M.away];
-    $("mvh-sub").textContent = `Both sides' typical league match this season, played against each other: one side's attack against the other's defence, then the battles by role from the likely line-ups. Ranks are of ${sh.position ? "all teams in the league" : "the league"}; E / W = the typical match reaches the elite line / sits at the worst line.`;
+    $("mvh-sub").textContent = `Both sides' typical league match this season, played against each other: one side's attack against the other's defence, then the battles by role from the likely line-ups. How to read the numbers: a rank chip (2nd) is the team's place among all the league's teams, 1st = best; E = the typical match reaches the elite line, W = it sits at the worst line; "better than 60%" compares a player with every league player in his role.`;
     const chip = (c) => `<span class="gs-chip pct-chip tier-${tier(c.percentile)}">${c.rank}<small>${ord(c.rank).slice(String(c.rank).length)}</small></span>`;
     const mk = (c) => (c.at_elite_line ? '<span class="gs-mk ok" title="Typical match reaches the elite line">E</span>' : "") + (c.at_worst_line ? '<span class="gs-mk miss" title="Typical match at or below the worst line">W</span>' : "");
     const num = (c, d) => `<span class="num">${esc(String(c.value))}</span>`;
     const bar = (m) => m && m.level != null ? `<span class="gs-bar hp-bar" aria-hidden="true"><i class="gs-level" style="width:${m.level}%"></i><i class="gs-ahead" style="width:${m.ahead}%"></i><i class="gs-behind" style="width:${m.behind}%"></i></span><small class="num">${m.level.toFixed(0)} · ${m.ahead.toFixed(0)} · ${m.behind.toFixed(0)}%</small>` : "";
     const luck = (x) => x.points_the_performances_deserved == null ? "" : `, performances worth <span class="num">${x.points_the_performances_deserved.toFixed(1)}</span>`;
     const shapeRow = (t, x) => `<div class="hp-side"><b>${esc(short(t))}</b> ${x.position ? `${ord(x.position)}` : ""}${x.points != null ? ` · <span class="num">${x.points}</span> pts${luck(x)}` : ""}${x.elite_score != null ? ` · elite <span class="num">${x.elite_score}</span> / danger <span class="num">${x.danger_score}</span>` : ""}<div class="hp-mins">${bar(x.minutes_pct)}</div></div>`;
-    const tipTh = (lab, tip) => `<span class="tip below" tabindex="0" data-tip="${esc(tip)}">${lab}</span>`;
+    const tipTh = (lab, tip, end = "") => `<span class="tip below${end}" tabindex="0" data-tip="${esc(tip)}">${lab}</span>`;
+    const cell = (c) => `<span class="num">${esc(String(c.value))}</span>${chip(c)}${mk(c)}`;
+    const example = (attT, defT, x) => x ? `Example, first row: ${esc(short(attT))} create <span class="num">${esc(String(x.attack.value))}</span> a match (${ord(x.attack.rank)} of ${x.attack.of}), ${esc(short(defT))} concede <span class="num">${esc(String(x.defence.value))}</span> (${ord(x.defence.rank)} fewest). Against a league average of <span class="num">${esc(String(x.league_average))}</span>, the two together point to about <span class="num">${esc(String(x.if_both_play_as_usual))}</span> for ${esc(short(attT))}.` : "";
     const pairTable = (title, attT, defT, rows) => `<article class="mv-card hp-card"><h3>${esc(short(attT))} attack<small>v ${esc(short(defT))} defence</small></h3>
-      <table class="gs-table hp-table"><colgroup><col style="width:30%"><col style="width:26%"><col style="width:30%"><col style="width:14%"></colgroup>
-        <thead><tr><th scope="col">${esc(short(attT))}</th><th scope="col">per match</th><th scope="col">${esc(short(defT))} allow</th><th scope="col">${tipTh("Usual", "If both play as usual: attack × defence ÷ league average. The prediction at the top uses rolling, opponent-adjusted ratings instead, so it can differ.")}</th></tr></thead>
-        <tbody>${rows.map((x) => `<tr><td class="hp-att"><span class="num">${esc(String(x.attack.value))}</span>${chip(x.attack)}${mk(x.attack)}</td><td class="hp-lab"><span class="tip below" tabindex="0" data-tip="${esc(x.label)}: the attacking side's figure in its typical match, and what the defending side allows in its typical match. League average ${esc(String(x.league_average))}.">${esc(x.label)}</span>${x.decides_matches ? `<span class="imp-tag ${x.decides_matches}">${esc(TIER[x.decides_matches][0])}</span>` : ""}</td><td class="hp-def">${mk(x.defence)}${chip(x.defence)}<span class="num">${esc(String(x.defence.value))}</span></td><td class="hp-usual num">${x.if_both_play_as_usual == null ? "—" : esc(String(x.if_both_play_as_usual))}</td></tr>`).join("")}</tbody></table></article>`;
+      <table class="gs-table hp-table"><colgroup><col style="width:28%"><col style="width:27%"><col style="width:27%"><col style="width:18%"></colgroup>
+        <thead><tr><th scope="col" class="hp-lab">per match</th><th scope="col">${tipTh(`${esc(short(attT))} create`, `What ${short(attT)} produce in their typical league match this season, with their rank among the ${rows[0]?.attack.of || "league"} teams (1st = best).`)}</th><th scope="col">${tipTh(`${esc(short(defT))} concede`, `What ${short(defT)} allow their opponents in their typical league match, with their rank (1st = fewest conceded).`, " end")}</th><th scope="col">${tipTh("Together", "Both numbers measured against the league average and multiplied: attack × defence ÷ league average. A strong attack against a weak defence gives more than either number alone; a strong attack against a strong defence lands in between. The prediction at the top uses rolling, opponent-adjusted ratings instead, so it can differ.", " end")}</th></tr></thead>
+        <tbody>${rows.map((x) => `<tr><td class="hp-lab"><span class="tip below" tabindex="0" data-tip="${esc(x.label)}: the attacking side's figure in its typical match, and what the defending side allows in its typical match. League average ${esc(String(x.league_average))}.">${esc(x.label)}</span>${x.decides_matches ? `<span class="imp-tag ${x.decides_matches}">${esc(TIER[x.decides_matches][0])}</span>` : ""}</td><td class="hp-att">${cell(x.attack)}</td><td class="hp-def">${cell(x.defence)}</td><td class="hp-usual"><span class="num">${x.if_both_play_as_usual == null ? "—" : esc(String(x.if_both_play_as_usual))}</span><small>league ${esc(String(x.league_average))}</small></td></tr>`).join("")}</tbody></table>
+      <p class="fx-why hp-ex">${example(attT, defT, rows[0])}</p></article>`;
     const both = (M.both_ways || []).map((x) => `<p class="fx-why hp-both">${esc(x.label)}: ${esc(short(M.home))} <span class="num">${signed(x.home.value, 1)}</span> ${chip(x.home)}${mk(x.home)} · ${esc(short(M.away))} <span class="num">${signed(x.away.value, 1)}</span> ${chip(x.away)}${mk(x.away)}</p>`).join("");
     const me = M.model_expectation ? `<p class="fx-why">The prediction model expects chance quality <span class="num">${M.model_expectation.home_npxg.toFixed(2)}–${M.model_expectation.away_npxg.toFixed(2)}</span> from its ratings; the "usual" column is what this season's typical matches say.</p>` : "";
+    const bt = (p) => (p == null ? "—" : `${p}%`);
     const pl = (x, who) => who === "att"
-      ? `<li><span>${esc(x.name)}</span><span class="num">${x.creation_percentile != null ? x.creation_percentile : "—"}</span><small>xG+xA ${x.xg_xa_per_90 != null ? x.xg_xa_per_90.toFixed(2) : "—"}/90 (${x.xg_xa_percentile ?? "—"}th), box touches ${x.box_touches_percentile ?? "—"}th${x.shots ? `, ${x.shots} shots at ${x.npxg_per_shot} (role ${x.role_npxg_per_shot})` : ""}</small></li>`
-      : `<li><span>${esc(x.name)}</span><span class="num">${x.defending_percentile != null ? x.defending_percentile : "—"}</span><small>duels won ${x.duels_won_percentile ?? "—"}th, recoveries ${x.recoveries_percentile ?? "—"}th, effort ${x.effort_percentile ?? "—"}th</small></li>`;
+      ? `<li><span>${esc(x.name)}</span><span class="num" title="Better than this share of players in his role for creation">${bt(x.creation_percentile)}</span><small>xG+xA ${x.xg_xa_per_90 != null ? x.xg_xa_per_90.toFixed(2) : "—"} per 90, better than ${bt(x.xg_xa_percentile)} of his role · box touches better than ${bt(x.box_touches_percentile)}${x.shots ? ` · ${x.shots} shots worth ${x.npxg_per_shot} each (his role ${x.role_npxg_per_shot})` : ""}</small></li>`
+      : `<li><span>${esc(x.name)}</span><span class="num" title="Better than this share of players in his role for duels won and recoveries">${bt(x.defending_percentile)}</span><small>duels won: better than ${bt(x.duels_won_percentile)} of his role · recoveries ${bt(x.recoveries_percentile)} · effort ${bt(x.effort_percentile)}</small></li>`;
     const battle = (attT, defT, b) => (!b.attackers.length || !b.defenders.length) ? "" : `<article class="mv-card hp-card"><h3>${esc(short(attT))}'s ${esc(b.attackers_role)}<small>v ${esc(short(defT))}'s ${esc(b.defenders_role)}</small></h3>
-      <p class="lead">${b.verdict === "attackers" ? `<b>Edge to the ${esc(b.attackers_role)}</b>` : b.verdict === "defenders" ? `<b>Edge to the ${esc(b.defenders_role)}</b>` : "<b>Even</b>"} — attackers average the ${ord(b.attackers_percentile)} percentile of their role for creation, defenders the ${ord(b.defenders_percentile)} for duels and recoveries.</p>
+      <p class="lead">${b.verdict === "attackers" ? `<b>Edge to the ${esc(b.attackers_role)}</b>` : b.verdict === "defenders" ? `<b>Edge to the ${esc(b.defenders_role)}</b>` : "<b>Even</b>"} — the ${esc(b.attackers_role)} are better than <b>${bt(b.attackers_percentile)}</b> of players in their role for creation; the ${esc(b.defenders_role)} better than <b>${bt(b.defenders_percentile)}</b> of theirs for duels and recoveries.</p>
       <div class="hp-battle"><ul class="mv-list">${b.attackers.map((x) => pl(x, "att")).join("")}</ul><ul class="mv-list">${b.defenders.map((x) => pl(x, "def")).join("")}</ul></div></article>`;
     const battles = [...M.battles.home_attack.map((b) => battle(M.home, M.away, b)), ...M.battles.away_attack.map((b) => battle(M.away, M.home, b))].filter(Boolean).join("");
     $("mv-how").innerHTML = `<div class="hp-shape">${shapeRow(M.home, sh)}${shapeRow(M.away, sa)}</div>
