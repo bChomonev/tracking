@@ -327,6 +327,12 @@ tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600
 .hp-table .hp-att, .hp-table .hp-def { text-align: left; }
 .hp-table td.hp-lab { text-align: left; }
 .hp-ex { margin-top: 8px; line-height: 1.45; }
+.hp-sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; vertical-align: -1px; margin: 0 2px 0 4px; }
+.hp-mins small { white-space: nowrap; }
+.hp-right { text-align: right; white-space: nowrap; }
+.hp-pct { min-width: 3.2em; }
+.hp-band { display: block; font: 400 .7rem/1.2 var(--body); color: var(--muted); font-style: normal; margin-top: 2px; }
+.t-good { color: var(--good); } .t-mid { color: var(--mid); } .t-bad { color: var(--bad); }
 .hp-both { margin: 8px 0 0; }
 .hp-h3 { font-size: 1.25rem; text-transform: uppercase; margin: 18px 0 8px; }
 .hp-h3 small { display: block; font: 400 .82rem/1.4 var(--body); color: var(--muted); text-transform: none; }
@@ -1223,7 +1229,7 @@ ${detailOf(m)}      </details>`;
     const chip = (c) => `<span class="gs-chip pct-chip tier-${tier(c.percentile)}">${c.rank}<small>${ord(c.rank).slice(String(c.rank).length)}</small></span>`;
     const mk = (c) => (c.at_elite_line ? '<span class="gs-mk ok" title="Typical match reaches the elite line">E</span>' : "") + (c.at_worst_line ? '<span class="gs-mk miss" title="Typical match at or below the worst line">W</span>' : "");
     const num = (c, d) => `<span class="num">${esc(String(c.value))}</span>`;
-    const bar = (m) => m && m.level != null ? `<span class="gs-bar hp-bar" aria-hidden="true"><i class="gs-level" style="width:${m.level}%"></i><i class="gs-ahead" style="width:${m.ahead}%"></i><i class="gs-behind" style="width:${m.behind}%"></i></span><small class="num">${m.level.toFixed(0)} · ${m.ahead.toFixed(0)} · ${m.behind.toFixed(0)}%</small>` : "";
+    const bar = (m) => m && m.level != null ? `<span class="gs-bar hp-bar" role="img" aria-label="Minutes level ${m.level.toFixed(0)}%, ahead ${m.ahead.toFixed(0)}%, behind ${m.behind.toFixed(0)}%"><i class="gs-level" style="width:${m.level}%"></i><i class="gs-ahead" style="width:${m.ahead}%"></i><i class="gs-behind" style="width:${m.behind}%"></i></span><small>minutes <i class="hp-sw gs-level"></i> level <span class="num">${m.level.toFixed(0)}%</span> · <i class="hp-sw gs-ahead"></i> ahead <span class="num">${m.ahead.toFixed(0)}%</span> · <i class="hp-sw gs-behind"></i> behind <span class="num">${m.behind.toFixed(0)}%</span></small>` : "";
     const luck = (x) => x.points_the_performances_deserved == null ? "" : `, performances worth <span class="num">${x.points_the_performances_deserved.toFixed(1)}</span>`;
     const shapeRow = (t, x) => `<div class="hp-side"><b>${esc(short(t))}</b> ${x.position ? `${ord(x.position)}` : ""}${x.points != null ? ` · <span class="num">${x.points}</span> pts${luck(x)}` : ""}${x.elite_score != null ? ` · elite <span class="num">${x.elite_score}</span> / danger <span class="num">${x.danger_score}</span>` : ""}<div class="hp-mins">${bar(x.minutes_pct)}</div></div>`;
     const tipTh = (lab, tip, end = "") => `<span class="tip below${end}" tabindex="0" data-tip="${esc(tip)}">${lab}</span>`;
@@ -1237,11 +1243,13 @@ ${detailOf(m)}      </details>`;
     const both = (M.both_ways || []).map((x) => `<p class="fx-why hp-both">${esc(x.label)}: ${esc(short(M.home))} <span class="num">${signed(x.home.value, 1)}</span> ${chip(x.home)}${mk(x.home)} · ${esc(short(M.away))} <span class="num">${signed(x.away.value, 1)}</span> ${chip(x.away)}${mk(x.away)}</p>`).join("");
     const me = M.model_expectation ? `<p class="fx-why">The prediction model expects chance quality <span class="num">${M.model_expectation.home_npxg.toFixed(2)}–${M.model_expectation.away_npxg.toFixed(2)}</span> from its ratings; the "usual" column is what this season's typical matches say.</p>` : "";
     const bt = (p) => (p == null ? "—" : `${p}%`);
+    const band = (p) => (p == null ? "" : p >= 90 ? "top 10% of his role" : p >= 75 ? "top quarter" : p <= 10 ? "bottom 10% of his role" : p <= 25 ? "bottom quarter" : "");
+    const pctChip = (p, title) => `<span class="num hp-pct pct-chip ${chipBg(p)}" title="${esc(title)}">${bt(p)}</span>${band(p) ? `<em class="hp-band">${band(p)}</em>` : ""}`;
     const pl = (x, who) => who === "att"
-      ? `<li><span>${esc(x.name)}</span><span class="num" title="Better than this share of players in his role for creation">${bt(x.creation_percentile)}</span><small>xG+xA ${x.xg_xa_per_90 != null ? x.xg_xa_per_90.toFixed(2) : "—"} per 90, better than ${bt(x.xg_xa_percentile)} of his role · box touches better than ${bt(x.box_touches_percentile)}${x.shots ? ` · ${x.shots} shots worth ${x.npxg_per_shot} each (his role ${x.role_npxg_per_shot})` : ""}</small></li>`
-      : `<li><span>${esc(x.name)}</span><span class="num" title="Better than this share of players in his role for duels won and recoveries">${bt(x.defending_percentile)}</span><small>duels won: better than ${bt(x.duels_won_percentile)} of his role · recoveries ${bt(x.recoveries_percentile)} · effort ${bt(x.effort_percentile)}</small></li>`;
+      ? `<li><span>${esc(x.name)}</span><span class="hp-right">${pctChip(x.creation_percentile, "Better than this share of players in his role for creation")}</span><small>xG+xA ${x.xg_xa_per_90 != null ? x.xg_xa_per_90.toFixed(2) : "—"} per 90, better than ${bt(x.xg_xa_percentile)} of his role · box touches better than ${bt(x.box_touches_percentile)}${x.shots ? ` · ${x.shots} shots worth ${x.npxg_per_shot} each (his role ${x.role_npxg_per_shot})` : ""}</small></li>`
+      : `<li><span>${esc(x.name)}</span><span class="hp-right">${pctChip(x.defending_percentile, "Better than this share of players in his role for duels won and recoveries")}</span><small>duels won: better than ${bt(x.duels_won_percentile)} of his role · recoveries ${bt(x.recoveries_percentile)} · effort ${bt(x.effort_percentile)}</small></li>`;
     const battle = (attT, defT, b) => (!b.attackers.length || !b.defenders.length) ? "" : `<article class="mv-card hp-card"><h3>${esc(short(attT))}'s ${esc(b.attackers_role)}<small>v ${esc(short(defT))}'s ${esc(b.defenders_role)}</small></h3>
-      <p class="lead">${b.verdict === "attackers" ? `<b>Edge to the ${esc(b.attackers_role)}</b>` : b.verdict === "defenders" ? `<b>Edge to the ${esc(b.defenders_role)}</b>` : "<b>Even</b>"} — the ${esc(b.attackers_role)} are better than <b>${bt(b.attackers_percentile)}</b> of players in their role for creation; the ${esc(b.defenders_role)} better than <b>${bt(b.defenders_percentile)}</b> of theirs for duels and recoveries.</p>
+      <p class="lead">${b.verdict === "attackers" ? `<b>Edge to the ${esc(b.attackers_role)}</b>` : b.verdict === "defenders" ? `<b>Edge to the ${esc(b.defenders_role)}</b>` : "<b>Even</b>"} — the ${esc(b.attackers_role)} are better than <b class="${chipBg(b.attackers_percentile).replace("tier-", "t-")}">${bt(b.attackers_percentile)}</b> of players in their role for creation; the ${esc(b.defenders_role)} better than <b class="${chipBg(b.defenders_percentile).replace("tier-", "t-")}">${bt(b.defenders_percentile)}</b> of theirs for duels and recoveries. Higher is better for that player: a defender at 20% is in the bottom fifth of his role.</p>
       <div class="hp-battle"><ul class="mv-list">${b.attackers.map((x) => pl(x, "att")).join("")}</ul><ul class="mv-list">${b.defenders.map((x) => pl(x, "def")).join("")}</ul></div></article>`;
     const battles = [...M.battles.home_attack.map((b) => battle(M.home, M.away, b)), ...M.battles.away_attack.map((b) => battle(M.away, M.home, b))].filter(Boolean).join("");
     $("mv-how").innerHTML = `<div class="hp-shape">${shapeRow(M.home, sh)}${shapeRow(M.away, sa)}</div>
