@@ -232,6 +232,10 @@ def build_facts(
                 "per_match": per_match,
             }
         )
+        if m["stack"] == "state":
+            # The game_state block summarises these; the per-match lists would add ~40k
+            # characters of numbers the model has no reason to quote one by one.
+            metrics[-1].pop("per_match")
 
     def behind(key: str) -> tuple[int, int]:
         """(matches where the opponent did more, matches with data)."""
