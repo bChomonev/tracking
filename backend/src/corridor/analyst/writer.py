@@ -160,13 +160,32 @@ def critique(client: OpenAI, model: str, facts: dict, analysis: dict) -> tuple[l
         },
     ]
     # Reasoning models can think past the output limit when checking every claim against a
-    # large fact sheet: cap the effort, and drop it further if a run still gets cut off.
+    # large fact sheet: cap the effort, drop it further if a run still gets cut off, and as
+    # a last resort check against the sheet without its per-match lists (every season,
+    # typical-match and rank figure stays; the counts derived from the lists are already
+    # pre-computed as facts).
     try:
         text, usage = _complete(client, model, messages, 32000, reasoning_effort="medium")
     except TruncatedError:
-        text, usage = _complete(client, model, messages, 32000, reasoning_effort="low")
+        try:
+            text, usage = _complete(client, model, messages, 32000, reasoning_effort="low")
+        except TruncatedError:
+            messages[1]["content"] = (
+                "FACT SHEET:\n"
+                + json.dumps(slim_facts(facts), ensure_ascii=False)
+                + "\n\nANALYSIS:\n"
+                + json.dumps(body, ensure_ascii=False)
+            )
+            text, usage = _complete(client, model, messages, 32000, reasoning_effort="low")
     flags = _parse_json(text).get("unsupported") or []
     return [f for f in flags if isinstance(f, dict) and f.get("claim")], usage
+
+
+def slim_facts(facts: dict) -> dict:
+    """The fact sheet without the per-match lists under each metric (about half its size)."""
+    out = dict(facts)
+    out["metrics"] = [{k: v for k, v in m.items() if k != "per_match"} for m in facts["metrics"]]
+    return out
 
 
 def _drop_flagged(analysis: dict, flags: list[dict]) -> bool:

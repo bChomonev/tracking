@@ -85,3 +85,12 @@ def test_fact_rounding_matches_the_page():
 
     assert _r(98.5, 0) == 99 and _r(0.0745, 3) == 0.075 and _r(-2.25, 1) == -2.3
     assert _r(None, 1) is None
+
+
+def test_slim_facts_drops_only_the_per_match_lists():
+    from corridor.analyst.writer import slim_facts
+
+    facts = {"metrics": [{"key": "a", "typical_match": 1, "per_match": [1, 2]}], "record": {"x": 1}}
+    slim = slim_facts(facts)
+    assert slim["metrics"] == [{"key": "a", "typical_match": 1}] and slim["record"] == {"x": 1}
+    assert "per_match" in facts["metrics"][0]  # the original is untouched
