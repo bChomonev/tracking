@@ -167,3 +167,102 @@ def test_profile_ranks_state_metrics_and_reports_minutes_context():
     facts = _game_state_facts(prof)
     assert facts["when level"]["chance_quality_created_npxg_per_90"]["typical_match"] == 1.8
     assert facts["when behind"]["chance_quality_created_npxg_per_90"] is None
+
+
+# ---- D-053: per-player shots by state
+
+
+def test_parse_match_splits_each_players_shots_by_state():
+    from corridor.ingest.fotmob import parse_match
+
+    d = {
+        "general": {
+            "matchId": 1,
+            "matchTimeUTCDate": "2026-09-01T15:00:00Z",
+            "homeTeam": {"id": 1, "name": "H"},
+            "awayTeam": {"id": 2, "name": "A"},
+        },
+        "header": {"status": {"scoreStr": "1 - 0"}},
+        "content": {
+            "stats": {"Periods": {"All": {"stats": []}}},
+            "matchFacts": {"events": {"events": [_goal(30, True)]}},
+            "playerStats": {
+                "10": {
+                    "id": 10,
+                    "name": "Ten",
+                    "teamId": 1,
+                    "teamName": "H",
+                    "stats": [{"stats": {"m": {"key": "minutes_played", "stat": {"value": 90}}}}],
+                },
+                "20": {
+                    "id": 20,
+                    "name": "Twenty",
+                    "teamId": 2,
+                    "teamName": "A",
+                    "stats": [{"stats": {"m": {"key": "minutes_played", "stat": {"value": 90}}}}],
+                },
+            },
+            "shotmap": {
+                "shots": [
+                    _shot(1, 10, xg=0.2) | {"playerId": 10, "eventType": "Miss"},
+                    _shot(1, 30, xg=0.3) | {"playerId": 10, "eventType": "Goal"},
+                    _shot(1, 50, xg=0.1, x=80.0, inside=False)
+                    | {"playerId": 10, "eventType": "Miss"},
+                    _shot(2, 70, xg=0.4) | {"playerId": 20, "eventType": "Miss"},
+                ]
+            },
+        },
+    }
+    _, players = parse_match(d)
+    ten = next(p for p in players if p["player_id"] == 10)
+    twenty = next(p for p in players if p["player_id"] == 20)
+    assert ten["np_shots"] == 3 and ten["level_np_shots"] == 2 and ten["ahead_np_shots"] == 1
+    assert ten["level_np_goals"] == 1 and ten["ahead_np_shots_outside_box"] == 1
+    assert ten["level_npxg_shots"] == pytest.approx(0.5)
+    assert twenty["behind_np_shots"] == 1 and twenty["level_np_shots"] == 0
+
+
+def _sp(team, pid, role, state_shots):
+    """A player row with shots in given states: {state: (shots, npxg)}."""
+    row = {
+        "team": team,
+        "player_id": pid,
+        "name": f"P{pid}",
+        "role": role,
+        "position": "FWD",
+        "match_id": 1,
+        "minutes": 90,
+        "np_shots": sum(n for n, _ in state_shots.values()),
+        "npxg_shots": sum(x for _, x in state_shots.values()),
+    }
+    for st, (n, x) in state_shots.items():
+        row |= {
+            f"{st}_np_shots": n,
+            f"{st}_npxg_shots": x,
+            f"{st}_np_shot_distance_sum_m": 15.0 * n,
+        }
+    return row
+
+
+def test_shooting_by_state_uses_role_averages_measured_in_the_same_state():
+    from corridor.profile import shooting
+
+    rows = [
+        _sp("A", 1, "ST", {"level": (4, 0.2), "behind": (4, 0.8)}),
+        _sp("A", 2, "ST", {"level": (4, 0.6)}),
+        _sp("B", 3, "ST", {"level": (8, 0.8), "behind": (4, 0.4)}),
+    ]
+    sh = shooting(rows, "A")
+    p1 = next(r for r in sh["players"] if r["name"] == "P1")
+    lvl, beh = p1["by_state"]["level"], p1["by_state"]["behind"]
+    assert lvl["shots"] == 4 and lvl["npxg_per_shot"] == pytest.approx(0.05)
+    assert lvl["role_npxg_per_shot"] == pytest.approx(1.6 / 16)  # strikers when level
+    assert beh["role_npxg_per_shot"] == pytest.approx(1.2 / 8)  # strikers when behind
+    assert lvl["share_of_shots"] == pytest.approx(50) and beh["share_of_shots"] == 100
+    assert (
+        p1["by_state"]["ahead"]["shots"] == 0 and p1["by_state"]["ahead"]["npxg_per_shot"] is None
+    )
+    team = sh["by_state"]["level"]
+    assert team["shots"] == 8 and team["quality_gap"] == pytest.approx(
+        sum(r["by_state"]["level"]["quality_gap"] for r in sh["players"])
+    )

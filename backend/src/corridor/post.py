@@ -288,6 +288,15 @@ def match_facts(
                 else None,
                 "outside_box": p.get("np_shots_outside_box", 0),
                 "blocked": p.get("np_shots_blocked", 0),
+                "shots_by_game_state": {
+                    f"when_{st}": {
+                        "shots": int(p.get(f"{st}_np_shots") or 0),
+                        "npxg": _r(p.get(f"{st}_npxg_shots") or 0.0, 2),
+                        "outside_box": int(p.get(f"{st}_np_shots_outside_box") or 0),
+                    }
+                    for st in STATE_WORDS
+                    if p.get(f"{st}_np_shots")
+                },
                 "distance_km": _r((p.get("distance_m") or 0) / 1000, 1)
                 if p.get("distance_m")
                 else None,

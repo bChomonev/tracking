@@ -143,8 +143,15 @@ _SHOT_ZERO = {
     "np_goals": 0,
     "np_shots_outside_box": 0,
     "np_shots_blocked": 0,
-    "np_shots_headed": 0,
     "np_shot_distance_sum_m": 0.0,
+    "np_shots_headed": 0,
+}
+# The same, split by the score at the time of the shot (D-053): level_np_shots, …
+_SHOT_ZERO |= {
+    f"{s}_{k}": 0.0 if isinstance(v, float) else 0
+    for s in ("level", "ahead", "behind")
+    for k, v in _SHOT_ZERO.items()
+    if k in ("np_shots", "npxg_shots", "np_goals", "np_shots_outside_box", "np_shot_distance_sum_m")
 }
 
 
@@ -193,8 +200,11 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
             players.append(rec)
 
     shots = (d["content"].get("shotmap") or {}).get("shots") or []
+    goals = goal_times(d)
+    home_id = sides[0]["id"]
     # Per-player shooting from the shot map (FotMob's player stat blocks don't reliably
-    # carry shots/xG): non-penalty shots, shots on target, npxG, penalties taken.
+    # carry shots/xG): non-penalty shots, shots on target, npxG, penalties taken — and the
+    # same split by the score at the time of the shot (D-053).
     by_player: dict[int, dict[str, float]] = {}
     for sh in shots:
         if sh.get("isOwnGoal") or sh.get("playerId") is None:
@@ -203,23 +213,33 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
         if sh.get("situation") == "Penalty":
             b["penalties"] += 1
             continue
+        minute = float(sh.get("min") or 0) + (sh.get("minAdded") or 0) / 100
+        st = _state(goals, minute, sh["teamId"] == home_id)
+        xg = sh.get("expectedGoals") or 0.0
+        goal = sh.get("eventType") == "Goal"
+        outside = not sh.get("isFromInsideBox")
+        dist = math.hypot(105 - sh["x"], 34 - sh["y"])
         b["np_shots"] += 1
         # FotMob's isOnTarget is also true for blocked shots; excluding them matches its
         # official "shots on target" team stat exactly.
         b["np_shots_on_target"] += bool(sh.get("isOnTarget")) and not sh.get("isBlocked")
-        b["npxg_shots"] += sh.get("expectedGoals") or 0.0
-        b["np_goals"] += sh.get("eventType") == "Goal"
-        b["np_shots_outside_box"] += not sh.get("isFromInsideBox")
+        b["npxg_shots"] += xg
+        b["np_goals"] += goal
+        b["np_shots_outside_box"] += outside
         b["np_shots_blocked"] += bool(sh.get("isBlocked"))
         b["np_shots_headed"] += sh.get("shotType") == "Header"
-        b["np_shot_distance_sum_m"] += math.hypot(105 - sh["x"], 34 - sh["y"])
+        b["np_shot_distance_sum_m"] += dist
+        b[f"{st}_np_shots"] += 1
+        b[f"{st}_npxg_shots"] += xg
+        b[f"{st}_np_goals"] += goal
+        b[f"{st}_np_shots_outside_box"] += outside
+        b[f"{st}_np_shot_distance_sum_m"] += dist
     cards = player_cards(d)
     for pl in players:
         pl |= by_player.get(pl["player_id"], _SHOT_ZERO)
         pl.setdefault("errors_led_to_goal", 0.0)
         pl["yellow"], pl["red"] = cards.get(pl["player_id"], (0, 0))
     reds = red_card_minutes(d)
-    goals = goal_times(d)
     records = []
     for i, side in enumerate(sides):
         own, opp = team_vals[i], team_vals[1 - i]

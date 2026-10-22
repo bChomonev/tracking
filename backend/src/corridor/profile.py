@@ -922,12 +922,21 @@ def shooting(players: list[dict], team: str) -> dict:
     squad it splits the team's shot-quality problem by player."""
     role_acc: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0])
     role_ot: dict[str, float] = defaultdict(float)
+    # Role averages measured in the same game state (D-053): a striker's shots when
+    # chasing are compared with other strikers' shots when chasing.
+    role_state: dict[str, dict[str, list[float]]] = {
+        st: defaultdict(lambda: [0.0, 0.0]) for st in STATES
+    }
     per: dict[int, dict] = {}
     for p in players:
-        r = role_acc[p.get("role") or "UNK"]
-        role_ot[p.get("role") or "UNK"] += p.get("np_shots_on_target", 0)
+        role_key = p.get("role") or "UNK"
+        r = role_acc[role_key]
+        role_ot[role_key] += p.get("np_shots_on_target", 0)
         r[0] += p["np_shots"]
         r[1] += p["npxg_shots"]
+        for st in STATES:
+            role_state[st][role_key][0] += p.get(f"{st}_np_shots") or 0
+            role_state[st][role_key][1] += p.get(f"{st}_npxg_shots") or 0.0
         a = per.setdefault(
             p["player_id"],
             {
@@ -944,8 +953,19 @@ def shooting(players: list[dict], team: str) -> dict:
                 "distance_sum": 0.0,
                 "errors_led_to_goal": 0,
                 "roles": defaultdict(float),
+                "by_state": {
+                    st: {"shots": 0, "npxg": 0.0, "goals": 0, "outside": 0, "distance_sum": 0.0}
+                    for st in STATES
+                },
             },
         )
+        for st in STATES:
+            b = a["by_state"][st]
+            b["shots"] += p.get(f"{st}_np_shots") or 0
+            b["npxg"] += p.get(f"{st}_npxg_shots") or 0.0
+            b["goals"] += p.get(f"{st}_np_goals") or 0
+            b["outside"] += p.get(f"{st}_np_shots_outside_box") or 0
+            b["distance_sum"] += p.get(f"{st}_np_shot_distance_sum_m") or 0.0
         a["team"] = p["team"]
         a["minutes"] += p["minutes"]
         a["shots"] += p["np_shots"]
@@ -961,6 +981,27 @@ def shooting(players: list[dict], team: str) -> dict:
         a["fallback_role"] = GROUP_ROLE.get(p.get("position"), "UNK")
     role_q = {r: x / s for r, (s, x) in role_acc.items() if s}
     league_q = sum(x for _, x in role_acc.values()) / max(1, sum(s for s, _ in role_acc.values()))
+    state_role_q = {
+        st: {r: x / n for r, (n, x) in acc.items() if n} for st, acc in role_state.items()
+    }
+    state_league_q = {
+        st: sum(x for _, x in acc.values()) / max(1, sum(n for n, _ in acc.values()))
+        for st, acc in role_state.items()
+    }
+
+    def state_row(b: dict, role: str, st: str) -> dict:
+        base = state_role_q[st].get(role, state_league_q[st])
+        n = b["shots"]
+        return {
+            "shots": n,
+            "npxg": b["npxg"],
+            "goals": b["goals"],
+            "npxg_per_shot": b["npxg"] / n if n else None,
+            "role_npxg_per_shot": base,
+            "avg_distance_m": b["distance_sum"] / n if n else None,
+            "outside_pct": 100 * b["outside"] / n if n else None,
+            "quality_gap": n * base - b["npxg"],
+        }
 
     def row(a: dict) -> dict:
         known = {r: m for r, m in a["roles"].items() if r != "UNK"}
@@ -968,6 +1009,7 @@ def shooting(players: list[dict], team: str) -> dict:
         q = a["npxg"] / a["shots"] if a["shots"] else None
         base = role_q.get(role, league_q)
         return {
+            "by_state": {st: state_row(a["by_state"][st], role, st) for st in STATES},
             "name": a["name"],
             "role": role,
             "minutes": round(a["minutes"]),
@@ -995,6 +1037,20 @@ def shooting(players: list[dict], team: str) -> dict:
     total_shots = sum(r["shots"] for r in shooters)
     for r in shooters:
         r["share_of_shots"] = 100 * r["shots"] / total_shots if total_shots else None
+    by_state = {}
+    for st in STATES:
+        n = sum(r["by_state"][st]["shots"] for r in shooters)
+        xg = sum(r["by_state"][st]["npxg"] for r in shooters)
+        for r in shooters:
+            b = r["by_state"][st]
+            b["share_of_shots"] = 100 * b["shots"] / n if n else None
+        by_state[st] = {
+            "shots": n,
+            "npxg": xg,
+            "npxg_per_shot": xg / n if n else None,
+            "league_npxg_per_shot": state_league_q[st],
+            "quality_gap": sum(r["by_state"][st]["quality_gap"] for r in shooters),
+        }
     matches = len({p["match_id"] for p in players if p["team"] == team})
     team_npxg = sum(r["npxg"] for r in shooters)
     return {
@@ -1003,6 +1059,7 @@ def shooting(players: list[dict], team: str) -> dict:
         "npxg": team_npxg,
         "npxg_per_shot": team_npxg / total_shots if total_shots else None,
         "league_npxg_per_shot": league_q,
+        "by_state": by_state,
         "quality_gap": sum(r["quality_gap"] for r in shooters),
         "quality_gap_per_match": sum(r["quality_gap"] for r in shooters) / matches
         if matches

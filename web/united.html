@@ -306,6 +306,10 @@ tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600
 .record small { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
 
 /* Stack dossiers */
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 6px; }
+.seg button { font: 600 .78rem/1 var(--body); text-transform: uppercase; letter-spacing: .05em; padding: 7px 10px; border-radius: 999px; border: 1px solid var(--rule); background: none; color: var(--muted); cursor: pointer; }
+.seg button[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.seg button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 .stack-note { font-size: 13px; color: var(--muted); margin: 0 0 8px; line-height: 1.45; }
 .gs-bars { margin: 2px 0 10px; }
 .gs-bar-row { display: grid; grid-template-columns: 4.5em minmax(0, 1fr) auto; align-items: center; gap: 10px; margin: 4px 0; font-size: .82rem; }
@@ -604,6 +608,8 @@ th[aria-sort] button::after { content: " ▾"; }
       <p id="shoot-sub"></p>
     </div>
     <p class="focus-lede" id="shoot-lede"></p>
+    <div class="seg" id="shoot-seg" role="tablist" aria-label="Which shots"></div>
+    <p class="bl-foot" id="shoot-state"></p>
     <figure class="ov-chart" id="shoot-chart"></figure>
     <div class="table-wrap" style="margin-top:14px"><table id="shoot-table"></table></div>
     <p class="bl-foot" id="shoot-foot"></p>
@@ -791,7 +797,15 @@ th[aria-sort] button::after { content: " ▾"; }
     const lost = SH.quality_gap_per_match > 0;
     $("shoot-sub").textContent = `Every non-penalty shot this season from FotMob's shot map. "npxG wasted": what a player's shots would have produced at the league-average quality for his position, minus what they produced. Positive (red) = chances wasted on poor shots; negative (green) = better shots than his position usually takes.`;
     $("shoot-lede").innerHTML = `${esc(TN)} ${lost ? `<em>lose</em>` : `<strong>gain</strong>`} <span class="num">${Math.abs(SH.quality_gap_per_match).toFixed(2)}</span> npxG a match through shot selection — ${ord(rank)} of ${gaps.length} for chances wasted. Their ${SH.shots} shots produced <span class="num">${SH.npxg.toFixed(1)}</span> npxG; at their positions' average quality they'd have produced <span class="num">${(SH.npxg + SH.quality_gap).toFixed(1)}</span>.`;
-    const ps = [...SH.players].sort((a, b) => b.quality_gap - a.quality_gap);
+    const VIEWS = [["all", "All shots"], ["level", "When level"], ["ahead", "When ahead"], ["behind", "When behind"]];
+    const viewRows = (v) => (v === "all" ? SH.players : SH.players.map((r) => ({ ...r, ...r.by_state[v], on_target_pct: null, role_on_target_pct: null, blocked_pct: null })).filter((r) => r.shots));
+    const renderShooting = (v) => {
+    const T = v === "all" ? SH : SH.by_state[v];
+    $("shoot-seg").innerHTML = VIEWS.map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === v}" data-v="${k}">${l}</button>`).join("");
+    $("shoot-state").textContent = v === "all"
+      ? "Pick a game state to see who shoots, and from where, when the score is level, when the team is ahead or when it is chasing. Role averages are measured in the same state."
+      : `${TN} ${v} (the score at the time of the shot): ${T.shots} shots worth ${T.npxg_per_shot != null ? T.npxg_per_shot.toFixed(3) : "—"} each against a league average of ${T.league_npxg_per_shot.toFixed(3)} in that state; ${signed(T.quality_gap, 2)} npxG wasted. Share = share of the team's shots in that state. On target and blocked are not split by state.`;
+    const ps = viewRows(v).sort((a, b) => b.quality_gap - a.quality_gap);
     const W = 820, rowH = 24, lab = 190, H = ps.length * rowH + 30;
     const pos = Math.max(0.05, ...ps.map((r) => r.quality_gap)), neg = Math.max(0.05, ...ps.map((r) => -r.quality_gap));
     const span = W - lab - 120, sc = span / (pos + neg), mid = lab + 60 + neg * sc;
@@ -814,10 +828,13 @@ th[aria-sort] button::after { content: " ▾"; }
       ["Blocked", "Share of his shots blocked by a defender before reaching goal."],
       ["npxG wasted", "Goals' worth lost to where he shoots from: what his shots would have been worth at his position's average quality, minus what they were worth. + = chances wasted on poor shots; − = better shots than usual.", true],
     ].map(([l, tip, end]) => sTh(l, tip, end)).join("") + `</tr></thead><tbody>` +
-      [...SH.players].map((r) => `<tr><td class="l">${esc(r.name)} <span class="pos">${esc(r.role)}</span></td><td class="cell">${r.shots}</td><td class="cell">${r.share_of_shots.toFixed(0)}%</td><td class="cell">${r.goals}</td>
+      viewRows(v).map((r) => `<tr><td class="l">${esc(r.name)} <span class="pos">${esc(r.role)}</span></td><td class="cell">${r.shots}</td><td class="cell">${r.share_of_shots.toFixed(0)}%</td><td class="cell">${r.goals}</td>
         <td class="cell h-${r.npxg_per_shot >= r.role_npxg_per_shot * 1.15 ? "good" : r.npxg_per_shot <= r.role_npxg_per_shot * 0.7 ? "bad" : ""}">${r.npxg_per_shot.toFixed(3)} <small style="color:var(--muted)">/ ${r.role_npxg_per_shot.toFixed(3)}</small></td>
         <td class="cell h-${r.on_target_pct == null || r.role_on_target_pct == null ? "" : r.on_target_pct >= r.role_on_target_pct + 10 ? "good" : r.on_target_pct <= r.role_on_target_pct - 10 ? "bad" : ""}">${r.on_target_pct != null ? r.on_target_pct.toFixed(0) + "%" : "—"} <small style="color:var(--muted)">/ ${r.role_on_target_pct != null ? r.role_on_target_pct.toFixed(0) + "%" : "—"}</small></td>
-        <td class="cell">${r.avg_distance_m.toFixed(1)} m</td><td class="cell">${r.outside_pct.toFixed(0)}%</td><td class="cell">${r.blocked_pct.toFixed(0)}%</td><td class="cell diff ${r.quality_gap > 0.2 ? "down" : r.quality_gap < -0.2 ? "up" : ""}">${signed(r.quality_gap, 2)}</td></tr>`).join("") + "</tbody>";
+        <td class="cell">${r.avg_distance_m.toFixed(1)} m</td><td class="cell">${r.outside_pct.toFixed(0)}%</td><td class="cell">${r.blocked_pct != null ? r.blocked_pct.toFixed(0) + "%" : "—"}</td><td class="cell diff ${r.quality_gap > 0.2 ? "down" : r.quality_gap < -0.2 ? "up" : ""}">${signed(r.quality_gap, 2)}</td></tr>`).join("") + "</tbody>";
+    for (const b of $("shoot-seg").querySelectorAll("button")) b.addEventListener("click", () => renderShooting(b.dataset.v));
+    };
+    renderShooting("all");
     const err = SH.errors_led_to_goal;
     $("shoot-foot").textContent = `Players with fewer than 3 shots (${SH.others.players} players, ${SH.others.shots} shots) are left out of the list but counted in the total. Defending can't be split by player the same way: the data doesn't say who allowed a chance. ${err.length ? `Errors leading directly to a goal: ${err.map((e) => `${e.name} (${e.errors})`).join(", ")}.` : "No errors leading directly to a goal recorded."}`;
   }

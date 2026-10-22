@@ -8,6 +8,26 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-053 — Who takes the shots, by game state · 2026-10-22 · accepted
+D-051 said what United do when the score is level; this names who. Every player's shots
+from the shot map are now also counted by the score at the time (level, ahead, behind,
+same clock and rules as D-051), in the parser (`level_np_shots`, `level_npxg_shots`,
+`level_np_goals`, `level_np_shots_outside_box`, `level_np_shot_distance_sum_m` and the
+ahead / behind twins) and in `profile.shooting`, where each player and the team get a
+`by_state` breakdown: shots, share of the team's shots *in that state*, npxG per shot,
+distance, outside-box share and npxG wasted. **Role averages are measured in the same
+state**: a striker's shots when chasing are compared with every striker's shots when
+chasing, because shot quality moves with the score for everyone.
+
+Site: the "Who takes the shots" table and chart get a switch (all shots · when level ·
+when ahead · when behind); the state views keep the same columns, with on target and
+blocked left blank because the shot map's on-target flag is not split. Analyst fact sheet:
+`shooting.players[].by_game_state` and `shooting.team_by_game_state`, with a note to quote
+the shot count next to any per-shot figure from one state. Match fact sheet: each
+player's `shots_by_game_state` for that match. Players with fewer than 3 shots overall are
+still left out of the list; a state view can show a listed player with one or two shots in
+that state, so the count is always shown.
+
 ## D-052 — Players' running in the Champions League, from UEFA · 2026-10-22 · accepted
 Champions League player rows had running data from FotMob for only about a third of games,
 and none for United v Como. UEFA's player statistics cover every game, so `build_season

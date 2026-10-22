@@ -84,9 +84,38 @@ def _shooting_facts(profile: dict) -> dict | None:
                 "outside_box_pct": round(r["outside_pct"]),
                 "blocked_pct": round(r["blocked_pct"]),
                 "npxg_wasted": _r(r["quality_gap"], 2),
+                "by_game_state": {
+                    STATE_LABELS[st]: {
+                        "shots": b["shots"],
+                        "share_of_team_shots_in_that_state_pct": _r(b["share_of_shots"], 0),
+                        "np_goals": b["goals"],
+                        "npxg_per_shot": _r(b["npxg_per_shot"], 3),
+                        "role_average_npxg_per_shot_in_that_state": _r(b["role_npxg_per_shot"], 3),
+                        "avg_shot_distance_m": _r(b["avg_distance_m"], 1),
+                        "outside_box_pct": _r(b["outside_pct"], 0),
+                        "npxg_wasted": _r(b["quality_gap"], 2),
+                    }
+                    for st, b in r["by_state"].items()
+                    if b["shots"]
+                },
             }
             for r in sorted(sh["players"], key=lambda r: -r["quality_gap"])
         ],
+        "team_by_game_state": {
+            STATE_LABELS[st]: {
+                "shots": b["shots"],
+                "npxg_per_shot": _r(b["npxg_per_shot"], 3),
+                "league_npxg_per_shot": _r(b["league_npxg_per_shot"], 3),
+                "npxg_wasted": _r(b["quality_gap"], 2),
+            }
+            for st, b in (sh.get("by_state") or {}).items()
+        },
+        "game_state_note": (
+            "by_game_state splits each player's shots by the score when they were taken. "
+            "Role averages there are measured in the same state, so 'when level' quality is "
+            "compared with other players in his role when level. Small counts: say the "
+            "number of shots when quoting a per-shot figure from one state."
+        ),
         "errors_led_to_goal": sh["errors_led_to_goal"],
     }
 
