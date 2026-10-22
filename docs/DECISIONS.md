@@ -8,6 +8,39 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-054 — Match preview: "How they play", the two sides played against each other · 2026-10-22 · accepted
+The preview page was built in the predictions stage, so everything on it was a forecast
+(chances, scorelines, team news, line-ups, shooters, cards, corners) and none of the site's
+explanation reached it. `corridor.matchup` now builds, per fixture of the next round and
+from the season profiles only (nothing fetched), a block stored in `previews.json`
+(`fixtures[id].matchup`), rendered as a "How they play" section between the prediction and
+the team news, and copied into the analyst's `next_match.how_they_play` so previews and
+columns can quote it:
+- **Season shape**: position, points against the points the performances deserved, elite
+  and danger scores, minutes level / ahead / behind, for both sides.
+- **Pairings**: attack against defence both ways — chance quality, npxG per shot, shots, big
+  chances, touches in the box, set-piece and counter-attack chances — each with league
+  ranks, E / W line markers, the attack metric's tier, and **"if both play as usual"** =
+  attack × defence ÷ league average. Running vs opponent is shown for both sides. The
+  model's own expectation (rolling, opponent-adjusted ratings) is shown next to it and the
+  page says why they differ: the ratings still carry last season, the pairings are this
+  season's typical match.
+- **Battles by role** from the likely line-ups: wingers v full-backs, strikers v
+  centre-backs, attacking v central midfielders, both ways. Attackers are measured on
+  creation (xG + xA and touches in the box, percentile within the role, plus shots and
+  npxG per shot against the role); defenders on duels won and recoveries (plus effort). An
+  edge needs 20 percentile points between the two groups. The page says plainly that the
+  defensive side is work rate: the data cannot say which defender allowed a chance (D-025).
+  Players without a season profile (under 90 minutes) are skipped; players listed as out
+  are left out.
+- **A read** written by code from the ranks: a luck line when deserved and actual points
+  differ by 3+, up to two mismatch lines (decisive or helpful pairings where the attack's
+  and defence's league strength differ by 0.4+), and the biggest battle edge.
+First fixture (United v Bournemouth): "Bournemouth's performances have been worth 11.3
+points and they have 6. Bournemouth's shots are the 4th-best in the league for quality and
+Manchester United allow the 2nd-highest quality." The "usual" column has United's attack at
+0.86 npxG against the model's 1.50: the ratings still rate last season's third place.
+
 ## D-053 — Who takes the shots, by game state · 2026-10-22 · accepted
 D-051 said what United do when the score is level; this names who. Every player's shots
 from the shot map are now also counted by the score at the time (level, ahead, behind,

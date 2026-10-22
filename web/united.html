@@ -310,6 +310,25 @@ tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600
 .seg button { font: 600 .78rem/1 var(--body); text-transform: uppercase; letter-spacing: .05em; padding: 7px 10px; border-radius: 999px; border: 1px solid var(--rule); background: none; color: var(--muted); cursor: pointer; }
 .seg button[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .seg button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.hp-shape { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 10px 24px; margin: 0 0 12px; font-size: .92rem; }
+.hp-side b { font-size: 1.05rem; }
+.hp-mins { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.hp-mins .gs-bar { flex: 1; max-width: 260px; }
+.hp-mins small { color: var(--muted); }
+.hp-card table { margin: 6px 0 0; }
+.hp-table td { padding: 7px 4px; vertical-align: middle; }
+.hp-table .hp-att { text-align: right; white-space: nowrap; }
+.hp-table .hp-def { text-align: left; white-space: nowrap; }
+.hp-table .hp-def .gs-chip { margin: 0 5px 0 0; } .hp-table .hp-att .gs-chip { margin: 0 0 0 5px; }
+.hp-table .hp-lab { text-align: center; font-size: .78rem; color: var(--muted); line-height: 1.25; }
+.hp-table .hp-lab .imp-tag { display: block; width: max-content; margin: 3px auto 0; }
+.hp-table .hp-usual { text-align: right; color: var(--muted); }
+.hp-both { margin: 8px 0 0; }
+.hp-h3 { font-size: 1.25rem; text-transform: uppercase; margin: 18px 0 8px; }
+.hp-h3 small { display: block; font: 400 .82rem/1.4 var(--body); color: var(--muted); text-transform: none; }
+.hp-battle { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hp-battle .mv-list li small { display: block; }
+@media (max-width: 520px) { .hp-battle { grid-template-columns: 1fr; } .hp-table .hp-lab { font-size: .72rem; } }
 .stack-note { font-size: 13px; color: var(--muted); margin: 0 0 8px; line-height: 1.45; }
 .gs-bars { margin: 2px 0 10px; }
 .gs-bar-row { display: grid; grid-template-columns: 4.5em minmax(0, 1fr) auto; align-items: center; gap: 10px; margin: 4px 0; font-size: .82rem; }
@@ -552,6 +571,10 @@ th[aria-sort] button::after { content: " ▾"; }
       <p class="eyebrow" id="mv-when"></p>
       <h1 id="mv-title"></h1>
       <div id="mv-pred"></div>
+    </section>
+    <section aria-labelledby="mvh-title" id="mvh-sec">
+      <div class="section-head"><h2 id="mvh-title">How they play</h2><p id="mvh-sub"></p></div>
+      <div id="mv-how"></div>
     </section>
     <section aria-labelledby="mvg-title">
       <div class="section-head"><h2 id="mvg-title">Scorelines &amp; goals</h2><p id="mvg-sub"></p></div>
@@ -1187,6 +1210,39 @@ ${detailOf(m)}      </details>`;
     $("team-next").innerHTML = cards.length || pj ? `${cards.length ? `<h3>${cards.length > 1 ? "Next matches" : "Next match"}</h3><div class="fx-list">${cards.map((c) => c[1]).join("")}</div>` : ""}${pj ? `<p class="fx-why" style="margin-top:8px">Season projection: <b class="num">${pj.points.toFixed(0)}</b> points (80% range ${pj.points_p10.toFixed(0)}–${pj.points_p90.toFixed(0)}) · top 4 ${pc(pj.top4)} · relegation ${pc(pj.relegation, pj.relegation > 0 && pj.relegation < 0.01 ? 1 : 0)} · <a href="#${LK}" class="back">see all predictions</a></p>` : ""}` : "";
   };
 
+  // ===== Match preview, "How they play" (D-054): the two sides played against each other =====
+  const renderHowTheyPlay = (M, f, H, A) => {
+    $("mvh-sec").hidden = !M;
+    if (!M) return;
+    const sh = M.shape[M.home], sa = M.shape[M.away];
+    $("mvh-sub").textContent = `Both sides' typical league match this season, played against each other: one side's attack against the other's defence, then the battles by role from the likely line-ups. Ranks are of ${sh.position ? "all teams in the league" : "the league"}; E / W = the typical match reaches the elite line / sits at the worst line.`;
+    const chip = (c) => `<span class="gs-chip pct-chip tier-${tier(c.percentile)}">${c.rank}<small>${ord(c.rank).slice(String(c.rank).length)}</small></span>`;
+    const mk = (c) => (c.at_elite_line ? '<span class="gs-mk ok" title="Typical match reaches the elite line">E</span>' : "") + (c.at_worst_line ? '<span class="gs-mk miss" title="Typical match at or below the worst line">W</span>' : "");
+    const num = (c, d) => `<span class="num">${esc(String(c.value))}</span>`;
+    const bar = (m) => m && m.level != null ? `<span class="gs-bar hp-bar" aria-hidden="true"><i class="gs-level" style="width:${m.level}%"></i><i class="gs-ahead" style="width:${m.ahead}%"></i><i class="gs-behind" style="width:${m.behind}%"></i></span><small class="num">${m.level.toFixed(0)} · ${m.ahead.toFixed(0)} · ${m.behind.toFixed(0)}%</small>` : "";
+    const luck = (x) => x.points_the_performances_deserved == null ? "" : `, performances worth <span class="num">${x.points_the_performances_deserved.toFixed(1)}</span>`;
+    const shapeRow = (t, x) => `<div class="hp-side"><b>${esc(short(t))}</b> ${x.position ? `${ord(x.position)}` : ""}${x.points != null ? ` · <span class="num">${x.points}</span> pts${luck(x)}` : ""}${x.elite_score != null ? ` · elite <span class="num">${x.elite_score}</span> / danger <span class="num">${x.danger_score}</span>` : ""}<div class="hp-mins">${bar(x.minutes_pct)}</div></div>`;
+    const tipTh = (lab, tip) => `<span class="tip below" tabindex="0" data-tip="${esc(tip)}">${lab}</span>`;
+    const pairTable = (title, attT, defT, rows) => `<article class="mv-card hp-card"><h3>${esc(short(attT))} attack<small>v ${esc(short(defT))} defence</small></h3>
+      <table class="gs-table hp-table"><colgroup><col style="width:30%"><col style="width:26%"><col style="width:30%"><col style="width:14%"></colgroup>
+        <thead><tr><th scope="col">${esc(short(attT))}</th><th scope="col">per match</th><th scope="col">${esc(short(defT))} allow</th><th scope="col">${tipTh("Usual", "If both play as usual: attack × defence ÷ league average. The prediction at the top uses rolling, opponent-adjusted ratings instead, so it can differ.")}</th></tr></thead>
+        <tbody>${rows.map((x) => `<tr><td class="hp-att"><span class="num">${esc(String(x.attack.value))}</span>${chip(x.attack)}${mk(x.attack)}</td><td class="hp-lab"><span class="tip below" tabindex="0" data-tip="${esc(x.label)}: the attacking side's figure in its typical match, and what the defending side allows in its typical match. League average ${esc(String(x.league_average))}.">${esc(x.label)}</span>${x.decides_matches ? `<span class="imp-tag ${x.decides_matches}">${esc(TIER[x.decides_matches][0])}</span>` : ""}</td><td class="hp-def">${mk(x.defence)}${chip(x.defence)}<span class="num">${esc(String(x.defence.value))}</span></td><td class="hp-usual num">${x.if_both_play_as_usual == null ? "—" : esc(String(x.if_both_play_as_usual))}</td></tr>`).join("")}</tbody></table></article>`;
+    const both = (M.both_ways || []).map((x) => `<p class="fx-why hp-both">${esc(x.label)}: ${esc(short(M.home))} <span class="num">${signed(x.home.value, 1)}</span> ${chip(x.home)}${mk(x.home)} · ${esc(short(M.away))} <span class="num">${signed(x.away.value, 1)}</span> ${chip(x.away)}${mk(x.away)}</p>`).join("");
+    const me = M.model_expectation ? `<p class="fx-why">The prediction model expects chance quality <span class="num">${M.model_expectation.home_npxg.toFixed(2)}–${M.model_expectation.away_npxg.toFixed(2)}</span> from its ratings; the "usual" column is what this season's typical matches say.</p>` : "";
+    const pl = (x, who) => who === "att"
+      ? `<li><span>${esc(x.name)}</span><span class="num">${x.creation_percentile != null ? x.creation_percentile : "—"}</span><small>xG+xA ${x.xg_xa_per_90 != null ? x.xg_xa_per_90.toFixed(2) : "—"}/90 (${x.xg_xa_percentile ?? "—"}th), box touches ${x.box_touches_percentile ?? "—"}th${x.shots ? `, ${x.shots} shots at ${x.npxg_per_shot} (role ${x.role_npxg_per_shot})` : ""}</small></li>`
+      : `<li><span>${esc(x.name)}</span><span class="num">${x.defending_percentile != null ? x.defending_percentile : "—"}</span><small>duels won ${x.duels_won_percentile ?? "—"}th, recoveries ${x.recoveries_percentile ?? "—"}th, effort ${x.effort_percentile ?? "—"}th</small></li>`;
+    const battle = (attT, defT, b) => (!b.attackers.length || !b.defenders.length) ? "" : `<article class="mv-card hp-card"><h3>${esc(short(attT))}'s ${esc(b.attackers_role)}<small>v ${esc(short(defT))}'s ${esc(b.defenders_role)}</small></h3>
+      <p class="lead">${b.verdict === "attackers" ? `<b>Edge to the ${esc(b.attackers_role)}</b>` : b.verdict === "defenders" ? `<b>Edge to the ${esc(b.defenders_role)}</b>` : "<b>Even</b>"} — attackers average the ${ord(b.attackers_percentile)} percentile of their role for creation, defenders the ${ord(b.defenders_percentile)} for duels and recoveries.</p>
+      <div class="hp-battle"><ul class="mv-list">${b.attackers.map((x) => pl(x, "att")).join("")}</ul><ul class="mv-list">${b.defenders.map((x) => pl(x, "def")).join("")}</ul></div></article>`;
+    const battles = [...M.battles.home_attack.map((b) => battle(M.home, M.away, b)), ...M.battles.away_attack.map((b) => battle(M.away, M.home, b))].filter(Boolean).join("");
+    $("mv-how").innerHTML = `<div class="hp-shape">${shapeRow(M.home, sh)}${shapeRow(M.away, sa)}</div>
+      ${M.read.length ? `<p class="gs-read">${M.read.map(esc).join(" ")}</p>` : ""}
+      <div class="mv-cols">${pairTable("", M.home, M.away, M.pairings.home_attack_v_away_defence)}${pairTable("", M.away, M.home, M.pairings.away_attack_v_home_defence)}</div>
+      ${both}${me}
+      ${battles ? `<h3 class="hp-h3">Battles by role<small>from the likely line-ups; defenders are measured on duels, recoveries and effort, not on chances allowed</small></h3><div class="mv-cols">${battles}</div>` : ""}`;
+  };
+
   // ===== Match preview (D-024): prediction, team news, line-ups, shooters, corners =====
 
   const renderMatch = (id) => {
@@ -1212,10 +1268,11 @@ ${detailOf(m)}      </details>`;
           ${GB ? `<p class="fx-why" style="margin-top:8px">Tested on ${GB.n.toLocaleString()} past matches: over 2.5 Brier ${GB.over.toFixed(3)} vs ${GB.over_base.toFixed(3)} for the league rate and ${GB.over_book.toFixed(3)} for the bookmakers (lower is better) — goal totals are hard to call.</p>` : ""}</article>`;
     } else { $("mv-goals").innerHTML = ""; }
     if (!V) {
-      ["mv-news", "mv-lineups", "mv-shooters", "mv-corners"].forEach((k) => ($(k).innerHTML = `<p class="bl-foot">No preview data for this fixture yet.</p>`));
+      ["mv-how", "mv-news", "mv-lineups", "mv-shooters", "mv-corners"].forEach((k) => ($(k).innerHTML = `<p class="bl-foot">No preview data for this fixture yet.</p>`));
       return;
     }
     const S = V.sides, fetched = when(V.fetched_at, true);
+    renderHowTheyPlay(V.matchup, f, H, A);
     // Team news
     $("mvn-sub").textContent = `Injuries and suspensions from FotMob, as of ${fetched}. "Share of output" is the player's part of the team's chance creation this season (non-penalty xG + expected assists).`;
     $("mv-news").innerHTML = ["home", "away"].map((k) => { const t = S[k];

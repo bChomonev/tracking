@@ -12,6 +12,7 @@ import json
 from collections import defaultdict
 from datetime import UTC, datetime
 
+from corridor import matchup
 from corridor import preview as V
 from corridor.ingest import fotmob
 from corridor.ingest.fotmob import BASE, role_from_position_id
@@ -62,6 +63,8 @@ def main() -> None:
     season = args.season
     out_dir = site_dir(season, lg)
     pred = json.loads((out_dir / "predictions.json").read_text())
+    league_json = out_dir / "league.json"
+    league = json.loads(league_json.read_text()) if league_json.exists() else {}
 
     teams_now, players_now = _load(season, "team_matches", lg), _load(season, "player_matches", lg)
     players_prev = _load(season - 1, "player_matches", lg)
@@ -226,6 +229,15 @@ def main() -> None:
         rg = ref_games.get(ref or "", [0, 0])
         previews[f["id"]] = {
             "fotmob_id": fm["id"],
+            # D-054: both sides played against each other, from the season profiles.
+            "matchup": matchup.build(
+                league,
+                f["home"],
+                f["away"],
+                sides["home"]["xi"],
+                sides["away"]["xi"],
+                (f.get("exp_home"), f.get("exp_away")) if f.get("exp_home") is not None else None,
+            ),
             "lineup": "last_xi"
             if fallback and not has_xi
             else {

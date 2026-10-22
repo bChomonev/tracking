@@ -170,6 +170,8 @@ def _next_match_facts(
             }
             for x in mine["shooters"][:3]
         ]
+        if v.get("matchup"):
+            out["how_they_play"] = v["matchup"]
     return out
 
 
