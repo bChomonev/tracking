@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 import numpy as np
 
 from corridor import absences as AB
+from corridor import mistakes as M
 from corridor import predict as P
 from corridor.ingest import fotmob
 from corridor.ingest.fotmob import BASE
@@ -154,6 +155,8 @@ def main() -> None:
         m["id"]: p for test, _, pc, _ in cal.values() for m, p in zip(test, pc, strict=True)
     }
     ev_goals = P.evaluate_goals(scored, tests, FIRST_TRAIN, published)
+    # The mistakes log (D-058): why favourites lost, and where the chances are off.
+    mistakes = M.build(cal, list(tests), scored, focus=league.focus_team)
     temperature = P.temperature_for(wf, season, CAL_FIRST) if cal_on else 1.0
 
     # 2. Final model: every played match up to now.
@@ -317,6 +320,19 @@ def main() -> None:
                     e[f"{book}_rps"] = P.rps(m["odds"][book], m["result"])
     log_path.write_text(json.dumps(log, indent=1))
     done = [e for e in log.values() if "result" in e]
+
+    def _why(e: dict, m: dict | None) -> dict:
+        """The match's xG and, when our favourite lost, what kind of miss it was."""
+        hx, ax = M.match_xg(m) if m else (None, None)
+        if hx is None:
+            return {}
+        f = M.favourite(e["p"])
+        lost = e["result"] == ("A" if f == 0 else "H")
+        return {
+            "xg": [round(hx, 2), round(ax, 2)],
+            "kind": M.miss_kind(f, hx, ax) if lost else None,
+        }
+
     round_of = {m["id"]: rounds.get((m["home"], m["away"])) for m in current}
     record = {
         "scored": len(done),
@@ -329,7 +345,11 @@ def main() -> None:
         # The whole season, each tagged with its FotMob matchday so the site can show it
         # round by round.
         "matches": sorted(
-            ({"id": k, **e, "round": round_of.get(k)} for k, e in log.items() if "result" in e),
+            (
+                {"id": k, **e, **_why(e, by_id.get(k)), "round": round_of.get(k)}
+                for k, e in log.items()
+                if "result" in e
+            ),
             key=lambda e: e["kickoff"],
             reverse=True,
         ),
@@ -349,6 +369,7 @@ def main() -> None:
         "team_news_test": tn_test,
         "team_news_applied": tn_on,
         "record": record,
+        "mistakes": mistakes,
         "trained_on": len(train),
     }
     (out_dir / "predictions.json").write_text(json.dumps(out, indent=1))

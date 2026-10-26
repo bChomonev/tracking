@@ -8,6 +8,38 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-058 — The mistakes log: why favourites lost, and where our chances are off · 2026-10-26 · accepted
+`corridor/mistakes.py` runs inside the predictions step, so it refreshes after every round, and
+it works on the held-out predictions only.
+
+**What kind of miss.** Every defeat of our favourite is labelled from the match's Understat xG:
+- *deserved*: the underdog won xG by 0.5 or more;
+- *close*: within 0.5;
+- *luck*: our favourite won xG by 0.5 or more.
+
+Premier League: of 226 real surprises, 38% were deserved, 37% close and 25% luck. Only the
+first kind is the model reading the game wrong.
+
+**Where we're off.** The page compares, for groups of matches, how often the favourite lost with
+how often our chances said it would. The groups are home or away favourite, big favourites, close
+games, both of those split by venue, promoted sides, early season, and each team with 60 or more
+matches as favourite (plus United).
+
+A group is flagged "Off" only when both hold:
+- the gap is at least 2 standard deviations (3 for single teams, because there are many of them);
+- it points the same way in most seasons.
+
+"Watch" means 1.5 standard deviations or more.
+
+**A flag is not a fix.** Each flag gets a candidate correction, fitted only on earlier seasons
+and scored on the next. It is switched on only if it is better overall and in most seasons, the
+same bar as D-031 and D-036.
+
+The first flag is Premier League big home favourites: 172 defeats against 148 expected. Its
+correction (scaling up the away underdog's chance) gave RPS 0.2042 → 0.2041, but it was better
+in only 3 of 7 seasons. So it is not switched on; we keep watching it. Any switch-on gets its
+own decision entry.
+
 ## D-057 — "Real surprise": a side we gave 25% or less won · 2026-10-26 · accepted
 A favourite losing a close game isn't a miss in the same way as a long shot coming in. A
 surprise is now an underdog win where we gave the underdog `predict.SURPRISE_AT` = 25% or less.
