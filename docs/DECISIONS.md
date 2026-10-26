@@ -8,6 +8,15 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-059 — Season table colours read as a 1X / X2 bet on our favourite · 2026-10-26 · accepted
+The table used to colour what happened green, whatever we had said. So an underdog win we'd
+half-expected (Villa v City, 26%) looked like a win for us. The favourite is the side we gave the
+bigger chance of winning, and the colours now follow it:
+- **green**: the bet on our favourite came in. If the favourite won, only its cell is green. If
+  the match was drawn, the draw and the favourite are both green.
+- **orange**: the underdog won, but we had given it more than 25%. Its cell is orange.
+- **red**: a real surprise (D-057). The underdog won from 25% or less, and its cell is red.
+
 ## D-058 — The mistakes log: why favourites lost, and where our chances are off · 2026-10-26 · accepted
 `corridor/mistakes.py` runs inside the predictions step, so it refreshes after every round, and
 it works on the held-out predictions only.
