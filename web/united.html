@@ -573,6 +573,9 @@ th[aria-sort="ascending"] button::after { content: " ▴"; }
         <figure class="proof-chart" id="bt-scores"></figure>
         <figure class="proof-chart" id="bt-calib"></figure>
       </div>
+      <h3 class="proof-h">When we say it, does it happen?</h3>
+      <p class="proof-note" id="bt-bands-note"></p>
+      <div class="mv-cols one" id="bt-bands" style="max-width:720px"></div>
       <h3 class="proof-h">This season, prediction by prediction</h3>
       <p class="proof-note" id="bt-record-note"></p>
       <div class="rd-pick" id="bt-rounds" role="group" aria-label="Round"></div>
@@ -1690,6 +1693,18 @@ ${detailOf(m)}      </details>`;
         ? `Read it like a 1X / X2 bet on our favourite (the side we made likelier to win). Green: it came in, either our favourite won, or it was a draw (the draw and our favourite both green). Orange: the underdog won, but we had given it more than ${pc(SURPRISE)}. Red: a real surprise, the underdog won from ${pc(SURPRISE)} or less. Our favourite came in ${favHit} of ${R.matches.length} times so far, lost outright ${R.matches.filter(lostOf).length}, and ${R.matches.filter(surpriseOf).length} of those ${R.matches.filter(surpriseOf).length === 1 ? "was a real surprise" : "were real surprises"}. Pick a round, or click a column to sort.`
         : "";
       $("bt-foot").textContent = `What the ratings use: Understat non-penalty xG created and conceded, goals, and the share of the 5 core elite and worst lines reached, each match opponent-adjusted and weighted so the last ~24 matches count half. Honest result: the line features add very little on top of xG and goals, and the model trails the bookmakers by about ${((pooled.model.rps - (pooled.avg?.rps ?? pooled.model.rps))).toFixed(3)} RPS — they also know injuries and line-ups. Bookmaker odds (football-data.co.uk) are used only as this benchmark.${PRD.calibration_test ? (PRD.calibration_applied ? ` The model's favourites won a little less often than it said, so its chances are softened slightly (by an amount learned only from earlier seasons, ${PRD.temperature.toFixed(2)} this season): RPS ${PRD.calibration_test.rps_raw.toFixed(4)} before, ${PRD.calibration_test.rps_calibrated.toFixed(4)} after.` : ` A softening step for over-confident chances was tested here and didn't help (RPS ${PRD.calibration_test.rps_raw.toFixed(4)} without, ${PRD.calibration_test.rps_calibrated.toFixed(4)} with), so it is off.`) : ""}${PRD.backtest_goals ? ` Scorelines and goal lines come from a separate goals model: over 2.5 goals Brier ${PRD.backtest_goals.over.toFixed(3)} vs ${PRD.backtest_goals.over_base.toFixed(3)} for the league rate and ${PRD.backtest_goals.over_book.toFixed(3)} for the bookmakers.` : ""}`;
+      // When we say X, it happens Y (D-060): by how sure we were about our favourite.
+      const BD = PRD.mistakes?.bands;
+      if (BD) {
+        const band = (b) => b.from === 0 ? `under ${pc(b.to)}` : b.to === 1 ? `${pc(b.from)} or more` : `${Math.round(100 * b.from)}–${pc(b.to)}`;
+        const tbl = (rows, what) => `<div class="table-wrap"><table class="proof-table"><thead><tr><th class="l">We gave our favourite</th><th>Matches</th><th>We said</th><th>It ${what}</th><th></th></tr></thead><tbody>` +
+          rows.map((b) => { const d = b.happened - b.said, v = Math.abs(d) < 0.03 ? ["Honest", "good"] : d > 0 ? ["More often", "mid"] : ["Less often", "bad"];
+            return `<tr><td class="l">${band(b)}</td><td class="cell">${b.n.toLocaleString()}</td><td class="cell">${pc(b.said)}</td><td class="cell"><b>${pc(b.happened)}</b></td><td class="cell"><span class="vd ${v[1]}">${v[0]}</span></td></tr>`; }).join("") + "</tbody></table></div>";
+        const top = BD.win_or_draw[1] || BD.win_or_draw[0];
+        $("bt-bands-note").textContent = `Our favourite is the side we gave the bigger chance of winning. We group every prediction by how sure we were, then count how often it came in.${top ? ` For example, when we gave our favourite ${band(top)} to win or draw, it did ${pc(top.happened)} of the time (${top.n.toLocaleString()} matches).` : ""} "We said" is the average chance we gave in that group. Honest: it came in within 3 points of that; more or less often: off by more.`;
+        $("bt-bands").innerHTML =
+          `<article class="mv-card"><h3>Our favourite to win or draw <small>a 1X / X2 bet</small></h3><p class="lead">How sure we were that our favourite wouldn't lose, and how often it didn't.</p>${tbl(BD.win_or_draw, "didn't lose")}</article>`;
+      }
       // The mistakes log (D-058).
       const MK = PRD.mistakes;
       $("mk-sec").hidden = !MK;

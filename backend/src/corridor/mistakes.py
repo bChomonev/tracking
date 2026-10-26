@@ -71,7 +71,9 @@ def rows(cal: dict[int, tuple], seasons: Sequence[int], all_scored: list[dict]) 
                     "dog": m["away"] if f == 0 else m["home"],
                     "home_fav": f == 0,
                     "p_dog": float(p[2 - f]),
+                    "p_fav": float(p[f]),
                     "lost": lost,
+                    "won": m["result"] == ("H" if f == 0 else "A"),
                     "kind": miss_kind(f, hx, ax) if lost else None,
                     "early": min(played[m["home"]], played[m["away"]]) <= EARLY,
                     "promoted": bool(teams[s - 1])
@@ -143,6 +145,44 @@ def kinds(rs: list[dict], surprise_at: float = P.SURPRISE_AT) -> dict:
     }
 
 
+WIN_BANDS = [(0.7, 1.0), (0.6, 0.7), (0.5, 0.6), (0.4, 0.5), (0.0, 0.4)]
+DC_BANDS = [
+    (0.9, 1.0),
+    (0.85, 0.9),
+    (0.8, 0.85),
+    (0.75, 0.8),
+    (0.7, 0.75),
+    (0.65, 0.7),
+    (0.0, 0.65),
+]
+
+
+def bands(rs: list[dict]) -> dict:
+    """'When we say X, it happens Y' (D-060), by how sure we were about our favourite: to win,
+    and to win or draw (a 1X / X2 bet)."""
+
+    def table(chance, came_in, edges):
+        out = []
+        for lo, hi in edges:
+            g = [r for r in rs if lo <= chance(r) < hi or (hi == 1.0 and chance(r) == 1.0)]
+            if g:
+                out.append(
+                    {
+                        "from": lo,
+                        "to": hi,
+                        "n": len(g),
+                        "said": sum(chance(r) for r in g) / len(g),
+                        "happened": sum(came_in(r) for r in g) / len(g),
+                    }
+                )
+        return out
+
+    return {
+        "win": table(lambda r: r["p_fav"], lambda r: r["won"], WIN_BANDS),
+        "win_or_draw": table(lambda r: 1 - r["p_dog"], lambda r: not r["lost"], DC_BANDS),
+    }
+
+
 def home_edge_test(cal: dict[int, tuple], seasons: Sequence[int], first: int) -> dict | None:
     """First candidate fix: are big home favourites over-rated? For each test season, fit one
     factor k on the earlier seasons only (scales the away underdog's chance in matches with a
@@ -197,6 +237,7 @@ def build(
     return {
         "xg_margin": XG_MARGIN,
         "kinds": kinds(rs),
+        "bands": bands(rs),
         "slices": slices(rs, focus=focus),
         "home_edge_test": home_edge_test(cal, seasons, min(cal)),
     }

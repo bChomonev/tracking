@@ -58,3 +58,17 @@ def test_home_edge_test_learns_only_from_earlier_seasons():
     t = M.home_edge_test(cal, [2020, 2021], 2019)
     assert set(t["k"]) == {2020, 2021}  # 2019 has nothing before it to learn from
     assert t["k"][2020] > 1 and t["helps"]
+
+
+def test_bands_compare_what_we_said_with_what_happened():
+    rs = [
+        {"p_fav": 0.75, "p_dog": 0.1, "won": True, "lost": False},
+        {"p_fav": 0.72, "p_dog": 0.12, "won": False, "lost": False},  # a draw
+        {"p_fav": 0.45, "p_dog": 0.3, "won": False, "lost": True},
+    ]
+    b = M.bands(rs)
+    top = b["win"][0]
+    assert (top["from"], top["n"], top["happened"]) == (0.7, 2, 0.5)
+    dc = {(x["from"], x["to"]): x for x in b["win_or_draw"]}
+    assert dc[(0.85, 0.9)]["happened"] == 1.0 and dc[(0.85, 0.9)]["n"] == 1
+    assert dc[(0.7, 0.75)]["happened"] == 0.0  # 1 - 0.3 = 0.7: the favourite lost

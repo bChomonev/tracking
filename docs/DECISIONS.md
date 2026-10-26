@@ -8,6 +8,21 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-060 — "When we say it, does it happen?": predictions grouped by how sure we were · 2026-10-26 · accepted
+The calibration chart answers "are the percentages honest?" for every outcome together. Readers
+think in terms of the favourite: if we say 85%, does it come in? The mistakes log now groups the
+held-out predictions by our favourite's chance to win or draw (1X / X2), in bands of 90%+, then
+5-point steps down to under 65. That is the only table on the page. A "to win" table is also
+computed (`bands.win`) but is left off the page, at the user's call: the double-chance view is
+the one that matters to us.
+
+Each band shows the average chance we gave and how often it came in. It is marked "Honest" when
+the two are within 3 points. That is a plain-reading bar, not a significance test; the
+mistakes-log slices (D-058) remain the statistical check.
+
+Premier League: 80–85% came in 78% (323 matches) and under 65% came in 68%. Everything else is
+within 3 points.
+
 ## D-059 — Season table colours read as a 1X / X2 bet on our favourite · 2026-10-26 · accepted
 The table used to colour what happened green, whatever we had said. So an underdog win we'd
 half-expected (Villa v City, 26%) looked like a win for us. The favourite is the side we gave the
