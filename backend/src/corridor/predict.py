@@ -451,14 +451,31 @@ def rps(p: Sequence[float], result: str) -> float:
     return (c1 * c1 + c2 * c2) / 2
 
 
+# A "surprise" (D-057): a side we gave this chance or less won. About half of all matches
+# have an underdog this unlikely, and those underdogs win about as often as we say.
+SURPRISE_AT = 0.25
+
+
 def score(probs: np.ndarray, results: Sequence[str]) -> dict[str, float]:
     idx = [OUTCOMES.index(r) for r in results]
     n = len(idx)
+    home_fav = probs[:, 0] >= probs[:, 2]
+    dog = np.where(home_fav, probs[:, 2], probs[:, 0])
+    fav_lost = np.where(home_fav, 2, 0) == np.array(idx)
+    long = dog <= SURPRISE_AT
     return {
         "n": n,
         "rps": float(np.mean([rps(p, r) for p, r in zip(probs, results, strict=True)])),
         "log_loss": float(-np.mean(np.log(np.clip(probs[np.arange(n), idx], 1e-12, 1)))),
         "hit_rate": float(np.mean(np.argmax(probs, 1) == np.array(idx))),
+        # The double-chance view (1X / X2): the favourite is whichever side we gave the bigger
+        # chance of winning; it "lost" only when the other side won, a draw is a near miss.
+        "fav_lost": float(np.mean(fav_lost)),
+        # Of the matches with an underdog at SURPRISE_AT or less: how many it won, and how
+        # many our chances said it would.
+        "long_shots": int(long.sum()),
+        "surprises": int((fav_lost & long).sum()),
+        "surprises_expected": float(dog[long].sum()),
     }
 
 

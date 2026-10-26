@@ -47,6 +47,14 @@ def test_rps_and_score():
     assert abs(P.rps([0.5, 0.3, 0.2], "D") - (0.25 + 0.04) / 2) < 1e-12
     s = P.score(np.array([[0.6, 0.3, 0.1], [0.2, 0.3, 0.5]]), ["H", "A"])
     assert s["hit_rate"] == 1.0 and s["n"] == 2
+    # Favourite lost = the other side won; a draw is not a loss (1X / X2).
+    s = P.score(np.array([[0.6, 0.3, 0.1], [0.2, 0.3, 0.5], [0.45, 0.3, 0.25]]), ["D", "H", "A"])
+    assert s["hit_rate"] == 0 and abs(s["fav_lost"] - 2 / 3) < 1e-12
+    # All three underdogs were at 25% or less (0.1, 0.2, 0.25); two of them won.
+    assert s["long_shots"] == 3 and s["surprises"] == 2
+    assert abs(s["surprises_expected"] - 0.55) < 1e-12
+    s = P.score(np.array([[0.4, 0.3, 0.3]]), ["A"])
+    assert s["fav_lost"] == 1 and s["long_shots"] == 0 and s["surprises"] == 0
 
 
 def test_simulation_is_seeded_and_sane():

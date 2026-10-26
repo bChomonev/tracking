@@ -344,6 +344,7 @@ def main() -> None:
         "next_round": nxt,
         "projection": projection,
         "backtest": ev,
+        "surprise_at": P.SURPRISE_AT,
         "backtest_goals": ev_goals,
         "team_news_test": tn_test,
         "team_news_applied": tn_on,

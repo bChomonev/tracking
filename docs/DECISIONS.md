@@ -8,6 +8,26 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-057 — "Real surprise": a side we gave 25% or less won · 2026-10-26 · accepted
+A favourite losing a close game isn't a miss in the same way as a long shot coming in. A
+surprise is now an underdog win where we gave the underdog `predict.SURPRISE_AT` = 25% or less.
+Why 25% and not 35%: the draw takes about a quarter, so an underdog almost never gets above 35%.
+35% would cover 92–99% of matches and change nothing. 25% splits matches roughly in half (the
+median underdog chance is 22–25% in all four leagues), and it reads plainly as "1 in 4 or less".
+The data can't tune this number, because it is a definition, not a prediction. The test that
+matters is whether long shots win as often as we say. Premier League backtest: 1,304 such
+calls, 226 came in, and our chances said 206. `score` reports `long_shots`, `surprises` and
+`surprises_expected`. The page shows them in the backtest and, for this season, marks only
+real surprises with the red edge.
+
+## D-056 — "Favourite lost": the double-chance view of the predictions · 2026-10-26 · accepted
+"Favourite won 53%" treats a draw the same as a defeat, but a bettor backing 1X or X2 counts a
+draw as a near miss. `predict.score` now also gives `fav_lost`. The favourite is whichever side
+we gave the bigger chance of winning (the draw is never the favourite here), and it "lost" only
+when the other side won. The page shows this for the backtest (model, bookmakers, home side) and
+for this season's record. Rows where the favourite lost outright get the red edge; a favourite
+that only drew no longer does.
+
 ## D-055 — Prediction record: the whole season, round by round, sortable · 2026-10-26 · accepted
 The "prediction by prediction" table showed only the last 20 scored matches, which is about
 two rounds. The record now keeps every scored prediction of the season, and each one is tagged
