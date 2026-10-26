@@ -8,6 +8,15 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-055 — Prediction record: the whole season, round by round, sortable · 2026-10-26 · accepted
+The "prediction by prediction" table showed only the last 20 scored matches, which is about
+two rounds. The record now keeps every scored prediction of the season, and each one is tagged
+with its FotMob matchday (the same round map that picks "the next round"). On the page you can
+pick a round or the whole season. A summary line gives the favourites that came in, the average
+RPS with and without team news, and our RPS against the bookmakers' on the matches that have
+odds. Every column sorts. RPS columns sort best-first on the first click; rows without
+bookmaker odds always go last.
+
 ## D-054 — Match preview: "How they play", the two sides played against each other · 2026-10-22 · accepted
 The preview page was built in the predictions stage, so everything on it was a forecast
 (chances, scorelines, team news, line-ups, shooters, cards, corners) and none of the site's

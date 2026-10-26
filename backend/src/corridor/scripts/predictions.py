@@ -317,6 +317,7 @@ def main() -> None:
                     e[f"{book}_rps"] = P.rps(m["odds"][book], m["result"])
     log_path.write_text(json.dumps(log, indent=1))
     done = [e for e in log.values() if "result" in e]
+    round_of = {m["id"]: rounds.get((m["home"], m["away"])) for m in current}
     record = {
         "scored": len(done),
         "rps": float(np.mean([e["rps"] for e in done])) if done else None,
@@ -325,11 +326,13 @@ def main() -> None:
         "avg_rps": float(np.mean([e["avg_rps"] for e in done if "avg_rps" in e]))
         if any("avg_rps" in e for e in done)
         else None,
+        # The whole season, each tagged with its FotMob matchday so the site can show it
+        # round by round.
         "matches": sorted(
-            ({"id": k, **e} for k, e in log.items() if "result" in e),
+            ({"id": k, **e, "round": round_of.get(k)} for k, e in log.items() if "result" in e),
             key=lambda e: e["kickoff"],
             reverse=True,
-        )[:20],
+        ),
     }
 
     out = {

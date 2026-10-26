@@ -425,6 +425,11 @@ tr.fav-miss > td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
 th button { all: unset; cursor: pointer; }
 th button:focus-visible { outline: 2px solid var(--red); }
 th[aria-sort] button::after { content: " ▾"; }
+th[aria-sort="ascending"] button::after { content: " ▴"; }
+.rd-pick { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.rd-pick button { font: 600 .82rem/1 var(--body); padding: 7px 11px; border-radius: 999px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); cursor: pointer; }
+.rd-pick button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.rd-sum { margin: 0 0 8px; }
 .pos { font: 600 .72rem/1 var(--body); color: var(--muted); letter-spacing: .06em; }
 /* Analyst */
 .analyst { display: grid; gap: 18px; max-width: 80ch; }
@@ -567,6 +572,8 @@ th[aria-sort] button::after { content: " ▾"; }
       </div>
       <h3 class="proof-h">This season, prediction by prediction</h3>
       <p class="proof-note" id="bt-record-note"></p>
+      <div class="rd-pick" id="bt-rounds" role="group" aria-label="Round"></div>
+      <p class="proof-note rd-sum" id="bt-round-sum"></p>
       <div class="table-wrap"><table id="bt-record"></table></div>
       <p class="bl-foot" id="bt-foot"></p>
     </section>
@@ -1601,22 +1608,56 @@ ${detailOf(m)}      </details>`;
           <text x="${pad + 6}" y="16" style="font:11px var(--body);fill:var(--muted)">how often it happened</text>
         </svg>`;
       const R = PRD.record;
-      $("bt-record").innerHTML = R.matches.length
-        ? `<thead><tr><th class="l">Match</th>` + [
-          ["Result", "Final score."],
-          ["Home", "Our chance of a home win, saved before kick-off. The result that happened is shaded green."],
-          ["Draw", "Our chance of a draw, saved before kick-off."],
-          ["Away", "Our chance of an away win, saved before kick-off."],
-          ["RPS", `Score for our prediction: 0 means all the probability was on the right result, 1 means all of it was on the wrong end. Lower is better; tested on past ${esc(LN)} seasons, the model averaged ${pooled.model.rps.toFixed(3)}, the bookmakers ${pooled.avg ? pooled.avg.rps.toFixed(3) : "—"}.`],
-          ["Without team news", "The same score if we had ignored who was out injured or suspended. Lower than the RPS column means team news made this prediction worse."],
-          ["Bookmakers RPS", "The same score for the bookmakers' average pre-match odds. Lower than ours means they called it better. — means their odds aren't in yet: they're added when football-data.co.uk publishes them, usually within a few days.", true],
-        ].map(([l, tip, end]) => `<th><span class="tip below${end ? " end" : ""}" tabindex="0" data-tip="${esc(tip)}">${l}</span></th>`).join("") + `</tr></thead><tbody>` +
-          R.matches.map((e) => { const fav = e.p.indexOf(Math.max(...e.p)), miss = "HDA"[fav] !== e.result;
-            return `<tr class="${miss ? "fav-miss" : ""}"><td class="l">${esc(short(e.home))} v ${esc(short(e.away))}</td><td class="cell">${esc(e.score)}</td>${e.p.map((x, i) => `<td class="cell ${"HDA"[i] === e.result ? "h-good" : miss && i === fav ? "h-bad" : ""}"${miss && i === fav ? ' title="Our favourite: it didn\'t happen"' : ""}>${pc(x)}</td>`).join("")}<td class="cell">${e.rps.toFixed(3)}</td><td class="cell">${e.rps_base != null ? e.rps_base.toFixed(3) : "—"}</td><td class="cell">${e.avg_rps != null ? e.avg_rps.toFixed(3) : "—"}</td></tr>`; }).join("") + "</tbody>"
-        : `<tbody><tr><td class="l">No predictions scored yet. The first ones, for the next round, were saved on ${esc(when(PRD.generated_at, true))}.</td></tr></tbody>`;
-      const favHit = R.matches.filter((e) => "HDA"[e.p.indexOf(Math.max(...e.p))] === e.result).length;
+      // Round by round, sortable (D-055): pick a matchday or the whole season; click a header to sort.
+      const BT_COLS = [
+        ["match", "Match", null, (e) => e.kickoff],
+        ["round", "Round", "FotMob matchday.", (e) => e.round ?? -1],
+        ["score", "Result", "Final score.", (e) => { const [h, a] = e.score.split("-").map(Number); return h - a; }],
+        ["H", "Home", "Our chance of a home win, saved before kick-off. The result that happened is shaded green.", (e) => e.p[0]],
+        ["D", "Draw", "Our chance of a draw, saved before kick-off.", (e) => e.p[1]],
+        ["A", "Away", "Our chance of an away win, saved before kick-off.", (e) => e.p[2]],
+        ["rps", "RPS", `Score for our prediction: 0 means all the probability was on the right result, 1 means all of it was on the wrong end. Lower is better; tested on past ${esc(LN)} seasons, the model averaged ${pooled.model.rps.toFixed(3)}, the bookmakers ${pooled.avg ? pooled.avg.rps.toFixed(3) : "—"}.`, (e) => e.rps],
+        ["base", "Without team news", "The same score if we had ignored who was out injured or suspended. Lower than the RPS column means team news made this prediction worse.", (e) => e.rps_base],
+        ["book", "Bookmakers RPS", "The same score for the bookmakers' average pre-match odds. Lower than ours means they called it better. — means their odds aren't in yet: they're added when football-data.co.uk publishes them, usually within a few days.", (e) => e.avg_rps],
+      ];
+      const favOf = (e) => e.p.indexOf(Math.max(...e.p)), hitOf = (e) => "HDA"[favOf(e)] === e.result;
+      const mean = (xs) => xs.length ? xs.reduce((a, x) => a + x, 0) / xs.length : null;
+      const roundsList = [...new Set(R.matches.map((e) => e.round).filter((r) => r != null))].sort((a, b) => b - a);
+      let btRound = "all", btSort = ["match", -1];
+      const renderRecord = () => {
+        const rows = R.matches.filter((e) => btRound === "all" || e.round === btRound);
+        const [key, dir] = btSort, get = BT_COLS.find((c) => c[0] === key)[3];
+        rows.sort((a, b) => { const x = get(a), y = get(b);
+          if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;  // no odds yet: always last
+          return dir * (x < y ? -1 : x > y ? 1 : 0) || b.kickoff.localeCompare(a.kickoff); });
+        $("bt-rounds").innerHTML = roundsList.length
+          ? [["all", "Whole season"], ...roundsList.map((r) => [r, `Round ${r}`])].map(([v, l]) => `<button type="button" data-r="${v}" aria-pressed="${v === btRound}">${l}</button>`).join("")
+          : "";
+        const books = rows.filter((e) => e.avg_rps != null), ours = mean(rows.map((e) => e.rps));
+        $("bt-round-sum").innerHTML = rows.length
+          ? `<b>${btRound === "all" ? "Whole season" : `Round ${btRound}`}:</b> ${rows.length} match${rows.length === 1 ? "" : "es"}; our favourite came in ${rows.filter(hitOf).length} of ${rows.length}. Average RPS ${ours.toFixed(3)} (without team news ${mean(rows.map((e) => e.rps_base)).toFixed(3)})${books.length ? `; on the ${books.length} with bookmaker odds, ours ${mean(books.map((e) => e.rps)).toFixed(3)} vs the bookmakers' ${mean(books.map((e) => e.avg_rps)).toFixed(3)}` : "; bookmaker odds not in yet"}.`
+          : "";
+        $("bt-record").innerHTML = `<thead><tr>` + BT_COLS.map(([k, l, tip], i) => {
+          const lab = tip ? `<span class="tip below${i === BT_COLS.length - 1 ? " end" : ""}" tabindex="0" data-tip="${esc(tip)}">${l}</span>` : l;
+          return `<th class="${k === "match" ? "l" : ""}"${k === key ? ` aria-sort="${dir > 0 ? "ascending" : "descending"}"` : ""}><button type="button" data-k="${k}">${lab}</button></th>`;
+        }).join("") + `</tr></thead><tbody>` +
+          rows.map((e) => { const fav = favOf(e), miss = !hitOf(e);
+            return `<tr class="${miss ? "fav-miss" : ""}"><td class="l">${esc(short(e.home))} v ${esc(short(e.away))} <small>${esc(when(e.kickoff.replace(" ", "T") + "Z", false))}</small></td><td class="cell">${e.round ?? "—"}</td><td class="cell">${esc(e.score)}</td>${e.p.map((x, i) => `<td class="cell ${"HDA"[i] === e.result ? "h-good" : miss && i === fav ? "h-bad" : ""}"${miss && i === fav ? ' title="Our favourite: it didn\'t happen"' : ""}>${pc(x)}</td>`).join("")}<td class="cell">${e.rps.toFixed(3)}</td><td class="cell">${e.rps_base != null ? e.rps_base.toFixed(3) : "—"}</td><td class="cell">${e.avg_rps != null ? e.avg_rps.toFixed(3) : "—"}</td></tr>`; }).join("") + "</tbody>";
+        $("bt-rounds").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { btRound = b.dataset.r === "all" ? "all" : Number(b.dataset.r); renderRecord(); }));
+        $("bt-record").querySelectorAll("th button").forEach((b) => b.addEventListener("click", () => {
+          const k = b.dataset.k;  // first click: probabilities and the match date high-to-low, RPS low-to-high (best first)
+          btSort = btSort[0] === k ? [k, -btSort[1]] : [k, ["rps", "base", "book", "round"].includes(k) ? 1 : -1];
+          renderRecord();
+        }));
+      };
+      if (R.matches.length) renderRecord();
+      else {
+        $("bt-rounds").innerHTML = $("bt-round-sum").innerHTML = "";
+        $("bt-record").innerHTML = `<tbody><tr><td class="l">No predictions scored yet. The first ones, for the next round, were saved on ${esc(when(PRD.generated_at, true))}.</td></tr></tbody>`;
+      }
+      const favHit = R.matches.filter(hitOf).length;
       $("bt-record-note").textContent = R.matches.length
-        ? `Green: what happened. Red: our favourite (the result we gave the biggest chance), in the games where it didn't happen. Our favourite came in ${favHit} of ${R.matches.length} times so far.`
+        ? `Green: what happened. Red: our favourite (the result we gave the biggest chance), in the games where it didn't happen. Our favourite came in ${favHit} of ${R.matches.length} times so far. Pick a round, or click a column to sort.`
         : "";
       $("bt-foot").textContent = `What the ratings use: Understat non-penalty xG created and conceded, goals, and the share of the 5 core elite and worst lines reached, each match opponent-adjusted and weighted so the last ~24 matches count half. Honest result: the line features add very little on top of xG and goals, and the model trails the bookmakers by about ${((pooled.model.rps - (pooled.avg?.rps ?? pooled.model.rps))).toFixed(3)} RPS — they also know injuries and line-ups. Bookmaker odds (football-data.co.uk) are used only as this benchmark.${PRD.calibration_test ? (PRD.calibration_applied ? ` The model's favourites won a little less often than it said, so its chances are softened slightly (by an amount learned only from earlier seasons, ${PRD.temperature.toFixed(2)} this season): RPS ${PRD.calibration_test.rps_raw.toFixed(4)} before, ${PRD.calibration_test.rps_calibrated.toFixed(4)} after.` : ` A softening step for over-confident chances was tested here and didn't help (RPS ${PRD.calibration_test.rps_raw.toFixed(4)} without, ${PRD.calibration_test.rps_calibrated.toFixed(4)} with), so it is off.`) : ""}${PRD.backtest_goals ? ` Scorelines and goal lines come from a separate goals model: over 2.5 goals Brier ${PRD.backtest_goals.over.toFixed(3)} vs ${PRD.backtest_goals.over_base.toFixed(3)} for the league rate and ${PRD.backtest_goals.over_book.toFixed(3)} for the bookmakers.` : ""}`;
     }
