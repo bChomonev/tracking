@@ -45,3 +45,26 @@ def team_matches(data: dict) -> list[dict]:
                 }
             )
     return out
+
+
+def season_minutes(league: str, season_start_year: int) -> dict[str, dict[str, float]]:
+    """Team → {player id: minutes} for a season. A player listed with several clubs (moved
+    in the window) has his minutes split evenly between them: Understat does not say."""
+    out: dict[str, dict[str, float]] = {}
+    for p in league_data(league, season_start_year)["players"]:
+        clubs = p["team_title"].split(",")
+        for t in clubs:
+            out.setdefault(t, {})[p["id"]] = int(p["time"]) / len(clubs)
+    return out
+
+
+def continuity(league: str, season_start_year: int) -> dict[str, float]:
+    """Team → share of last season's minutes played by players still at the club this
+    season (D-071). Teams new to the league are absent (no last season here)."""
+    prev = season_minutes(league, season_start_year - 1)
+    cur = season_minutes(league, season_start_year)
+    return {
+        t: sum(m for pid, m in prev[t].items() if pid in cur.get(t, {})) / sum(prev[t].values())
+        for t in prev
+        if t in cur and sum(prev[t].values())
+    }

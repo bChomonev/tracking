@@ -67,6 +67,10 @@ for _base in ("xg+goals+lines", "xg+goals+lines+form"):
     FEATURE_SETS[_base + "+europe"] = FEATURE_SETS[_base] + ("europe_diff",)
     FEATURE_SETS[_base + "+rest+europe"] = FEATURE_SETS[_base] + ("rest_diff", "europe_diff")
 REST_FEATURES = ("rest_diff", "europe_diff")
+# Squad continuity as a feature (D-071): the share of last season's minutes still at the
+# club, home minus away. Needs ``continuity`` passed to walk().
+for _base in ("xg+goals+lines", "xg+goals+lines+form"):
+    FEATURE_SETS[_base + "+continuity"] = FEATURE_SETS[_base] + ("continuity_diff",)
 
 
 @dataclass(frozen=True)
@@ -85,6 +89,10 @@ class Params:
     # Blend (D-068): weight on the goals model's own win/draw/loss chances (unshrunk
     # Poisson + Dixon-Coles on the same ratings), the rest on the logistic model. 0 = off.
     goals_weight: float = 0.0
+    # Squad continuity (D-071): at a season start a team keeps carry × continuity ** power
+    # of its rating's distance from the mean, continuity being the share of last season's
+    # minutes still at the club. 0 = off (every team keeps the full carry).
+    churn_power: float = 0.0
 
 
 # ---------------------------------------------------------------------------- data
@@ -176,20 +184,26 @@ class Ratings:
     def __init__(self, p: Params, half_life: float | None = None):
         self.alpha = 1 - 0.5 ** (1 / (half_life or p.half_life))
         self.carry = p.carry
+        self.churn_power = p.churn_power
         self.state: dict[str, dict[str, float]] = {}
         self.season: int | None = None
         self.form: Ratings | None = None  # the short-half-life twin, when Params asks for one
 
-    def start_season(self, season: int, teams: set[str]) -> None:
+    def start_season(
+        self, season: int, teams: set[str], continuity: dict[str, float] | None = None
+    ) -> None:
         if self.state:
             mean = {k: float(np.mean([s[k] for s in self.state.values()])) for k in STATS}
             old = {t: s for t, s in self.state.items() if t in teams}
             gone = [s for t, s in self.state.items() if t not in teams]
             # Promoted teams start where the relegated teams they replace finished.
             prior = {k: float(np.mean([s[k] for s in gone])) for k in STATS} if gone else dict(mean)
+            keep = {
+                t: self.carry * ((continuity or {}).get(t, 1.0) ** self.churn_power) for t in teams
+            }
             self.state = {
                 t: (
-                    {k: mean[k] + self.carry * (old[t][k] - mean[k]) for k in STATS}
+                    {k: mean[k] + keep[t] * (old[t][k] - mean[k]) for k in STATS}
                     if t in old
                     else dict(prior)
                 )
@@ -251,10 +265,12 @@ class Ratings:
         if self.form is not None:
             self.form.update(team, x)
 
-    def start_all(self, season: int, teams: set[str]) -> None:
-        self.start_season(season, teams)
+    def start_all(
+        self, season: int, teams: set[str], continuity: dict[str, float] | None = None
+    ) -> None:
+        self.start_season(season, teams, continuity)
         if self.form is not None:
-            self.form.start_season(season, teams)
+            self.form.start_season(season, teams, continuity)
 
 
 class WindowRatings(Ratings):
@@ -268,7 +284,9 @@ class WindowRatings(Ratings):
         self.window = window
         self.hist: dict[str, dict[str, list[float]]] = {}
 
-    def start_season(self, season: int, teams: set[str]) -> None:
+    def start_season(
+        self, season: int, teams: set[str], continuity: dict[str, float] | None = None
+    ) -> None:
         if self.state:
             gone = [s for t, s in self.state.items() if t not in teams]
             mean = {k: float(np.mean([s[k] for s in self.state.values()])) for k in STATS}
@@ -325,11 +343,16 @@ def _rest(calendar: dict | None, m: dict) -> dict[str, float]:
 
 
 def walk(
-    history: list[dict], p: Params, calendar: dict | None = None
+    history: list[dict],
+    p: Params,
+    calendar: dict | None = None,
+    continuity: dict[int, dict[str, float]] | None = None,
 ) -> tuple[list[dict], Ratings]:
     """Run the ratings through history. Returns each match with its pre-kickoff features
     (unplayed fixtures get features from the latest ratings) and the final ratings.
-    ``calendar`` (corridor.calendar.build) adds the rest features; without it they are 0."""
+    ``calendar`` (corridor.calendar.build) adds the rest features; without it they are 0.
+    ``continuity`` (season → team → share of last season's minutes kept) scales the summer
+    carry when ``p.churn_power`` is set."""
     lines = _core_lines(history)
     R = Ratings(p)
     if p.form_window:
@@ -342,10 +365,17 @@ def walk(
         by_season[m["season"]].append(m)
     for s in sorted(by_season):
         ms = by_season[s]
-        R.start_all(s, {t for m in ms for t in (m["home"], m["away"])})
+        R.start_all(s, {t for m in ms for t in (m["home"], m["away"])}, (continuity or {}).get(s))
         for m in ms:  # chronological
             if R.state.get(m["home"]) and R.state.get(m["away"]):
-                out.append(m | {"x": R.features(m["home"], m["away"]) | _rest(calendar, m)})
+                cs = (continuity or {}).get(s, {})
+                typical = float(np.mean(list(cs.values()))) if cs else 1.0  # promoted: typical
+                cont = {
+                    "h_continuity": cs.get(m["home"], typical),
+                    "a_continuity": cs.get(m["away"], typical),
+                }
+                cont["continuity_diff"] = cont["h_continuity"] - cont["a_continuity"]
+                out.append(m | {"x": R.features(m["home"], m["away"]) | _rest(calendar, m) | cont})
             if m["played"]:
                 xs = {side: _team_stats(m["rows"][side], lines.get(s)) for side in ("home", "away")}
                 if p.adjust:
@@ -357,7 +387,8 @@ def walk(
     # Unplayed fixtures must see the ratings after *every* played match.
     for m in out:
         if not m["played"]:
-            m["x"] = R.features(m["home"], m["away"]) | _rest(calendar, m)
+            keep = {k: m["x"][k] for k in ("h_continuity", "a_continuity", "continuity_diff")}
+            m["x"] = R.features(m["home"], m["away"]) | _rest(calendar, m) | keep
     return out, R
 
 

@@ -8,6 +8,41 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-071 — Squad continuity: neither a carry shrink nor a feature helps · 2026-10-28 · accepted (not adopted)
+Prompted by Stuttgart (2 wins, 5 losses, still a 24% away win at Leverkusen with 47% not to
+lose): the level ratings have a 24-match half-life, so after seven rounds 82% of a rating is
+last season, and a team whose squad changed a lot in the window is being rated as a team
+that no longer exists. The proposed fix: at a season start keep carry × continuity^power of
+the rating's distance from the mean, continuity being the share of last season's minutes
+played by players still at the club (`understat.continuity`, from Understat's season player
+lists back to 2014; a player listed with two clubs has his minutes split). Also tried as a
+plain feature, home minus away (`+continuity` feature sets; promoted sides get the league's
+typical value).
+
+**Stuttgart are not that case.** They kept 84% of last season's minutes, the third-highest
+in the Bundesliga this season (Werder Bremen 38%, Frankfurt 45%); their slide — chance
+quality conceded 1.27 → 2.60 per match, the worst in the league, with the third-best attack
+— is happening with the same squad. Their 6 points come from performances worth 8.8; one of
+the two "surprises" (Hamburg 1-0) they lost while creating 2.6 npxG to 1.7. The model's
+position is defensible; what it cannot see is a settled squad defending worse.
+
+**The test** (D-023 protocol, on each league's model as published; PL continuity runs
+0.44–0.97, mean 0.83, sd 0.09). Carry × continuity^g makes things worse at every power in
+the PL (tune +0.0003 … +0.0021, held +0.0001 … +0.0010), La Liga and Serie A (held +0.0002
+… +0.0033); the Bundesliga gains on the tuning seasons (−0.0002 … −0.0004) and loses held
+out (+0.0000 … +0.0012). As a feature: PL tune +0.0002 / held +0.0000, La Liga −0.0000 /
++0.0000, Serie A +0.0001 / −0.0001, Bundesliga −0.0000 / +0.0002 — noise. **Not adopted.**
+
+**Why the intuition fails, in the numbers.** In August–October the sides that kept 90%+
+of their minutes *beat* the ratings' expectation by +0.18 npxG per match (393 PL
+team-matches); the sides under 60% fell short by only −0.07 (35). Continuity is a mark of a
+club that is doing well and keeps its players, which the rating already knows; shrinking
+those sides' ratings punishes the wrong teams. The summer and winter windows surely matter
+for individual clubs, but "share of minutes kept" does not carry it as a league-wide rule.
+The code (`Params.churn_power`, the continuity features, `understat.continuity`) stays,
+switched off, so the test can be re-run with a better measure — e.g. the quality of who
+left and who arrived, which minutes alone cannot say.
+
 ## D-070 — Fact sheet: chance quality difference is the headline trend · 2026-10-28 · accepted
 The team's `recent_form` block (D-061) carries three series — chance quality difference,
 elite score, danger score — and their calls can disagree (Arsenal, round 8: steady / down /

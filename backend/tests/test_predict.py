@@ -261,3 +261,45 @@ def test_goals_weight_blends_the_two_models():
     pb = P.Model(replace(p0, goals_weight=0.4)).fit(train).predict(test)
     assert np.allclose(pb, 0.6 * pl + 0.4 * pg) and np.allclose(pb.sum(1), 1)
     assert not np.allclose(pl, pg)  # a genuine second opinion
+
+
+def test_continuity_scales_the_summer_carry_only_when_asked():
+    # D-071 (tested, not adopted): with churn_power a team keeps carry × continuity^power of
+    # its distance from the mean at a season start; without it, the full carry.
+    ms = [_match(i, 2020, "S", "W", 3, 0, 2.5, 0.4) for i in range(10)]
+    ms += [_match(10 + i, 2021, "S", "W", 1, 1, 1.0, 1.0) for i in range(2)]
+    cont = {2021: {"S": 0.5, "W": 1.0}}
+    full, _ = P.walk(ms, P.Params(half_life=24, adjust=False), continuity=cont)
+    half, _ = P.walk(ms, P.Params(half_life=24, adjust=False, churn_power=1.0), continuity=cont)
+    first_2021 = lambda sc: [m for m in sc if m["id"] == "10"][0]["x"]  # noqa: E731
+    assert first_2021(full)["xg_diff"] > first_2021(half)["xg_diff"] > 0
+    assert first_2021(full)["h_continuity"] == 0.5 and first_2021(full)["continuity_diff"] == -0.5
+    plain, _ = P.walk(ms, P.Params(half_life=24, adjust=False))
+    assert first_2021(plain)["continuity_diff"] == 0.0
+
+
+def test_understat_continuity_shares_last_seasons_minutes_by_who_stayed(monkeypatch):
+    from corridor.ingest import understat as U
+
+    data = {
+        2019: {
+            "players": [
+                {"id": "1", "time": "3000", "team_title": "A"},
+                {"id": "2", "time": "1000", "team_title": "A"},
+                {"id": "3", "time": "2000", "team_title": "A,B"},  # moved mid-season: split
+                {"id": "9", "time": "900", "team_title": "B"},
+            ]
+        },
+        2020: {
+            "players": [
+                {"id": "1", "time": "100", "team_title": "A"},
+                {"id": "3", "time": "100", "team_title": "B"},
+                {"id": "9", "time": "100", "team_title": "C"},
+            ]
+        },
+    }
+    monkeypatch.setattr(U, "league_data", lambda league, s, **kw: data[s])
+    c = U.continuity("EPL", 2020)
+    assert c["A"] == 3000 / 5000  # player 1 stayed; 2 left; 3's half-share went to B
+    assert c["B"] == 1000 / 1900  # player 3 stayed (his half), 9 left
+    assert "C" not in c  # new to the league: no last season here
