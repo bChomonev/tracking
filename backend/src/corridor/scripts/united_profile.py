@@ -10,7 +10,7 @@ team with the shared proof, read by the analyst). Both gitignored.
 import argparse
 import json
 
-from corridor import proof
+from corridor import proof, trend
 from corridor.best_line import build_line, compare, hits_line
 from corridor.ingest import understat
 from corridor.ingest.http import DATA_DIR
@@ -208,6 +208,45 @@ def _expected_points(x: dict) -> float | None:
     return sum(3 * h["W"] + h["D"] for h in hs) / len(hs)
 
 
+def trends(teams: dict[str, dict]) -> dict[str, dict]:
+    """Recent form per team (corridor.trend): the last matches against the earlier ones on
+    three per-match series — elite score, danger score, and chance quality difference
+    adjusted for the opponent. The adjustment credits each match against what the opponent
+    usually concedes and creates (their season median, relative to the league average), so
+    a run of weak opponents is not read as a run of form. Description only: whether form
+    predicts is tested in the predictions step."""
+    by_key = {t: {m["key"]: m for m in p["metrics"]} for t, p in teams.items()}
+    out = {}
+    for t, p in teams.items():
+        mk = by_key[t]
+        xg_diff: list[float | None] = []
+        if "npxg" in mk and "npxg_conceded" in mk:
+            avg_for, avg_against = mk["npxg"]["league_avg"], mk["npxg_conceded"]["league_avg"]
+            for m, f, a in zip(
+                p["matches"], mk["npxg"]["matches"], mk["npxg_conceded"]["matches"], strict=True
+            ):
+                om = by_key.get(m["opponent"], {})
+                if f["value"] is None or a["value"] is None or "npxg" not in om:
+                    xg_diff.append(None)
+                    continue
+                opp_allows = om["npxg_conceded"]["value"] - avg_against
+                opp_creates = om["npxg"]["value"] - avg_for
+                xg_diff.append((f["value"] - opp_allows) - (a["value"] - opp_creates))
+        pr = p.get("proof")
+        out[t] = {
+            "xg_diff": trend.recent(xg_diff),
+            "elite": trend.recent([x["best_weighted"]["share"] for x in pr["matches"]])
+            if pr
+            else None,
+            "danger": trend.recent([x["worst_weighted"]["share"] for x in pr["matches"]])
+            if pr
+            else None,
+            "window": trend.WINDOW,
+            "min_matches": trend.MIN_MATCHES,
+        }
+    return out
+
+
 def table_row(prof: dict) -> dict:
     """One overview row: results, xG, and where the team stands on what decides matches."""
     ms = prof["matches"]
@@ -241,6 +280,8 @@ def table_row(prof: dict) -> dict:
             "danger_score_matches": [x["worst_weighted"]["share"] for x in pr["matches"]],
             "deserved_points": sum(v for v in xp if v is not None) if xp else None,
         }
+    if prof.get("trend"):
+        row["trend"] = prof["trend"]
     return row
 
 
@@ -277,6 +318,8 @@ def main() -> None:
 
     names = sorted({r["team"] for r in rows})
     teams = {t: build_team(t, ctx, rec, lines, ucl_rows) for t in names}
+    for t, tr in trends(teams).items():
+        teams[t]["trend"] = tr
     gaps = sorted(
         (p["shooting"]["quality_gap_per_match"] or 0 for p in teams.values()), reverse=True
     )

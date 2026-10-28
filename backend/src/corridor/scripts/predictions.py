@@ -10,6 +10,7 @@ predictions_log.json. Both gitignored.
 
 import argparse
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import numpy as np
@@ -26,6 +27,10 @@ from corridor.scripts.build_season import _name_map
 # Frozen after tuning on 2016-17 … 2019-20 (D-023). Re-tune only deliberately, never to
 # chase the held-out seasons.
 PARAMS = P.Params(half_life=24.0, carry=1.0, features="xg+goals+lines", C=0.05, adjust=True)
+# Recent form (D-061): the same ratings over a 2-match half-life, as "recent minus level".
+# Chosen on the tuning seasons like everything else; applied per league only where its
+# held-out test shows a gain in most seasons.
+FORM_PARAMS = replace(PARAMS, form_half_life=2.0, features="xg+goals+lines+form")
 FIRST_TRAIN, FIRST_TEST = 2015, 2020
 # Rolling calibration (D-036) is fitted on walk-forward predictions from this season on.
 CAL_FIRST = FIRST_TRAIN + 1
@@ -35,7 +40,37 @@ FEATURE_WORDS = {
     "goal_diff": "goal difference",
     "elite_diff": "elite lines reached",
     "danger_diff": "worst lines hit",
+    "form_diff": "recent form",
+    "form_goal_diff": "recent results",
 }
+
+
+def form_test(scored_base: list[dict], scored_form: list[dict], season: int) -> dict:
+    """Held-out test of the form feature: walk-forward RPS without and with it, per season,
+    2020-21 → now. It is switched on only when it is better pooled *and* in more than half
+    of the seasons (the D-031 / D-036 bar)."""
+    tests = range(FIRST_TEST, season + 1)
+    evb = P.evaluate(scored_base, PARAMS, tests, FIRST_TRAIN)
+    evf = P.evaluate(scored_form, FORM_PARAMS, tests, FIRST_TRAIN)
+    fs = {r["season"]: r["model"]["rps"] for r in evf["seasons"]}
+    seasons = [
+        {"season": r["season"], "rps_base": r["model"]["rps"], "rps_form": fs[r["season"]]}
+        for r in evb["seasons"]
+        if r["season"] in fs
+    ]
+    better = sum(s["rps_form"] < s["rps_base"] for s in seasons)
+    pooled_b, pooled_f = evb["pooled"]["model"]["rps"], evf["pooled"]["model"]["rps"]
+    return {
+        "half_life": FORM_PARAMS.form_half_life,
+        "feature": "recent minus level, chance quality difference",
+        "n": sum(s["model"]["n"] for s in evb["seasons"]),
+        "rps_base": pooled_b,
+        "rps_form": pooled_f,
+        "seasons": seasons,
+        "better_in": better,
+        "of": len(seasons),
+        "applied": pooled_f < pooled_b and better * 2 > len(seasons),
+    }
 
 
 def _label(y: int) -> str:
@@ -131,17 +166,22 @@ def main() -> None:
     now = datetime.now(UTC).replace(tzinfo=None)
 
     hist = P.load_history(2014, season, league=league.understat)
-    scored, ratings = P.walk(hist, PARAMS)
+    scored_base, _ = P.walk(hist, PARAMS)
+    scored_form, _ = P.walk(hist, FORM_PARAMS)
+    # Recent form (D-061): on only where this league's own held-out test says so.
+    ft = form_test(scored_base, scored_form, season)
+    params = FORM_PARAMS if ft["applied"] else PARAMS
+    scored = scored_form if ft["applied"] else scored_base
     P.attach_odds(scored, range(FIRST_TRAIN, season + 1), current=season, code=league.odds_code)
 
     # 1. Backtest: walk-forward on the held-out seasons (tuning used earlier seasons only).
     #    Every season's predictions are calibrated with a temperature fitted on the earlier
     #    seasons' walk-forward predictions (D-036); this season's comes from all before it.
     #    Like team news (D-031), it is applied only where its held-out test shows a gain.
-    wf = P.walk_forward(scored, PARAMS, range(CAL_FIRST, season + 1), FIRST_TRAIN)
+    wf = P.walk_forward(scored, params, range(CAL_FIRST, season + 1), FIRST_TRAIN)
     cal = P.calibrate(wf, CAL_FIRST)
     tests = range(FIRST_TEST, season + 1)
-    ev = P.evaluate(scored, PARAMS, tests, FIRST_TRAIN, cal=cal)
+    ev = P.evaluate(scored, params, tests, FIRST_TRAIN, cal=cal)
     cal_test = {
         "rps_raw": ev["pooled"]["model_raw"]["rps"],
         "rps_calibrated": ev["pooled"]["model"]["rps"],
@@ -150,7 +190,7 @@ def main() -> None:
     cal_on = cal_test["rps_calibrated"] < cal_test["rps_raw"]
     if not cal_on:
         cal = {s: (test, raw, raw, 1.0) for s, (test, raw, _, _) in cal.items()}
-        ev = P.evaluate(scored, PARAMS, tests, FIRST_TRAIN, cal=cal)
+        ev = P.evaluate(scored, params, tests, FIRST_TRAIN, cal=cal)
     published = {
         m["id"]: p for test, _, pc, _ in cal.values() for m, p in zip(test, pc, strict=True)
     }
@@ -161,7 +201,7 @@ def main() -> None:
 
     # 2. Final model: every played match up to now.
     train = [m for m in scored if m["played"] and m["season"] >= FIRST_TRAIN]
-    model = P.Model(PARAMS).fit(train)
+    model = P.Model(params).fit(train)
     goals = P.GoalsModel().fit(train)
 
     # Understat → FotMob names, so predictions link to the team pages.
@@ -182,14 +222,15 @@ def main() -> None:
         p = pmap[m["id"]]
         contrib = model.contributions(m)
         top = sorted(contrib.items(), key=lambda kv: -abs(kv[1]))[:2]
-        return {
+        x = m["x"]
+        out = {
             "id": m["id"],
             "kickoff": m["kickoff"],
             "home": names.get(m["home"], m["home"]),
             "away": names.get(m["away"], m["away"]),
-            "p": [round(float(x), 4) for x in p],
-            "exp_home": round(m["x"]["exp_home"], 2),
-            "exp_away": round(m["x"]["exp_away"], 2),
+            "p": [round(float(v), 4) for v in p],
+            "exp_home": round(x["exp_home"], 2),
+            "exp_away": round(x["exp_away"], 2),
             "drivers": [
                 {
                     "feature": FEATURE_WORDS[f],
@@ -199,6 +240,21 @@ def main() -> None:
                 for f, v in top
             ],
         }
+        if "h_form_npxg" in x:
+            # What the model calls form: each side's chance quality for and against over
+            # the last few matches (2-match half-life, opponent-adjusted) next to its usual
+            # level (24-match half-life). Shown only where the form feature is applied.
+            out["form"] = {
+                side: {
+                    "xg_for": round(x[f"{s}_form_npxg"], 2),
+                    "xg_against": round(x[f"{s}_form_npxga"], 2),
+                    "usual_for": round(x[f"{s}_npxg"], 2),
+                    "usual_against": round(x[f"{s}_npxga"], 2),
+                }
+                for side, s in (("home", "h"), ("away", "a"))
+            }
+            out["form"]["push"] = round(contrib.get("form_diff", 0.0), 3)
+        return out
 
     # FotMob's matchday numbers decide what "the next round" is (leftover Monday games and
     # rearranged midweek ones must not cut the following matchday short).
@@ -357,7 +413,9 @@ def main() -> None:
 
     out = {
         "generated_at": made_at,
-        "params": vars(PARAMS),
+        "params": vars(params),
+        "form_test": ft,
+        "form_applied": ft["applied"],
         "temperature": temperature,
         "calibration_test": cal_test,
         "calibration_applied": cal_on,
@@ -380,6 +438,10 @@ def main() -> None:
         f"backtest {FIRST_TEST}→{season}: model RPS {pooled['model']['rps']:.4f} "
         f"(uncalibrated {pooled['model_raw']['rps']:.4f}), base {pooled['base']['rps']:.4f}, "
         f"bookmakers {book:.4f}; temperature now {temperature:.2f}"
+    )
+    print(
+        f"recent form: RPS {ft['rps_base']:.4f} → {ft['rps_form']:.4f}, better in "
+        f"{ft['better_in']}/{ft['of']} seasons → {'applied' if ft['applied'] else 'not applied'}"
     )
     for f in nxt:
         pr = " / ".join(f"{_pct(x):4.1f}" for x in f["p"])

@@ -39,6 +39,25 @@ FEATURE_SETS: dict[str, tuple[str, ...]] = {
     "xg+goals": ("xg_diff", "xg_total", "goal_diff"),
     "xg+lines": ("xg_diff", "xg_total", "elite_diff", "danger_diff"),
     "xg+goals+lines": ("xg_diff", "xg_total", "goal_diff", "elite_diff", "danger_diff"),
+    # Form (task 1 of the trend work): the same ratings over a much shorter half-life, as
+    # "recent minus level". Needs Params.form_half_life.
+    "xg+goals+lines+form": (
+        "xg_diff",
+        "xg_total",
+        "goal_diff",
+        "elite_diff",
+        "danger_diff",
+        "form_diff",
+    ),
+    "xg+goals+lines+form2": (
+        "xg_diff",
+        "xg_total",
+        "goal_diff",
+        "elite_diff",
+        "danger_diff",
+        "form_diff",
+        "form_goal_diff",
+    ),
 }
 
 
@@ -49,6 +68,9 @@ class Params:
     features: str = "xg+lines"
     C: float = 1.0  # inverse L2 strength of the logistic model
     adjust: bool = True  # opponent-adjust each match before it updates a rating
+    # Half-life of the short "form" ratings (matches); None = no form ratings. The form
+    # features are the form ratings' differences minus the level ratings' differences.
+    form_half_life: float | None = None
 
 
 # ---------------------------------------------------------------------------- data
@@ -137,11 +159,12 @@ def _team_stats(row: dict, lines: dict | None) -> dict[str, float]:
 class Ratings:
     """Rolling per-team ratings, updated strictly after each match."""
 
-    def __init__(self, p: Params):
-        self.alpha = 1 - 0.5 ** (1 / p.half_life)
+    def __init__(self, p: Params, half_life: float | None = None):
+        self.alpha = 1 - 0.5 ** (1 / (half_life or p.half_life))
         self.carry = p.carry
         self.state: dict[str, dict[str, float]] = {}
         self.season: int | None = None
+        self.form: Ratings | None = None  # the short-half-life twin, when Params asks for one
 
     def start_season(self, season: int, teams: set[str]) -> None:
         if self.state:
@@ -187,7 +210,7 @@ class Ratings:
     def features(self, home: str, away: str) -> dict[str, float]:
         h, a = self.state[home], self.state[away]
         xh, xa = (h["npxg"] + a["npxga"]) / 2, (a["npxg"] + h["npxga"]) / 2
-        return {
+        out = {
             "xg_diff": xh - xa,
             "xg_total": xh + xa,
             "goal_diff": (h["gf"] - h["ga"]) - (a["gf"] - a["ga"]),
@@ -198,6 +221,26 @@ class Ratings:
             **{f"h_{k}": h[k] for k in ("npxg", "npxga", "gf", "ga")},
             **{f"a_{k}": a[k] for k in ("npxg", "npxga", "gf", "ga")},
         }
+        if self.form is not None and home in self.form.state and away in self.form.state:
+            f = self.form.features(home, away)
+            out |= {
+                "form_diff": f["xg_diff"] - out["xg_diff"],
+                "form_goal_diff": f["goal_diff"] - out["goal_diff"],
+                **{f"h_form_{k}": f[f"h_{k}"] for k in ("npxg", "npxga", "gf", "ga")},
+                **{f"a_form_{k}": f[f"a_{k}"] for k in ("npxg", "npxga", "gf", "ga")},
+            }
+        return out
+
+    def update_all(self, team: str, x: dict[str, float | None]) -> None:
+        """Update the level ratings and, if present, the form ratings."""
+        self.update(team, x)
+        if self.form is not None:
+            self.form.update(team, x)
+
+    def start_all(self, season: int, teams: set[str]) -> None:
+        self.start_season(season, teams)
+        if self.form is not None:
+            self.form.start_season(season, teams)
 
 
 def walk(history: list[dict], p: Params) -> tuple[list[dict], Ratings]:
@@ -205,22 +248,26 @@ def walk(history: list[dict], p: Params) -> tuple[list[dict], Ratings]:
     (unplayed fixtures get features from the latest ratings) and the final ratings."""
     lines = _core_lines(history)
     R = Ratings(p)
+    if p.form_half_life:
+        R.form = Ratings(p, half_life=p.form_half_life)
     out = []
     by_season: dict[int, list[dict]] = defaultdict(list)
     for m in history:
         by_season[m["season"]].append(m)
     for s in sorted(by_season):
         ms = by_season[s]
-        R.start_season(s, {t for m in ms for t in (m["home"], m["away"])})
+        R.start_all(s, {t for m in ms for t in (m["home"], m["away"])})
         for m in ms:  # chronological
             if R.state.get(m["home"]) and R.state.get(m["away"]):
                 out.append(m | {"x": R.features(m["home"], m["away"])})
             if m["played"]:
                 xs = {side: _team_stats(m["rows"][side], lines.get(s)) for side in ("home", "away")}
                 if p.adjust:
+                    # Opponent strength is the *level* rating, for both the level and the
+                    # form update: form measures recent output against usual opponents.
                     xs = R.opponent_adjusted(m["home"], m["away"], xs)
                 for side in ("home", "away"):
-                    R.update(m[side], xs[side])
+                    R.update_all(m[side], xs[side])
     # Unplayed fixtures must see the ratings after *every* played match.
     for m in out:
         if not m["played"]:

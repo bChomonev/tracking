@@ -150,6 +150,15 @@ def _next_match_facts(
             team: _pct(f["absence"][me]["minutes"]),
             opp: _pct(f["absence"][them]["minutes"]),
         }
+    if f.get("form"):
+        me, them = ("home", "away") if home else ("away", "home")
+        out["recent_form_in_the_model"] = {
+            "note": "Each side's chance quality for and against over its last few matches "
+            "(opponent-adjusted, the last 2 count half) next to its usual level; the model "
+            "uses the gap between the two.",
+            team: f["form"][me],
+            opp: f["form"][them],
+        }
     g = f.get("goals")
     if g:
         s0 = g["scores"][0]
@@ -316,6 +325,7 @@ def build_facts(
         "what_decides_matches": _focus_facts(profile, labels),
         "shooting": _shooting_facts(profile),
         "game_state": _game_state_facts(profile),
+        "recent_form": _recent_form_facts(profile),
         "next_match": _next_match_facts(profile, predictions, previews),
         "players": players,
         "notes": [
@@ -340,6 +350,41 @@ def build_facts(
         ],
         "not_measured": NOT_MEASURED,
     }
+
+
+def _recent_form_facts(profile: dict) -> dict | None:
+    """The last matches against the earlier ones (corridor.trend), pre-rounded. A call of
+    'up' or 'down' means the gap is at least one standard error wide; 'steady' means it is
+    not; None means too few matches to say."""
+    tr = profile.get("trend")
+    if not tr:
+        return None
+    out: dict[str, Any] = {
+        "last_matches": tr["window"],
+        "note": (
+            f"recent = the mean of the last {tr['window']} league matches, before = the mean of "
+            "the earlier ones. 'up' / 'down' only when the gap is at least one standard error "
+            "wide; otherwise 'steady'. Say what each number counts. chance_quality_difference "
+            "is npxG for minus npxG against per match, each adjusted for what the opponent "
+            "usually allows and creates."
+        ),
+    }
+    for key, name, scale, dec in (
+        ("xg_diff", "chance_quality_difference_per_match", 1, 2),
+        ("elite", "elite_score", 100, 0),
+        ("danger", "danger_score", 100, 0),
+    ):
+        t = tr.get(key)
+        if not t:
+            continue
+        out[name] = {
+            "recent": _r(scale * t["recent"], dec),
+            "before": _r(scale * t["before"], dec) if t["before"] is not None else None,
+            "matches_before": t["n"] - t["n_recent"],
+            "call": t["call"],
+            "per_match": [_r(scale * v, dec) for v in t["series"]],
+        }
+    return out
 
 
 def _line_summary(profile: dict, labels: list[str], side: str) -> dict | None:

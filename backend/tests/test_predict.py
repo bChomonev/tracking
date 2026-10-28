@@ -41,6 +41,26 @@ def test_features_use_only_matches_before_kickoff():
     assert before["xg_diff"] > 1.5  # still the strong-team rating from earlier matches
 
 
+def test_form_is_recent_minus_level_and_never_sees_its_own_match():
+    # S dominates for 10 matches, then has three poor ones: the short ratings fall faster
+    # than the long ones, so form_diff turns negative before the 14th match. The 14th
+    # match's own result must not be in its features.
+    ms = [_match(i, 2020, "S", "W", 3, 0, 2.5, 0.4) for i in range(10)]
+    ms += [_match(10 + i, 2020, "S", "W", 0, 1, 0.6, 1.4) for i in range(3)]
+    ms.append(_match(13, 2020, "S", "W", 5, 0, 4.0, 0.1))
+    p = P.Params(half_life=24, adjust=False, form_half_life=2, features="xg+goals+lines+form")
+    scored, R = P.walk(ms, p)
+    x = [m for m in scored if m["id"] == "13"][0]["x"]
+    assert x["form_diff"] < -0.5 and x["xg_diff"] > 1.0  # still a strong side, off form
+    assert x["h_form_npxg"] < x["h_npxg"]
+    early = [m for m in scored if m["id"] == "5"][0]["x"]
+    assert abs(early["form_diff"]) < 0.3  # steady run: recent ≈ level
+    # Without form_half_life the form features are simply absent.
+    plain, _ = P.walk(ms, P.Params(half_life=24, adjust=False))
+    assert "form_diff" not in plain[-1]["x"]
+    assert R.form is not None and R.form.alpha > R.alpha
+
+
 def test_rps_and_score():
     assert P.rps([1, 0, 0], "H") == 0
     assert P.rps([0, 0, 1], "H") == 1

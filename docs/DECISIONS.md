@@ -8,6 +8,40 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-061 — Team trend: recent form described on the page, and tested in the prediction · 2026-10-27 · accepted
+Task 1 of three (teams, then players, then "which metrics"). The per-match numbers already
+existed (elite score, danger score per match, D-021/D-022); nobody had drawn a line through
+them, and the prediction model's ratings are a slow trend (24-match half-life) that never
+reached the page. Two separate things were built, because they answer different questions.
+
+**Description (`corridor.trend`, site, previews, fact sheet).** Per team, three per-match
+series: elite score, danger score, and chance quality difference (npxG for minus against)
+with each match **adjusted for the opponent** (minus what that opponent usually allows and
+creates, their season median relative to the league average), so a run of weak opponents is
+not a run of form. *Recent* = the mean of the last 5 matches, *before* = the mean of the
+earlier ones. The call is "up" / "down" only when the gap is at least one standard error
+wide (from how much the team's own matches vary); otherwise "steady"; with fewer than 8
+matches (5 + 3) there is no call. A plain-reading bar, not a significance test, like D-060.
+Shown as a sparkline + "recent vs before" in the overview table (sortable), a tile on every
+team page, a line in the preview's season shape and its code-written read, and a
+`recent_form` block in the analyst's fact sheet. Not a fixed "last 10": at 8 matches that is
+the whole season, and the sentence has to say what it is compared with.
+
+**Prediction (`predict.Params.form_half_life`).** A second set of the same ratings with a
+short half-life; the feature is *form minus level* on chance quality difference. Protocol
+as D-023: chosen on the PL tuning seasons 2016-17…2019-20 (half-life 2, 3, 5, 8, 12 ×
+with/without a goals version), where only half-life 2 beat the baseline, by 0.00003 RPS.
+Held-out 2020-21…now with that choice: PL 0.2046 → 0.2038 (better in 5/7 seasons), Serie A
+0.1934 → 0.1930 (5/7), Bundesliga 0.2013 → 0.2005 (7/7), La Liga 0.1941 → 0.1942 (3/7).
+Applied per league only where it is better overall and in most seasons (`form_applied`,
+the D-031 / D-036 bar): on in the PL, Serie A and the Bundesliga, off in La Liga. With the
+rolling calibration on top, the PL held-out RPS goes 0.2042 → 0.2035. The fixture cards say
+what the model calls form (each side's recent chance quality for and against next to its
+usual level) and which way it nudges the odds; "recent form" can appear as a driver.
+**For the record, not chosen:** longer half-lives looked better held-out (PL: 8 matches →
+0.2033) but worse on the tuning seasons; picking them would be choosing by the test set
+(D-027). Revisit with a fresh tuning protocol if the gain holds through 2026-27.
+
 ## D-060 — "When we say it, does it happen?": predictions grouped by how sure we were · 2026-10-26 · accepted
 The calibration chart answers "are the percentages honest?" for every outcome together. Readers
 think in terms of the favourite: if we say 85%, does it come in? The mistakes log now groups the

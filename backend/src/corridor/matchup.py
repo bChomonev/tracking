@@ -164,7 +164,27 @@ def shape(league: dict, team: str) -> dict:
         else None,
         "form": row.get("form"),
         "minutes_pct": {s: ctx[s]["team_pct"] for s in ("level", "ahead", "behind") if s in ctx},
+        "recent_form": _recent_form(row.get("trend")),
     }
+
+
+def _recent_form(tr: dict | None) -> dict | None:
+    """The team's last matches against the earlier ones (corridor.trend), in plain fields:
+    chance quality difference per match adjusted for the opponent, elite and danger scores."""
+    if not tr:
+        return None
+    out: dict[str, Any] = {"last_matches": tr["window"]}
+    for key, scale, dec in (("xg_diff", 1, 2), ("elite", 100, 0), ("danger", 100, 0)):
+        t = tr.get(key)
+        if not t:
+            continue
+        out[key] = {
+            "recent": _r(scale * t["recent"], dec),
+            "before": _r(scale * t["before"], dec) if t["before"] is not None else None,
+            "matches_before": t["n"] - t["n_recent"],
+            "call": t["call"],
+        }
+    return out
 
 
 def _profile_by_name(prof: dict) -> tuple[dict, dict]:
@@ -269,6 +289,15 @@ def _read(
             lines.append(f"{t}'s performances have been worth {d:.1f} points and they have {p}.")
         elif p - d >= LUCK:
             lines.append(f"{t} have {p} points from performances worth {d:.1f}.")
+    for t, s in ((home, sh), (away, sa)):
+        rf = (s.get("recent_form") or {}).get("xg_diff")
+        if rf and rf["call"] in ("up", "down"):
+            lines.append(
+                f"{t}'s last {s['recent_form']['last_matches']} matches have been "
+                f"{'better' if rf['call'] == 'up' else 'worse'} than the {rf['matches_before']} "
+                f"before: chance quality difference {rf['recent']:+.2f} a match against "
+                f"{rf['before']:+.2f}, each adjusted for the opponent."
+            )
     cands = []
     for A, D, ps in ((home, away, p_home), (away, home, p_away)):
         for x in ps:

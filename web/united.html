@@ -212,6 +212,10 @@ tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600
 .seg7 + small { margin-left: 6px; color: var(--muted); font-family: var(--mono); font-size: .8rem; }
 .diff.up { color: var(--good); } .diff.down { color: var(--bad); }
 .diff { font-size: .8rem; margin-left: 4px; }
+.tspark { width: 72px; height: 22px; vertical-align: middle; }
+.trend-cell { white-space: nowrap; } .trend-cell .diff { font-family: var(--mono); }
+.record .trend-tile .tspark { width: 110px; height: 28px; }
+.record .trend-tile b { display: flex; align-items: center; gap: 8px; }
 .pct-chip { display: inline-block; min-width: 2.4em; text-align: center; padding: 3px 4px; border-radius: 3px; font-family: var(--mono); font-size: .82rem; }
 .form { display: inline-flex; gap: 2px; }
 .form .res { width: 1.3em; font-size: .7rem; padding: 3px 0; }
@@ -318,6 +322,7 @@ tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600
 .hp-mins { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .hp-mins .gs-bar { flex: 1; max-width: 260px; }
 .hp-mins small { color: var(--muted); }
+.hp-recent { display: block; color: var(--muted); margin-top: 4px; }
 .hp-card table { margin: 6px 0 0; }
 .hp-table td { padding: 7px 4px; vertical-align: middle; }
 .hp-table .hp-att, .hp-table .hp-def { white-space: nowrap; }
@@ -719,7 +724,7 @@ th[aria-sort="ascending"] button::after { content: " ▴"; }
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d) => (v == null ? "—" : (d === 0 ? Math.round(v).toString() : v.toFixed(d)));
-  const signed = (v, d) => (v == null ? "—" : (v > 0 ? "+" : "") + v.toFixed(d));
+  const signed = (v, d) => { if (v == null) return "—"; const s = v.toFixed(d); return /^-0(\.0*)?$/.test(s) ? s.slice(1) : (v > 0 ? "+" : "") + s; };
   const tier = (p) => (p == null ? "" : p >= 67 ? "good" : p >= 34 ? "mid" : "bad");
   const ord = (n) => n + (["th", "st", "nd", "rd"][(n % 100 > 10 && n % 100 < 14) ? 0 : (n % 10 < 4 ? n % 10 : 0)] || "th");
   const short = (t) => t.replace("Hotspur", "").replace("& Hove Albion", "").replace("Wolverhampton Wanderers", "Wolves").replace("AFC ", "").trim();
@@ -774,7 +779,7 @@ th[aria-sort="ascending"] button::after { content: " ▴"; }
     [`${w}-${d}-${P.record.played - w - d}`, "W-D-L"],
     [`${gf}–${ga}`, "goals"],
     [`${xgf.toFixed(1)}–${xga.toFixed(1)}`, "xG for–against"],
-  ].map(([b, s]) => `<div><b class="num">${esc(b)}</b><small>${esc(s)}</small></div>`).join("");
+  ].map(([b, s]) => `<div><b class="num">${esc(b)}</b><small>${esc(s)}</small></div>`).join("") + recentTile(P.trend);
 
   // ---- What decides matches (PL only: tiers come from the out-of-sample proof, D-021)
   const F = P.focus;
@@ -1180,6 +1185,18 @@ ${detailOf(m)}      </details>`;
     if (f.absence.applied === false) return `<p class="fx-why">Team news: ${side("home")}; ${side("away")}. Not used in the ${esc(LN)} odds — tested on past ${esc(LN)} matches, it didn't improve them.</p>`;
     return `<p class="fx-why">Team news: ${side("home")}; ${side("away")}.${moved ? ` That moved it from ${pc(bh)} / ${pc(1 - bh - ba)} / ${pc(ba)}.` : " Little effect on the odds."}</p>`;
   };
+  // Recent form in the model (D-061): each side's chance quality over its last few matches
+  // against its usual level, shown only where the form feature is applied in this league.
+  const formLine = (f) => {
+    const F = f.form;
+    if (!F) return "";
+    const side = (t, s) => {
+      const dFor = s.xg_for - s.usual_for, dAg = s.xg_against - s.usual_against;
+      const w = (d) => Math.abs(d) < 0.15 ? "about as usual" : `<span class="num">${Math.abs(d).toFixed(2)}</span> ${d > 0 ? "more" : "fewer"} than usual`;
+      return `${esc(short(t))}: creating <span class="num">${s.xg_for.toFixed(2)}</span> a match lately, ${w(dFor)}; conceding <span class="num">${s.xg_against.toFixed(2)}</span>, ${w(dAg)}`;
+    };
+    return `<p class="fx-why">Recent form (last few matches, opponent-adjusted, against each side's usual level): ${side(f.home, F.home)}. ${side(f.away, F.away)}.${Math.abs(F.push) >= 0.05 ? ` It nudges the odds towards ${esc(short(F.push > 0 ? f.home : f.away))}.` : " Little effect on the odds."}</p>`;
+  };
   const fixtureCard = (f) => {
     const [h, d, a] = f.p, lab = (x) => (x >= 0.12 ? Math.round(100 * x) + "%" : "");
     const fav = h >= a ? [f.home, h] : [f.away, a];
@@ -1190,7 +1207,7 @@ ${detailOf(m)}      </details>`;
       <div class="pbar3" role="img" aria-label="Home win ${pc(h)}, draw ${pc(d)}, away win ${pc(a)}"><span class="h" style="width:${100 * h}%">${lab(h)}</span><span class="d" style="width:${100 * d}%">${lab(d)}</span><span class="a" style="width:${100 * a}%">${lab(a)}</span></div>
       <div class="pbar3-legend"><span>Home win ${pc(h)}</span><span>Draw ${pc(d)}</span><span>Away win ${pc(a)}</span></div>
       <p class="fx-why">${Math.max(h, a) < 0.45 ? "Close to a coin toss." : `Leans ${esc(short(fav[0]))}.`} ${f.absence?.applied ? "Before team news, the" : "The"} ratings expect chance quality <span class="num">${f.exp_home.toFixed(2)}–${f.exp_away.toFixed(2)}</span>${why ? `; biggest factors: ${why}` : ""}.</p>
-      ${newsLine(f)}
+      ${formLine(f)}${newsLine(f)}
       ${f.goals ? `<p class="fx-why">Most likely score ${f.goals.scores[0].home}–${f.goals.scores[0].away} (${pc(f.goals.scores[0].p)}) · over 2.5 goals ${pc(f.goals.over_2_5)} · both score ${pc(f.goals.btts)}</p>` : ""}
       ${L.previews?.fixtures?.[f.id] ? `<a class="fx-link" href="${hMatch(esc(f.id))}">Match preview: team news, line-ups, shooters, corners →</a>` : ""}
     </article>`;
@@ -1252,7 +1269,13 @@ ${detailOf(m)}      </details>`;
     const num = (c, d) => `<span class="num">${esc(String(c.value))}</span>`;
     const bar = (m) => m && m.level != null ? `<span class="gs-bar hp-bar" role="img" aria-label="Minutes level ${m.level.toFixed(0)}%, ahead ${m.ahead.toFixed(0)}%, behind ${m.behind.toFixed(0)}%"><i class="gs-level" style="width:${m.level}%"></i><i class="gs-ahead" style="width:${m.ahead}%"></i><i class="gs-behind" style="width:${m.behind}%"></i></span><small>minutes <i class="hp-sw gs-level"></i> level <span class="num">${m.level.toFixed(0)}%</span> · <i class="hp-sw gs-ahead"></i> ahead <span class="num">${m.ahead.toFixed(0)}%</span> · <i class="hp-sw gs-behind"></i> behind <span class="num">${m.behind.toFixed(0)}%</span></small>` : "";
     const luck = (x) => x.points_the_performances_deserved == null ? "" : `, performances worth <span class="num">${x.points_the_performances_deserved.toFixed(1)}</span>`;
-    const shapeRow = (t, x) => `<div class="hp-side"><b>${esc(short(t))}</b> ${x.position ? `${ord(x.position)}` : ""}${x.points != null ? ` · <span class="num">${x.points}</span> pts${luck(x)}` : ""}${x.elite_score != null ? ` · elite <span class="num">${x.elite_score}</span> / danger <span class="num">${x.danger_score}</span>` : ""}<div class="hp-mins">${bar(x.minutes_pct)}</div></div>`;
+    const recentLine = (x) => {
+      const r = x.recent_form?.xg_diff;
+      if (!r) return "";
+      const call = r.call === "up" ? '<span class="diff up">▲ better</span>' : r.call === "down" ? '<span class="diff down">▼ worse</span>' : r.call === "steady" ? "about the same" : "too few matches to call";
+      return `<small class="hp-recent">Last ${x.recent_form.last_matches}: chance quality difference <span class="num">${signed(r.recent, 2)}</span> a match${r.before != null ? ` against <span class="num">${signed(r.before, 2)}</span> in the ${r.matches_before} before` : ""}, opponent-adjusted — ${call}.</small>`;
+    };
+    const shapeRow = (t, x) => `<div class="hp-side"><b>${esc(short(t))}</b> ${x.position ? `${ord(x.position)}` : ""}${x.points != null ? ` · <span class="num">${x.points}</span> pts${luck(x)}` : ""}${x.elite_score != null ? ` · elite <span class="num">${x.elite_score}</span> / danger <span class="num">${x.danger_score}</span>` : ""}<div class="hp-mins">${bar(x.minutes_pct)}</div>${recentLine(x)}</div>`;
     const tipTh = (lab, tip, end = "") => `<span class="tip below${end}" tabindex="0" data-tip="${esc(tip)}">${lab}</span>`;
     const cell = (c) => `<span class="num">${esc(String(c.value))}</span>${chip(c)}${mk(c)}`;
     const example = (attT, defT, x) => x ? `Example, first row: ${esc(short(attT))} create <span class="num">${esc(String(x.attack.value))}</span> a match (${ord(x.attack.rank)} of ${x.attack.of}), ${esc(short(defT))} concede <span class="num">${esc(String(x.defence.value))}</span> (${ord(x.defence.rank)} fewest). Against a league average of <span class="num">${esc(String(x.league_average))}</span>, the two together point to about <span class="num">${esc(String(x.if_both_play_as_usual))}</span> for ${esc(short(attT))}.` : "";
@@ -1292,7 +1315,7 @@ ${detailOf(m)}      </details>`;
     const [ph, pd, pa] = f.p, lab = (x) => (x >= 0.1 ? Math.round(100 * x) + "%" : "");
     $("mv-pred").innerHTML = `<div class="pred-big"><div class="pbar3" role="img" aria-label="Home win ${pc(ph)}, draw ${pc(pd)}, away win ${pc(pa)}"><span class="h" style="width:${100 * ph}%">${lab(ph)}</span><span class="d" style="width:${100 * pd}%">${lab(pd)}</span><span class="a" style="width:${100 * pa}%">${lab(pa)}</span></div>
       <div class="pbar3-legend"><span>${esc(H)} win ${pc(ph)}</span><span>Draw ${pc(pd)}</span><span>${esc(A)} win ${pc(pa)}</span></div>
-      <p class="fx-why">${f.absence?.applied ? "Before team news, the" : "The"} team ratings expect chance quality <span class="num">${f.exp_home.toFixed(2)}–${f.exp_away.toFixed(2)}</span>${(f.drivers || []).length ? `; biggest factors: ${f.drivers.map((x) => `${x.feature} (${esc(short(x.favours === "home" ? f.home : f.away))})`).join(", ")}` : ""}.</p>${newsLine(f)}</div>`;
+      <p class="fx-why">${f.absence?.applied ? "Before team news, the" : "The"} team ratings expect chance quality <span class="num">${f.exp_home.toFixed(2)}–${f.exp_away.toFixed(2)}</span>${(f.drivers || []).length ? `; biggest factors: ${f.drivers.map((x) => `${x.feature} (${esc(short(x.favours === "home" ? f.home : f.away))})`).join(", ")}` : ""}.</p>${formLine(f)}${newsLine(f)}</div>`;
     const G = f.goals, GB = PRD.backtest_goals;
     if (G) {
       $("mvg-sub").textContent = `A goals model sets how many goals to expect; the split between the teams (expected goals ${G.exp_home.toFixed(2)}–${G.exp_away.toFixed(2)}) is set so the scorelines add up to the win/draw/loss chances above, team news included.`;
@@ -1398,8 +1421,40 @@ ${detailOf(m)}      </details>`;
     ["attack", "Attack", (r) => r.stacks.attack],
     ["defence", "Defence", (r) => r.stacks.defence],
     ["form", "Form", null],
+    ["recent", "Recent", (r) => r.trend?.xg_diff?.delta ?? null],
   ];
+  // Recent form (D-061): the last 5 matches against the earlier ones, on chance quality
+  // difference adjusted for the opponent. A sparkline of every match, then recent vs before;
+  // "up" / "down" only when the gap is at least one standard error wide.
+  const trendSpark = (t) => {
+    if (!t || !t.series.length) return "";
+    const W = 72, H = 22, p = 2, xs = t.series, lo = Math.min(0, ...xs), hi = Math.max(0, ...xs), span = hi - lo || 1;
+    const x = (i) => p + (i * (W - 2 * p)) / Math.max(1, xs.length - 1), y = (v) => p + (H - 2 * p) * (1 - (v - lo) / span);
+    const k = Math.max(0, xs.length - t.n_recent);
+    const seg = (from, to) => xs.slice(from, to + 1).map((v, i) => `${i ? "L" : "M"}${x(from + i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+    return `<svg class="tspark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><line x1="0" x2="${W}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="var(--rule)" stroke-width="1"></line>` +
+      (k ? `<path d="${seg(0, k)}" fill="none" stroke="var(--muted)" stroke-width="1.5"></path>` : "") +
+      `<path d="${seg(k, xs.length - 1)}" fill="none" stroke="var(--ink)" stroke-width="2"></path></svg>`;
+  };
+  const trendCell = (tr) => {
+    const t = tr?.xg_diff;
+    if (!t) return "<td></td>";
+    const call = t.call, cls = call === "up" ? "up" : call === "down" ? "down" : "";
+    const txt = t.delta == null ? "—" : signed(Math.abs(t.delta) < 0.05 ? 0 : t.delta, 1);
+    const tip = t.before == null ? `Last ${t.n_recent} matches: chance quality difference ${signed(t.recent, 2)} a match, adjusted for the opponent. Fewer than ${tr.min_matches} matches, so no call yet.` :
+      `Last ${t.n_recent} matches: chance quality difference ${signed(t.recent, 2)} a match, against ${signed(t.before, 2)} in the ${t.n - t.n_recent} before (each adjusted for the opponent). ${call === "steady" ? "Within the noise of a few matches, so no trend." : call === "up" ? "Better by more than the noise of a few matches." : "Worse by more than the noise of a few matches."}`;
+    return `<td class="trend-cell"><span class="tip below end" tabindex="0" data-tip="${esc(tip)}">${trendSpark(t)}<span class="diff ${cls}">${call === "up" ? "▲ " : call === "down" ? "▼ " : ""}${txt}</span></span></td>`;
+  };
+  // The team page's record tile: the same series, the same call, with the words spelled out.
+  const recentTile = (tr) => {
+    const t = tr?.xg_diff;
+    if (!t) return "";
+    const call = t.call === "up" ? '<span class="diff up">▲ better</span>' : t.call === "down" ? '<span class="diff down">▼ worse</span>' : t.call === "steady" ? "about the same" : "too few matches to call";
+    const tip = `Chance quality difference (npxG for minus against) per match, each adjusted for what the opponent usually allows and creates. The line is every league match this season, darker for the last ${t.n_recent}. ${t.before == null ? `Fewer than ${tr.min_matches} matches, so no call yet.` : `Last ${t.n_recent}: ${signed(t.recent, 2)} a match, against ${signed(t.before, 2)} in the ${t.n - t.n_recent} before. ▲ / ▼ only when the gap is bigger than the noise of a few matches.`}`;
+    return `<div class="trend-tile"><b><span class="tip below" tabindex="0" data-tip="${esc(tip)}">${trendSpark(t)}</span><span class="num">${signed(t.recent, 2)}</span>${t.before != null ? `<small class="num">vs ${signed(t.before, 2)}</small>` : ""}</b><small>recent form: last ${t.n_recent} ${t.before != null ? `v ${t.n - t.n_recent} before, ` : ""}${call}</small></div>`;
+  };
   const OV_TIPS = {
+    recent: "Recent form: the last 5 matches against the earlier ones, on chance quality difference (npxG for minus against) adjusted for what each opponent usually allows and creates. The line is every match, darker for the last 5; the number is recent minus before. ▲ / ▼ only when the gap is bigger than the noise of a few matches.",
     deserved: "Points the performances deserved: for each match, how many points past teams averaged with the same elite score and the same danger score.",
     luck: "Actual points minus deserved points. Positive = results better than the performances; negative = worse.",
     decisive: "The 7 metrics that decide matches: green = typical match at the elite line, red = at relegation level, grey = in between. Numbers: elite · relegation.",
@@ -1416,6 +1471,7 @@ ${detailOf(m)}      </details>`;
     const rows = [...T].sort((a, b) => dir * ((col[2](a) ?? -1e9) - (col[2](b) ?? -1e9)) || a.position - b.position);
     $("ov-table").innerHTML = `<thead><tr>${OV_COLS.map(([k, label, f], i) => {
       const lab = OV_TIPS[k] ? `<span class="tip below${i > 9 ? " end" : ""}" data-tip="${esc(OV_TIPS[k])}">${label}</span>` : label;
+      if (k === "recent") return `<th${k === key ? ` aria-sort="${dir > 0 ? "ascending" : "descending"}"` : ""}><button type="button" data-k="${k}">${lab}</button></th>`;
       return `<th class="${k === "team" ? "l" : ""}"${k === key ? ` aria-sort="${dir > 0 ? "ascending" : "descending"}"` : ""}>${f ? `<button type="button" data-k="${k}">${lab}</button>` : lab}</th>`;
     }).join("")}</tr></thead><tbody>` + rows.map((r) => {
       const l = luck(r);
@@ -1428,7 +1484,7 @@ ${detailOf(m)}      </details>`;
         <td class="l">${seg7(r.decisive)}</td>
         <td class="cell">${pct100(r.elite_score)}</td><td class="cell">${pct100(r.danger_score)}</td>
         ${["work", "progression", "attack", "defence"].map((k) => `<td class="cell"><span class="pct-chip ${chipBg(r.stacks[k])}">${r.stacks[k] ?? "—"}</span></td>`).join("")}
-        <td><span class="form">${r.form.map((x) => `<span class="res ${x}">${x}</span>`).join("")}</span></td></tr>`;
+        <td><span class="form">${r.form.map((x) => `<span class="res ${x}">${x}</span>`).join("")}</span></td>${trendCell(r.trend)}</tr>`;
     }).join("") + "</tbody>";
     $("ov-table").querySelectorAll("th button").forEach((b) => b.addEventListener("click", () => {
       const k = b.dataset.k, asc = OV_COLS.find((c) => c[0] === k)[3] === 1;
@@ -1728,7 +1784,7 @@ ${detailOf(m)}      </details>`;
       }
     }
     // Match previews: what was tested
-    const TT = PRD?.team_news_test, GB = PRD?.backtest_goals, PVB = L.previews?.backtest;
+    const TT = PRD?.team_news_test, GB = PRD?.backtest_goals, PVB = L.previews?.backtest, FM = PRD?.form_test;
     const card = (title, body) => `<article class="mv-card"><h3>${title}</h3>${body}</article>`;
     const sb = PVB?.shooters && PVB.shooters[Object.keys(PVB.shooters).sort()[0]], cb = PVB?.corners;
     // Each row leads with a plain verdict; the raw test score stays in small print (D-044).
@@ -1748,6 +1804,7 @@ ${detailOf(m)}      </details>`;
     const cant = (label, why) => `<li><span>${label}</span>${badge("none")}<small>${why}</small></li>`;
     const bottom = (t) => `<p class="vd-bottom">${t}</p>`;
     $("pv-cards").innerHTML = `<div class="vd-key"><b>How to read these:</b> every prediction below was tested on past matches it had never seen and compared with a simple guess (the average for the position, the league rate, or a coin toss). ${badge("good")} clearly beats the guess · ${badge("slight")} a little better · ${badge("barely")} a hair better, but the chances are honest · ${badge("none")} no better, so the site uses the plain average instead.</div>` + [
+      FM && card("Recent form", bottom(PRD.form_applied ? `<b>Bottom line:</b> a small, steady gain: a side playing above or below its usual level lately is a little more likely to keep doing so. Used in the ${esc(LN)} odds.` : `<b>Bottom line:</b> didn't help in ${esc(LN)}, so the odds here use the usual level only.`) + `<ul class="mv-list">${vs("Win/draw/loss odds with recent form", FM.rps_form, FM.rps_base, "the same odds without it", 4, `${FM.n.toLocaleString()} matches, 2020-21 to now; better in ${FM.better_in} of ${FM.of} seasons.`, 0)}</ul><p class="fx-why">"Recent form" is the same chance-quality ratings over a ${FM.half_life}-match half-life (the last two matches count about half), minus the usual level (24-match half-life), each match adjusted for the opponent. The half-life was chosen on 2016-17 to 2019-20 and frozen, like the rest of the model. It is switched on only where it is better overall and in most seasons.</p>`),
       TT && card("Team news", bottom(PRD.team_news_applied ? `<b>Bottom line:</b> a small nudge in the right direction, not a big edge. Used in the ${esc(LN)} odds.` : `<b>Bottom line:</b> didn't help in ${esc(LN)}, so it isn't used in the odds here.`) + `<ul class="mv-list">${TT.fits.map((f) => vs(`Win/draw/loss odds with team news (${f.tested_on})`, f.rps_adjusted, f.rps_base, "the same odds without it", 4, `${f.n} matches.`, 0)).join("")}</ul><p class="fx-why">Each absent player is weighted by his share of the team's usual minutes.${TT.big_gap.n ? ` When the home side was missing much more (${TT.big_gap.n} matches), the odds without team news gave it ${pc(TT.big_gap.base_home_win)}, with it ${pc(TT.big_gap.adjusted_home_win)}; it won ${pc(TT.big_gap.actual_home_win)}.` : ""}</p>`),
       GB && card("Scorelines & goal lines", bottom(`<b>Bottom line:</b> a little better than the league average, but the bookmakers are better at goals. Treat these as a rough guide.`) + `<ul class="mv-list">${vs("Over 2.5 goals", GB.over, GB.over_base, "the league rate", 3, `Bookmakers: ${GB.over_book.toFixed(3)}.`)}${vs("Both teams score", GB.btts, GB.btts_base, "the league rate")}</ul><p class="fx-why">${GB.n.toLocaleString()} matches.</p>`),
       sb && card("Likely shooters", bottom(`<b>Bottom line:</b> good at <i>who</i> will shoot; goals are mostly luck, but the chances are honest: when it says 25%, about a quarter score.`) + `<ul class="mv-list">${sb.brier_shot2 != null ? vs("At least two shots", sb.brier_shot2, sb.brier_shot2_naive, "his position's average") : ""}${vs("At least one shot", sb.brier_shot, sb.brier_shot_naive, "his position's average")}${sb.brier_on_target != null ? vs("At least one on target", sb.brier_on_target, sb.brier_on_target_naive, "his position's average") : ""}${vs("Scores (not a penalty)", sb.brier_goal, sb.brier_goal_naive, "his position's average", 4)}</ul><p class="fx-why">${sb.starters.toLocaleString()} starts, "if he starts". His own shots per 90, his usual minutes, and how many shots the opponent lets teams take (this season, plus last season at half weight).</p>`),
