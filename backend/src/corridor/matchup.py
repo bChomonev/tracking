@@ -169,7 +169,7 @@ def shape(league: dict, team: str) -> dict:
 
 
 def _recent_form(tr: dict | None) -> dict | None:
-    """The team's last matches against the earlier ones (corridor.trend), in plain fields:
+    """The team's last matches against the earlier ones (corridor.engine.trend), in plain fields:
     chance quality difference per match adjusted for the opponent, elite and danger scores."""
     if not tr:
         return None
@@ -185,6 +185,24 @@ def _recent_form(tr: dict | None) -> dict | None:
             "call": t["call"],
         }
     return out
+
+
+def _player_form(tr: dict | None) -> dict | None:
+    """A player's recent form (corridor.engine.player_trend) in plain fields: his last counted
+    matches against the earlier ones, as a role percentile per match adjusted for the
+    opponent. Descriptive: on past seasons a player's last four matches said less about his
+    next four than his season average did."""
+    if not tr or not tr.get("composite"):
+        return None
+    c = tr["composite"]
+    return {
+        "last_matches": c["n_recent"],
+        "matches_before": c["n"] - c["n_recent"],
+        "counted_matches": tr["n_counted"],
+        "recent": _r(c["recent"], 0),
+        "before": _r(c["before"], 0) if c["before"] is not None else None,
+        "call": c["call"],
+    }
 
 
 def _profile_by_name(prof: dict) -> tuple[dict, dict]:
@@ -214,6 +232,7 @@ def battles(att: dict, de: dict, att_xi: list[dict], de_xi: list[dict]) -> list[
                 {
                     "name": x["name"],
                     "minutes": p["minutes"],
+                    "form": _player_form(p.get("trend")),
                     "xg_xa_per_90": p["metrics"].get("xg_xa", {}).get("value"),
                     "xg_xa_percentile": p["metrics"].get("xg_xa", {}).get("percentile"),
                     "box_touches_percentile": p["metrics"].get("box_touches", {}).get("percentile"),
@@ -238,6 +257,7 @@ def battles(att: dict, de: dict, att_xi: list[dict], de_xi: list[dict]) -> list[
                 {
                     "name": x["name"],
                     "minutes": p["minutes"],
+                    "form": _player_form(p.get("trend")),
                     "duels_won_percentile": p["metrics"].get("duels_won", {}).get("percentile"),
                     "recoveries_percentile": p["metrics"].get("recoveries", {}).get("percentile"),
                     "effort_percentile": p.get("effort_percentile"),
@@ -332,6 +352,32 @@ def _read(
             f"players in their role for creation; {D}'s {b['defenders_role']} ({whom}) better "
             f"than {b['defenders_percentile']}% of theirs for duels and recoveries."
         )
+    # An attacker whose recent matches are clearly above or below his earlier ones is worth
+    # a line; at most one per side, the biggest move. Said as what it is: a description.
+    explained = False
+    for A, bs in ((home, b_home), (away, b_away)):
+        moving = [
+            x
+            for b in bs
+            for x in b["attackers"]
+            if x.get("form") and x["form"]["call"] in ("up", "down")
+        ]
+        if not moving:
+            continue
+        x = max(moving, key=lambda x: abs(x["form"]["recent"] - x["form"]["before"]))
+        f = x["form"]
+        why = (
+            " (how he compares with his role match by match, adjusted for the opponent; 50 is "
+            "typical)"
+            if not explained
+            else ""
+        )
+        explained = True
+        lines.append(
+            f"{A}'s {x['name']} is trending {f['call']}: his last {f['last_matches']} matches "
+            f"rate {f['recent']:.0f} against {f['before']:.0f} in the {f['matches_before']} "
+            f"before{why}."
+        )
     return lines
 
 
@@ -369,7 +415,10 @@ def build(
             "measured on creation, defenders on duels won and recoveries — the data cannot say "
             "which defender allowed a chance. A percentile of 60 means better than 60% of "
             "league players in the same role; say it that way. E / W = the typical match "
-            "reaches the elite line / sits at the worst line."
+            "reaches the elite line / sits at the worst line. Each player's 'form' is his last "
+            "counted matches (60+ minutes) against his earlier ones, as a role percentile per "
+            "match adjusted for the opponent: 'up' / 'down' only beyond the noise of a few "
+            "matches, null when he has too few. It describes; it does not predict."
         ),
         "home": home,
         "away": away,

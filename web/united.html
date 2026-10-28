@@ -204,8 +204,8 @@ tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600
 .ov-table tr.me td.l a { color: var(--red); }
 .ov-table th button { all: unset; cursor: pointer; }
 .ov-table th button:focus-visible { outline: 2px solid var(--red); }
-.ov-table th[aria-sort] button::after { content: " ▾"; }
-.ov-table th[aria-sort="ascending"] button::after { content: " ▴"; }
+.ov-table th[aria-sort]::after { content: " ▾"; }
+.ov-table th[aria-sort="ascending"]::after { content: " ▴"; }
 .seg7 { display: inline-flex; gap: 2px; vertical-align: middle; }
 .seg7 i { width: 9px; height: 14px; border-radius: 2px; background: var(--track); }
 .seg7 i.e { background: var(--good); } .seg7 i.w { background: var(--bad); }
@@ -213,7 +213,7 @@ tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600
 .diff.up { color: var(--good); } .diff.down { color: var(--bad); }
 .diff { font-size: .8rem; margin-left: 4px; }
 .tspark { width: 72px; height: 22px; vertical-align: middle; }
-.trend-cell { white-space: nowrap; } .trend-cell .diff { font-family: var(--mono); }
+.trend-cell, th.nowrap { white-space: nowrap; } .trend-cell .diff { font-family: var(--mono); }
 .record .trend-tile .tspark { width: 110px; height: 28px; }
 .record .trend-tile b { display: flex; align-items: center; gap: 8px; }
 .pct-chip { display: inline-block; min-width: 2.4em; text-align: center; padding: 3px 4px; border-radius: 3px; font-family: var(--mono); font-size: .82rem; }
@@ -432,8 +432,8 @@ tr.fav-miss > td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
 :root:not([data-theme="light"]) .res { color: var(--bg); }
 th button { all: unset; cursor: pointer; }
 th button:focus-visible { outline: 2px solid var(--red); }
-th[aria-sort] button::after { content: " ▾"; }
-th[aria-sort="ascending"] button::after { content: " ▴"; }
+th[aria-sort]::after { content: " ▾"; }
+th[aria-sort="ascending"]::after { content: " ▴"; }
 .rd-pick { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
 .rd-pick button { font: 600 .82rem/1 var(--body); padding: 7px 11px; border-radius: 999px; border: 1px solid var(--rule); background: var(--panel); color: var(--ink); cursor: pointer; }
 .rd-pick button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
@@ -1140,22 +1140,41 @@ ${detailOf(m)}      </details>`;
     box_touches: "Touches in the opponent's penalty area per 90.",
     xg_xa: "Expected goals plus expected assists per 90: what his own shots were worth, plus the chances he set up for others. How involved he is in chances.",
   };
+  pTips.form = "Recent form: each match he played 60+ minutes is scored against every match this season by a player in his role (four metrics per role, per 90; 50 is a typical match, 80 better than four in five), credited for the opponent's strength. The line is every counted match, darker for the last 4; the number is the last 4 against the earlier ones. ▲ / ▼ only when the gap is bigger than the noise of a few matches; no call under 7 counted matches. It describes, it doesn't predict: on past seasons a player's last four matches said less about his next four than his season average did.";
   const pTh = (k, l, last) => `<button data-k="${k}" class="tip below${last ? " end" : ""}" data-tip="${esc(pTips[k])}">${l}</button>`;
   let sortKey = "minutes";
   const cellOf = (p, k) => (k === "effort" ? { value: p.effort_percentile, percentile: p.effort_percentile, decimals: 0 } : p.metrics[k]);
-  $("players-sub").textContent = `Per 90 minutes, shaded by percentile against ${LN} players in the same role (min. 90 minutes). Roles: CB centre-back, FB full/wing-back, CM central mid, AM attacking mid, W winger, ST striker. Click a column to sort.`;
+  const FORM_LABELS = { duels_won: "duels won", duels_lost: "duels lost", recoveries: "recoveries", line_breaking_passes: "line-breaking passes", passes_into_final_third: "passes into the final third", box_touches: "box touches", xg_xa: "xG+xA", np_shots: "shots", chances_created: "chances created" };
+  const ROLE_FORM = { CB: "duels won, recoveries, line-breaking passes, duels lost", FB: "duels won, recoveries, passes into the final third, box touches", CM: "line-breaking passes, passes into the final third, recoveries, duels won", AM: "xG+xA, chances created, box touches, line-breaking passes", W: "xG+xA, shots, box touches, duels won", ST: "xG+xA, shots, box touches, duels won" };
+  // A player's form cell: sparkline of his counted matches (role percentile, opponent-adjusted),
+  // then last 4 v before with the call. Same bar as the team trend: one standard error.
+  const formSort = (p) => p.trend?.composite?.delta ?? -1e9;
+  const playerFormCell = (p) => {
+    const tr = p.trend, t = tr?.composite;
+    if (!t) return `<td class="trend-cell"><span class="tip below end" tabindex="0" data-tip="No match of 60+ minutes yet, so nothing to score.">—</span></td>`;
+    const call = t.call, cls = call === "up" ? "up" : call === "down" ? "down" : "";
+    const moved = Object.entries(tr.metrics || {}).filter(([, m]) => m && (m.call === "up" || m.call === "down")).map(([k, m]) => `${FORM_LABELS[k] || k} ${m.call === "up" ? "better" : "worse"} (${Math.round(m.recent)} v ${Math.round(m.before)})`);
+    const roles = (tr.roles || []).join("/"), scored = [...new Set((tr.roles || []).map((r) => ROLE_FORM[r]))].join("; ");
+    const tip = t.before == null
+      ? `${tr.n_counted} counted ${tr.n_counted === 1 ? "match" : "matches"} (60+ minutes) as ${roles}, scored on ${scored}: ${t.series.map((v) => Math.round(v)).join(", ")}. Fewer than ${tr.min_matches}, so no call yet.`
+      : `Last ${t.n_recent} counted matches rate ${Math.round(t.recent)} against ${Math.round(t.before)} in the ${t.n - t.n_recent} before (${tr.n_counted} matches of 60+ minutes as ${roles}, scored on ${scored}; 50 is typical for the role). ${call === "steady" ? "Within the noise of a few matches, so no trend." : call === "up" ? "Better by more than the noise of a few matches." : "Worse by more than the noise of a few matches."}${moved.length ? ` Moved: ${moved.join("; ")}.` : ""}`;
+    // Both numbers only once there is a call; under 7 counted matches, the recent mean and the count.
+    const txt = call == null ? `${Math.round(t.recent)} <small>(${tr.n_counted})</small>` : `${Math.round(t.recent)} <small>v ${Math.round(t.before)}</small>`;
+    return `<td class="trend-cell"><span class="tip below end" tabindex="0" data-tip="${esc(tip)}">${trendSpark(t, 50)}<span class="diff ${cls}">${call === "up" ? "▲ " : call === "down" ? "▼ " : ""}${txt}</span></span></td>`;
+  };
+  $("players-sub").textContent = `Per 90 minutes, shaded by percentile against ${LN} players in the same role (min. 90 minutes). Roles: CB centre-back, FB full/wing-back, CM central mid, AM attacking mid, W winger, ST striker. Form: his last 4 matches of 60+ minutes against the earlier ones, each scored against his role and adjusted for the opponent (50 is typical). Click a column to sort.`;
   // Columns with no data in this league (e.g. running data outside the Premier League) are hidden.
   const pColsAll = pCols;
   const hasSpeed = P.players.some((p) => p.top_speed_kmh);
   const pColsHere = pColsAll.filter(([k]) => P.players.some((p) => cellOf(p, k)?.value != null));
   const renderPlayers = () => {
     const pCols = pColsHere;
-    const rows = [...P.players].sort((a, b) => sortKey === "minutes" ? b.minutes - a.minutes : (cellOf(b, sortKey).value ?? -1) - (cellOf(a, sortKey).value ?? -1));
-    $("players").innerHTML = `<thead><tr><th class="l">Player</th><th${sortKey === "minutes" ? ' aria-sort="descending"' : ""}>${pTh("minutes", "Mins")}</th>${pCols.map(([k, l], i) =>
-      `<th${sortKey === k ? ' aria-sort="descending"' : ""}>${pTh(k, l, !hasSpeed && i === pCols.length - 1)}</th>`).join("")}${hasSpeed ? `<th><span class="tip below end" tabindex="0" data-tip="Fastest speed he has reached in any match this season, in km/h.">Top speed</span></th>` : ""}</tr></thead><tbody>` +
+    const rows = [...P.players].sort((a, b) => sortKey === "minutes" ? b.minutes - a.minutes : sortKey === "form" ? formSort(b) - formSort(a) : (cellOf(b, sortKey).value ?? -1) - (cellOf(a, sortKey).value ?? -1));
+    $("players").innerHTML = `<thead><tr><th class="l">Player</th><th${sortKey === "minutes" ? ' aria-sort="descending"' : ""}>${pTh("minutes", "Mins")}</th>${pCols.map(([k, l]) =>
+      `<th${sortKey === k ? ' aria-sort="descending"' : ""}>${pTh(k, l, false)}</th>`).join("")}${hasSpeed ? `<th><span class="tip below" tabindex="0" data-tip="Fastest speed he has reached in any match this season, in km/h.">Top speed</span></th>` : ""}<th class="nowrap"${sortKey === "form" ? ' aria-sort="descending"' : ""}>${pTh("form", "Form", true)}</th></tr></thead><tbody>` +
       rows.map((p) => `<tr><td class="l">${esc(p.name)} <span class="pos">${p.position}</span></td><td class="cell">${p.minutes}</td>
         ${pCols.map(([k]) => { const c = cellOf(p, k); return `<td class="cell h-${tier(c.percentile)}" title="${c.percentile ?? "—"}th percentile vs ${p.peers} ${esc(LS)} ${p.position}s">${fmt(c.value, c.decimals)}</td>`; }).join("")}
-        ${hasSpeed ? `<td class="cell">${p.top_speed_kmh ? p.top_speed_kmh.toFixed(1) : "—"}</td>` : ""}</tr>`).join("") + "</tbody>";
+        ${hasSpeed ? `<td class="cell">${p.top_speed_kmh ? p.top_speed_kmh.toFixed(1) : "—"}</td>` : ""}${playerFormCell(p)}</tr>`).join("") + "</tbody>";
     $("players").querySelectorAll("th button").forEach((b) => b.addEventListener("click", () => { sortKey = b.dataset.k; renderPlayers(); }));
   };
   renderPlayers();
@@ -1289,9 +1308,11 @@ ${detailOf(m)}      </details>`;
     const bt = (p) => (p == null ? "—" : `${p}%`);
     const band = (p) => (p == null ? "" : p >= 90 ? "top 10% of his role" : p >= 75 ? "top quarter" : p <= 10 ? "bottom 10% of his role" : p <= 25 ? "bottom quarter" : "");
     const pctChip = (p, title) => `<span class="num hp-pct pct-chip ${chipBg(p)}" title="${esc(title)}">${bt(p)}</span>${band(p) ? `<em class="hp-band">${band(p)}</em>` : ""}`;
+    // Recent form (D-062): last 4 counted matches against the earlier ones, role percentile per match adjusted for the opponent.
+    const formNote = (f) => !f || f.call == null ? "" : ` · <span class="tip below" tabindex="0" data-tip="${esc(`His last ${f.last_matches} matches of 60+ minutes rate ${f.recent} against ${f.before} in the ${f.matches_before} before: how he compares with players in his role match by match (50 is typical), adjusted for the opponent. ${f.call === "steady" ? "Within the noise of a few matches." : "A gap bigger than the noise of a few matches."} A description, not a forecast.`)}">form <span class="diff ${f.call === "up" ? "up" : f.call === "down" ? "down" : ""}">${f.call === "up" ? "▲" : f.call === "down" ? "▼" : "="} ${f.recent} v ${f.before}</span></span>`;
     const pl = (x, who) => who === "att"
-      ? `<li><span>${esc(x.name)}</span><span class="hp-right">${pctChip(x.creation_percentile, "Better than this share of players in his role for creation")}</span><small>xG+xA ${x.xg_xa_per_90 != null ? x.xg_xa_per_90.toFixed(2) : "—"} per 90, better than ${bt(x.xg_xa_percentile)} of his role · box touches better than ${bt(x.box_touches_percentile)}${x.shots ? ` · ${x.shots} shots worth ${x.npxg_per_shot} each (his role ${x.role_npxg_per_shot})` : ""}</small></li>`
-      : `<li><span>${esc(x.name)}</span><span class="hp-right">${pctChip(x.defending_percentile, "Better than this share of players in his role for duels won and recoveries")}</span><small>duels won: better than ${bt(x.duels_won_percentile)} of his role · recoveries ${bt(x.recoveries_percentile)} · effort ${bt(x.effort_percentile)}</small></li>`;
+      ? `<li><span>${esc(x.name)}</span><span class="hp-right">${pctChip(x.creation_percentile, "Better than this share of players in his role for creation")}</span><small>xG+xA ${x.xg_xa_per_90 != null ? x.xg_xa_per_90.toFixed(2) : "—"} per 90, better than ${bt(x.xg_xa_percentile)} of his role · box touches better than ${bt(x.box_touches_percentile)}${x.shots ? ` · ${x.shots} shots worth ${x.npxg_per_shot} each (his role ${x.role_npxg_per_shot})` : ""}${formNote(x.form)}</small></li>`
+      : `<li><span>${esc(x.name)}</span><span class="hp-right">${pctChip(x.defending_percentile, "Better than this share of players in his role for duels won and recoveries")}</span><small>duels won: better than ${bt(x.duels_won_percentile)} of his role · recoveries ${bt(x.recoveries_percentile)} · effort ${bt(x.effort_percentile)}${formNote(x.form)}</small></li>`;
     const battle = (attT, defT, b) => (!b.attackers.length || !b.defenders.length) ? "" : `<article class="mv-card hp-card"><h3>${esc(short(attT))}'s ${esc(b.attackers_role)}<small>v ${esc(short(defT))}'s ${esc(b.defenders_role)}</small></h3>
       <p class="lead">${b.verdict === "attackers" ? `<b>Edge to the ${esc(b.attackers_role)}</b>` : b.verdict === "defenders" ? `<b>Edge to the ${esc(b.defenders_role)}</b>` : "<b>Even</b>"} — the ${esc(b.attackers_role)} are better than <b class="${chipBg(b.attackers_percentile).replace("tier-", "t-")}">${bt(b.attackers_percentile)}</b> of players in their role for creation; the ${esc(b.defenders_role)} better than <b class="${chipBg(b.defenders_percentile).replace("tier-", "t-")}">${bt(b.defenders_percentile)}</b> of theirs for duels and recoveries. Higher is better for that player: a defender at 20% is in the bottom fifth of his role.</p>
       <div class="hp-battle"><ul class="mv-list">${b.attackers.map((x) => pl(x, "att")).join("")}</ul><ul class="mv-list">${b.defenders.map((x) => pl(x, "def")).join("")}</ul></div></article>`;
@@ -1426,13 +1447,13 @@ ${detailOf(m)}      </details>`;
   // Recent form (D-061): the last 5 matches against the earlier ones, on chance quality
   // difference adjusted for the opponent. A sparkline of every match, then recent vs before;
   // "up" / "down" only when the gap is at least one standard error wide.
-  const trendSpark = (t) => {
+  const trendSpark = (t, base = 0) => {
     if (!t || !t.series.length) return "";
-    const W = 72, H = 22, p = 2, xs = t.series, lo = Math.min(0, ...xs), hi = Math.max(0, ...xs), span = hi - lo || 1;
+    const W = 72, H = 22, p = 2, xs = t.series, lo = Math.min(base, ...xs), hi = Math.max(base, ...xs), span = hi - lo || 1;
     const x = (i) => p + (i * (W - 2 * p)) / Math.max(1, xs.length - 1), y = (v) => p + (H - 2 * p) * (1 - (v - lo) / span);
     const k = Math.max(0, xs.length - t.n_recent);
     const seg = (from, to) => xs.slice(from, to + 1).map((v, i) => `${i ? "L" : "M"}${x(from + i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
-    return `<svg class="tspark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><line x1="0" x2="${W}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="var(--rule)" stroke-width="1"></line>` +
+    return `<svg class="tspark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><line x1="0" x2="${W}" y1="${y(base).toFixed(1)}" y2="${y(base).toFixed(1)}" stroke="var(--rule)" stroke-width="1"></line>` +
       (k ? `<path d="${seg(0, k)}" fill="none" stroke="var(--muted)" stroke-width="1.5"></path>` : "") +
       `<path d="${seg(k, xs.length - 1)}" fill="none" stroke="var(--ink)" stroke-width="2"></path></svg>`;
   };

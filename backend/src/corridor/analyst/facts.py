@@ -275,6 +275,7 @@ def build_facts(
                     }
                     for v in p["metrics"].values()
                 },
+                "recent_form": _player_form_facts(p.get("trend")),
             }
         )
 
@@ -338,6 +339,14 @@ def build_facts(
             "better.",
             "Player percentiles compare against Premier League players in the same role "
             "(CB, FB, CM, AM, W, ST) with at least 90 minutes.",
+            "Each player's recent_form scores every match he played 60+ minutes against every "
+            "match this season by a player in the same role (four metrics per role, per 90, "
+            "as a percentile; 50 is a typical match for the role), credits it for the "
+            "opponent's strength, and compares his last 4 counted matches with the earlier "
+            "ones. 'up' / 'down' only when the gap is wider than the noise of a few matches; "
+            "null = fewer than 7 counted matches. Describe it, never predict with it: on past "
+            "seasons a player's last four matches said less about his next four than his "
+            "season average did. Name the metrics that moved (metrics_moving).",
             f"Small sample: {len(matches)} matches so far.",
             "Shot-map metrics (shot distance, outside-box share, blocked share, set-piece and "
             "counter-attack npxG) exclude penalties and own goals. In goals_by_type, "
@@ -352,8 +361,42 @@ def build_facts(
     }
 
 
+def _player_form_facts(tr: dict | None) -> dict | None:
+    """One player's recent form (corridor.engine.player_trend), pre-rounded: the composite call with
+    both numbers and the counts, every counted match's score, and which metrics moved."""
+    if not tr or not tr.get("composite"):
+        return None
+    c = tr["composite"]
+    moving = {}
+    for k, t in (tr.get("metrics") or {}).items():
+        if t and t["call"] in ("up", "down"):
+            moving[k] = {
+                "recent": _r(t["recent"], 0),
+                "before": _r(t["before"], 0),
+                "call": t["call"],
+            }
+    return {
+        "counted_matches": tr["n_counted"],
+        "last_matches": c["n_recent"],
+        "matches_before": c["n"] - c["n_recent"],
+        "recent": _r(c["recent"], 0),
+        "before": _r(c["before"], 0) if c["before"] is not None else None,
+        "call": c["call"],
+        "per_match": [
+            {
+                "opponent": m["opponent"],
+                "minutes": m["minutes"],
+                "role": m["role"],
+                "score": m["adjusted"],
+            }
+            for m in tr["matches"]
+        ],
+        "metrics_moving": moving,
+    }
+
+
 def _recent_form_facts(profile: dict) -> dict | None:
-    """The last matches against the earlier ones (corridor.trend), pre-rounded. A call of
+    """The last matches against the earlier ones (corridor.engine.trend), pre-rounded. A call of
     'up' or 'down' means the gap is at least one standard error wide; 'steady' means it is
     not; None means too few matches to say."""
     tr = profile.get("trend")

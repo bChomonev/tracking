@@ -8,6 +8,75 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-062 — Player trend: each player's last matches against his earlier ones · 2026-10-28 · accepted
+Task 2 of three (teams D-061, then players, then "which metrics" in the prediction). Nothing
+per player existed match by match: the players table is a season per-90 percentile, and
+`standouts` (D-040) ranks one match at a time. `corridor.engine.player_trend` is the per-match
+number and the read; description only, on the team page, the preview battles and the
+analyst's fact sheet. Every design call was made on the 2025-26 PL (38 rounds, 7,086 counted
+player-matches) and the numbers below are from there.
+
+**The per-match number.** Each match a player plays 60+ minutes is scored against every
+match this season by a player in the same role (the role he played that day, CB / FB / CM /
+AM / W / ST, not his season role): for four metrics per role, per 90 minutes, the share of
+those matches he beat (ties half; duels lost is flipped so higher is better), and the
+composite is their mean. 50 is a typical match for the role, 80 better than four in five.
+Metrics per role, chosen for what the role is for and then checked for being a trait
+(season-half to season-half correlation of the player's mean percentile, D-051's test):
+CB duels won (0.46), recoveries (0.60), line-breaking passes (0.59), duels lost (0.80);
+FB duels won (0.51), recoveries (0.46), passes into the final third (0.46), box touches (0.73);
+CM line-breaking passes (0.76), passes into the final third (0.77), recoveries (0.72), duels
+won (0.66); AM xG+xA (0.20, 10 players), chances created (0.47), box touches (0.70),
+line-breaking passes (0.72); W and ST xG+xA (0.41 / 0.46), shots (0.73 / 0.32), box touches
+(0.87 / 0.62), duels won (0.78 / 0.74). Dropped for being noise: interceptions for CBs
+(0.22), chances created for FBs and Ws (0.35 / 0.30). xG+xA stays for attackers despite its
+noise because it is the output the reader asks about; the per-metric trend says when it is
+the one moving. One composite drives the call; the per-metric trends are kept for the
+tooltip and the fact sheet so the sentence can say what moved.
+
+**Opponent adjustment.** Across the league the composite fell 5–9 percentile points per unit
+of opponent strength (the opponent's season median npxG for minus against, relative to the
+league average; the same measure as D-061), most for attackers. Each match is credited with
+that slope × the opponent's strength (one slope per role, fitted on the season's league
+matches). Test, as asked: which adjustment makes the number steadier match to match?
+Within-player spread 15.8 points raw → 15.5 adjusted for the opponent → 15.3 adjusted by the
+team's own npxG difference in the match; next-match error from the season mean 13.5 → 13.2
+→ 13.0. But the team-npxGD version also shrinks what separates players (between-player
+spread 8.2 → 7.5; season-half correlation 0.63 → 0.60) because an attacker *is* part of his
+team's npxG difference: it removes his contribution along with the context. The opponent
+version keeps both (0.63 → 0.63). Chosen: opponent strength.
+
+**Minutes, window, call.** A match counts from 60 minutes (per-90 rates from shorter spells
+are inflated); the window counts the player's matches, not the team's, because players miss
+matches. Recent = last 4 counted matches, before = the earlier ones with at least 3 (7
+counted minimum), not the team's 5 + 3: at 8 rounds, 5 + 3 gives a call for 67 of 320 PL
+players, 4 + 3 for 104, and the window moves with the season. The bar is D-061's: "up" /
+"down" only when the gap is at least one standard error wide (`trend.recent`), otherwise
+"steady"; the count is always shown. Today: PL 18 up / 28 down / 58 steady / 216 too few;
+La Liga 30 / 21 / 58 / 260; Serie A 22 / 10 / 40 / 276; Bundesliga 17 / 5 / 30 / 228.
+
+**What it is not, said on the page.** The description is honest about being one: on the
+2025-26 PL a player's last four matches forecast his next four *worse* than his season
+average did (mean error 9.0 against 7.4 points; the same for the next match alone, 14.2
+against 13.2), and one match's deviation from his mean carries nothing into the next (lag-1
+r = −0.02). Form at the player level, measured this way, is mostly noise around a level; the
+page, the preview and the fact sheet all say "describes, does not predict". The predictive
+question — does a shooter's recent form improve the shooter model's Brier (D-024 / D-042
+protocol)? — is left for task 3 with the team trend, and the result above says what to expect.
+
+**Where it shows.** Players table: a "Form" column (sortable) with a sparkline of every
+counted match on a 50 baseline, darker for the last 4, then "recent v before" with ▲ / ▼, or
+"recent (n)" under 7 matches; the tooltip names the roles, the metrics scored and the metrics
+that moved. Preview battles: a "form ▲ 62 v 53" note per player with a call, and the read
+gets at most one line per side, the biggest move among the attackers, as a description.
+Fact sheet: `recent_form` per player (call, both numbers, counts, every counted match's
+score and opponent, `metrics_moving`), a note telling the analyst to describe and never
+predict with it, and `slim_facts` drops the per-match list as it does for metrics.
+
+**Placement.** Both trend modules are pure math on the processed rows, so they live with the
+rest of it: `corridor/trend.py` (D-061) moved to `corridor/engine/trend.py` and the new
+module is `corridor/engine/player_trend.py` (NumPy only, no I/O, as rule 2 asks).
+
 ## D-061 — Team trend: recent form described on the page, and tested in the prediction · 2026-10-27 · accepted
 Task 1 of three (teams, then players, then "which metrics"). The per-match numbers already
 existed (elite score, danger score per match, D-021/D-022); nobody had drawn a line through

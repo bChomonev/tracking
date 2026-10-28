@@ -185,6 +185,14 @@ def slim_facts(facts: dict) -> dict:
     """The fact sheet without the per-match lists under each metric (about half its size)."""
     out = dict(facts)
     out["metrics"] = [{k: v for k, v in m.items() if k != "per_match"} for m in facts["metrics"]]
+    if facts.get("players"):
+        # The same for each player's recent_form (D-062): the call and the counts stay.
+        out["players"] = [
+            p | {"recent_form": {k: v for k, v in p["recent_form"].items() if k != "per_match"}}
+            if p.get("recent_form")
+            else p
+            for p in facts["players"]
+        ]
     return out
 
 

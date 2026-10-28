@@ -1,6 +1,6 @@
-"""Recent form (corridor.trend): the last matches against the earlier ones."""
+"""Recent form (corridor.engine.trend): the last matches against the earlier ones."""
 
-from corridor import trend
+from corridor.engine import trend
 
 
 def test_too_few_matches_gives_no_call():

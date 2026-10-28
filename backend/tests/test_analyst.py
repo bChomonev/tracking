@@ -90,7 +90,19 @@ def test_fact_rounding_matches_the_page():
 def test_slim_facts_drops_only_the_per_match_lists():
     from corridor.analyst.writer import slim_facts
 
-    facts = {"metrics": [{"key": "a", "typical_match": 1, "per_match": [1, 2]}], "record": {"x": 1}}
+    facts = {
+        "metrics": [{"key": "a", "typical_match": 1, "per_match": [1, 2]}],
+        "record": {"x": 1},
+        "players": [
+            {"name": "A", "recent_form": {"call": "up", "per_match": [{"score": 70}]}},
+            {"name": "B", "recent_form": None},
+        ],
+    }
     slim = slim_facts(facts)
     assert slim["metrics"] == [{"key": "a", "typical_match": 1}] and slim["record"] == {"x": 1}
+    assert (
+        slim["players"][0]["recent_form"] == {"call": "up"}
+        and slim["players"][1] == facts["players"][1]
+    )
     assert "per_match" in facts["metrics"][0]  # the original is untouched
+    assert "per_match" in facts["players"][0]["recent_form"]

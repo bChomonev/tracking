@@ -1,6 +1,7 @@
 """D-054: the two sides played against each other."""
 
 from corridor import matchup
+from corridor.engine import trend
 
 
 def _metric(key, value, rank, of=20, pct=None, avg=1.0, tier="decisive", elite=False, worst=False):
@@ -154,3 +155,31 @@ def test_battles_and_read_name_the_mismatch():
 
 def test_build_returns_none_for_unknown_teams():
     assert matchup.build(_league(), "Home", "Elsewhere") is None
+
+
+def test_player_form_reaches_the_battles_and_the_read():
+    L = _league()
+    series = [40.0, 42.0, 38.0, 41.0, 70.0, 72.0, 68.0, 71.0]
+    L["teams"]["Home"]["players"][0]["trend"] = {
+        "n_counted": 8,
+        "composite": trend.recent(series, 4),
+        "metrics": {},
+        "matches": [],
+    }
+    hx = [{"name": "Winger H", "role": "W"}, {"name": "FB H", "role": "FB"}]
+    ax = [{"name": "FB A", "role": "FB"}]
+    M = matchup.build(L, "Home", "Away", hx, ax, (1.5, 1.56))
+    f = M["battles"]["home_attack"][0]["attackers"][0]["form"]
+    assert f == {
+        "last_matches": 4,
+        "matches_before": 4,
+        "counted_matches": 8,
+        "recent": 70,
+        "before": 40,
+        "call": "up",
+    }
+    assert M["battles"]["home_attack"][0]["defenders"][0]["form"] is None  # no trend given
+    assert (
+        "Home's Winger H is trending up: his last 4 matches rate 70 against 40 in the 4 before"
+        in " ".join(M["read"])
+    )

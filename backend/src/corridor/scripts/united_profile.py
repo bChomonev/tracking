@@ -10,8 +10,9 @@ team with the shared proof, read by the analyst). Both gitignored.
 import argparse
 import json
 
-from corridor import proof, trend
+from corridor import proof
 from corridor.best_line import build_line, compare, hits_line
+from corridor.engine import player_trend, trend
 from corridor.ingest import understat
 from corridor.ingest.http import DATA_DIR
 from corridor.leagues import LEAGUES, League, processed_dir, site_dir
@@ -209,7 +210,7 @@ def _expected_points(x: dict) -> float | None:
 
 
 def trends(teams: dict[str, dict]) -> dict[str, dict]:
-    """Recent form per team (corridor.trend): the last matches against the earlier ones on
+    """Recent form per team (corridor.engine.trend): the last matches against the earlier ones on
     three per-match series — elite score, danger score, and chance quality difference
     adjusted for the opponent. The adjustment credits each match against what the opponent
     usually concedes and creates (their season median, relative to the league average), so
@@ -320,6 +321,12 @@ def main() -> None:
     teams = {t: build_team(t, ctx, rec, lines, ucl_rows) for t in names}
     for t, tr in trends(teams).items():
         teams[t]["trend"] = tr
+    # Player form (D-062): each player's counted matches scored against his role, the last
+    # 4 against the earlier ones. One pass over the league, then attached to each team's rows.
+    pt = player_trend.build(ctx["players"], ctx["rows"])
+    for p in teams.values():
+        for row in p["players"]:
+            row["trend"] = pt.get(row["player_id"])
     gaps = sorted(
         (p["shooting"]["quality_gap_per_match"] or 0 for p in teams.values()), reverse=True
     )
