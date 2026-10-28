@@ -82,6 +82,9 @@ class Params:
     # Alternative form twin: the plain mean of each team's last N matches (the page's
     # "recent", D-061) instead of an EWMA. Takes precedence over form_half_life when set.
     form_window: int | None = None
+    # Blend (D-068): weight on the goals model's own win/draw/loss chances (unshrunk
+    # Poisson + Dixon-Coles on the same ratings), the rest on the logistic model. 0 = off.
+    goals_weight: float = 0.0
 
 
 # ---------------------------------------------------------------------------- data
@@ -376,11 +379,25 @@ class Model:
         y = [m["result"] for m in ms]
         self.lr = LogisticRegression(C=self.p.C, max_iter=1000).fit((X - self.mu) / self.sd, y)
         self.order = [list(self.lr.classes_).index(o) for o in OUTCOMES]
+        # The second opinion (D-068): the goals model's own 1X2, from the same ratings. Its
+        # unshrunk rates are over-confident on totals but good at who wins; the two models
+        # disagree by ~4 points on a typical home win, and the average beats either.
+        self.goals = GoalsModel(shrink=1.0).fit(ms) if self.p.goals_weight else None
         return self
 
     def predict(self, ms: Sequence[dict]) -> np.ndarray:
         X = (_X(ms, self.feats) - self.mu) / self.sd
-        return self.lr.predict_proba(X)[:, self.order]
+        pl = self.lr.predict_proba(X)[:, self.order]
+        if not self.goals:
+            return pl
+        lh, la = self.goals.rates(ms)
+        pg = np.array(
+            [
+                markets(self.goals.matrix(float(x), float(y)))["p"]
+                for x, y in zip(lh, la, strict=True)
+            ]
+        )
+        return (1 - self.p.goals_weight) * pl + self.p.goals_weight * pg
 
     def contributions(self, m: dict) -> dict[str, float]:
         """Each feature's push towards a home win (log-odds of H vs A), for explanations."""
@@ -436,14 +453,20 @@ class GoalsModel:
         self.mean_h = float(np.mean([m["hg"] for m in ms]))
         self.mean_a = float(np.mean([m["ag"] for m in ms]))
         lh, la = self.rates(ms)
-        best = (-np.inf, 0.0)
-        for rho in np.linspace(-0.2, 0.1, 31):
-            ll = 0.0
-            for m, x, y in zip(ms, lh, la, strict=True):
-                i, j = min(m["hg"], MAX_GOALS), min(m["ag"], MAX_GOALS)
-                ll += np.log(max(1e-12, _pois(x)[i] * _pois(y)[j] * _dc(rho, x, y)[i, j]))
-            best = max(best, (ll, float(rho)))
-        self.rho = best[1]
+        # Dixon-Coles rho by maximum likelihood on a grid. The correction only touches the
+        # four low scores and is linear in rho (tau = a + b·rho), so the whole grid is one
+        # vector operation: log-likelihood(rho) = Σ log(p_ij) + Σ log(a + b·rho).
+        hg = np.minimum([m["hg"] for m in ms], MAX_GOALS)
+        ag = np.minimum([m["ag"] for m in ms], MAX_GOALS)
+        a = np.ones(len(ms))
+        b = np.zeros(len(ms))
+        b[(hg == 0) & (ag == 0)] = -(lh * la)[(hg == 0) & (ag == 0)]
+        b[(hg == 0) & (ag == 1)] = lh[(hg == 0) & (ag == 1)]
+        b[(hg == 1) & (ag == 0)] = la[(hg == 1) & (ag == 0)]
+        b[(hg == 1) & (ag == 1)] = -1.0
+        rhos = np.linspace(-0.2, 0.1, 31)
+        ll = np.log(np.maximum(1e-12, a[None, :] + b[None, :] * rhos[:, None])).sum(1)
+        self.rho = float(rhos[int(np.argmax(ll))])
         return self
 
     def rates(self, ms: Sequence[dict]) -> tuple[np.ndarray, np.ndarray]:

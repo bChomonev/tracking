@@ -8,6 +8,38 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-068 — Two models averaged: the goals model's own 1X2 blended in · 2026-10-28 · accepted
+D-027 left the question open: for win/draw/loss the logistic model won the tuning seasons
+and the unshrunk goals model won the held-out ones, and switching on held-out evidence would
+have been choosing by the test set. The fresh protocol asked for there: a blend,
+p = (1 − w) · logistic + w · goals-model 1X2, with w chosen on the PL tuning seasons.
+
+**The second opinion** (`Params.goals_weight`, `Model.fit`/`predict`): the same Poisson +
+Dixon–Coles goals model as the scorelines (D-027), fitted on the same training matches
+from the same ratings but *unshrunk* — its raw rates are over-confident on totals, which is
+why the scorelines use the shrunk version, but good at who wins. The matrix's lower
+triangle, diagonal and upper triangle are its home / draw / away. On a typical held-out
+match the two models differ by 4 points on the home win (the shrunk version by 7).
+
+**Protocol** (D-023: tune on PL 2016-17…2019-20, hold out 2020-21…now, each league on its
+own matches, on top of the league's model as published including form). PL tuning: w = 0.4
+is the best on the grid (−0.00059 RPS; w = 0.2…0.6 all better than w = 0), the shrunk
+version peaks lower (w = 0.2, −0.00019). Held out at w = 0.4: PL 0.20379 → 0.20271
+(−0.00108, better in 6 of 7 seasons; w = 1.0 alone −0.00121 but worse on tuning); Bundesliga
+0.20051 → 0.20034 (−0.00017, 4/7); La Liga +0.00049 (1/7); Serie A +0.00014 (3/7) — those
+two gain on the tuning seasons (−0.0004 / −0.0018) and lose held out. Applied per league by
+the D-031 / D-036 / D-061 bar (better pooled and in most seasons, `blend_applied`): **on in
+the PL and, marginally, the Bundesliga; off in La Liga and Serie A.** In the PL the rolling
+temperature calibration (D-036) then switches itself off: the blend already removes the
+over-confidence it was correcting (held-out 0.2027 raw).
+
+**What else changed.** The fixture card's "biggest factors" describe the ratings model's
+part (the goals model has no per-feature pushes); the "Two models averaged" card in "What
+was tested" and the backtest footer say so. The scorelines still align to the published
+chances (D-027), which are now the blend. `GoalsModel.fit`'s rho search was vectorised
+(same answer; the correction is linear in rho on four cells), because the blend fits a goals
+model in every walk-forward season.
+
 ## D-067 — Rest and congestion add nothing once strength is known · 2026-10-28 · accepted (not adopted)
 The classic small feature: days since a side's last match in any competition, and whether it
 played in Europe in the week. `corridor.calendar` builds every league team's full calendar

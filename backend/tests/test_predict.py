@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import numpy as np
 
 from corridor import predict as P
@@ -229,3 +231,33 @@ def test_calendar_name_matching_is_one_to_one_and_accent_blind():
         "Real Madrid": "Real Madrid",
         "Málaga": "Malaga",
     }
+
+
+def test_goals_weight_blends_the_two_models():
+    # D-068: with goals_weight the chances are the weighted average of the logistic model's
+    # and the goals model's own 1X2 from the same ratings; without it, the logistic alone.
+    rng = np.random.default_rng(42)
+    ms = []
+    for i in range(300):
+        hg, ag = int(rng.poisson(1.6)), int(rng.poisson(1.1))
+        ms.append(
+            _match(
+                i,
+                2020,
+                f"T{i % 10}",
+                f"T{(i + 3) % 10}",
+                hg,
+                ag,
+                1.2 + rng.normal(0, 0.4),
+                1.0 + rng.normal(0, 0.4),
+            )
+        )
+    scored, _ = P.walk(ms, P.Params(half_life=24, adjust=False))
+    played = [m for m in scored if m["played"]]
+    train, test = played[:250], played[250:]
+    p0 = P.Params(half_life=24, adjust=False)
+    pl = P.Model(p0).fit(train).predict(test)
+    pg = P.Model(replace(p0, goals_weight=1.0)).fit(train).predict(test)
+    pb = P.Model(replace(p0, goals_weight=0.4)).fit(train).predict(test)
+    assert np.allclose(pb, 0.6 * pl + 0.4 * pg) and np.allclose(pb.sum(1), 1)
+    assert not np.allclose(pl, pg)  # a genuine second opinion

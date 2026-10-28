@@ -31,6 +31,9 @@ PARAMS = P.Params(half_life=24.0, carry=1.0, features="xg+goals+lines", C=0.05, 
 # Chosen on the tuning seasons like everything else; applied per league only where its
 # held-out test shows a gain in most seasons.
 FORM_PARAMS = replace(PARAMS, form_half_life=2.0, features="xg+goals+lines+form")
+# Two models averaged (D-068): 0.4 on the goals model's own 1X2, chosen on the PL tuning
+# seasons; applied per league where the held-out test gains in most seasons.
+BLEND_WEIGHT = 0.4
 FIRST_TRAIN, FIRST_TEST = 2015, 2020
 # Rolling calibration (D-036) is fitted on walk-forward predictions from this season on.
 CAL_FIRST = FIRST_TRAIN + 1
@@ -70,6 +73,34 @@ def form_test(scored_base: list[dict], scored_form: list[dict], season: int) -> 
         "better_in": better,
         "of": len(seasons),
         "applied": pooled_f < pooled_b and better * 2 > len(seasons),
+    }
+
+
+def blend_test(scored: list[dict], params: P.Params, season: int) -> dict:
+    """Held-out test of averaging in the goals model's 1X2 (D-068), on top of whatever the
+    league's model is: walk-forward RPS without and with, per season, 2020-21 → now; on
+    only when better pooled and in more than half of the seasons."""
+    tests = range(FIRST_TEST, season + 1)
+    blended = replace(params, goals_weight=BLEND_WEIGHT)
+    evb = P.evaluate(scored, params, tests, FIRST_TRAIN)
+    evw = P.evaluate(scored, blended, tests, FIRST_TRAIN)
+    ws = {r["season"]: r["model"]["rps"] for r in evw["seasons"]}
+    seasons = [
+        {"season": r["season"], "rps_base": r["model"]["rps"], "rps_blend": ws[r["season"]]}
+        for r in evb["seasons"]
+        if r["season"] in ws
+    ]
+    better = sum(s["rps_blend"] < s["rps_base"] for s in seasons)
+    pooled_b, pooled_w = evb["pooled"]["model"]["rps"], evw["pooled"]["model"]["rps"]
+    return {
+        "weight": BLEND_WEIGHT,
+        "n": sum(s["model"]["n"] for s in evb["seasons"]),
+        "rps_base": pooled_b,
+        "rps_blend": pooled_w,
+        "seasons": seasons,
+        "better_in": better,
+        "of": len(seasons),
+        "applied": pooled_w < pooled_b and better * 2 > len(seasons),
     }
 
 
@@ -197,6 +228,10 @@ def main() -> None:
     ft = form_test(scored_base, scored_form, season)
     params = FORM_PARAMS if ft["applied"] else PARAMS
     scored = scored_form if ft["applied"] else scored_base
+    # Two models averaged (D-068): on only where this league's own held-out test says so.
+    bt = blend_test(scored, params, season)
+    if bt["applied"]:
+        params = replace(params, goals_weight=BLEND_WEIGHT)
     P.attach_odds(scored, range(FIRST_TRAIN, season + 1), current=season, code=league.odds_code)
 
     # 1. Backtest: walk-forward on the held-out seasons (tuning used earlier seasons only).
@@ -549,6 +584,8 @@ def main() -> None:
         "params": vars(params),
         "form_test": ft,
         "form_applied": ft["applied"],
+        "blend_test": bt,
+        "blend_applied": bt["applied"],
         "temperature": temperature,
         "calibration_test": cal_test,
         "calibration_applied": cal_on,
@@ -577,6 +614,10 @@ def main() -> None:
     print(
         f"recent form: RPS {ft['rps_base']:.4f} → {ft['rps_form']:.4f}, better in "
         f"{ft['better_in']}/{ft['of']} seasons → {'applied' if ft['applied'] else 'not applied'}"
+    )
+    print(
+        f"two models averaged: RPS {bt['rps_base']:.4f} → {bt['rps_blend']:.4f}, better in "
+        f"{bt['better_in']}/{bt['of']} seasons → {'applied' if bt['applied'] else 'not applied'}"
     )
     for f in nxt:
         pr = " / ".join(f"{_pct(x):4.1f}" for x in f["p"])
