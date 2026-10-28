@@ -205,6 +205,10 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
     # Per-player shooting from the shot map (FotMob's player stat blocks don't reliably
     # carry shots/xG): non-penalty shots, shots on target, npxG, penalties taken — and the
     # same split by the score at the time of the shot (D-053).
+    # Game state is 11 v 11 only (D-069): the clock stops at the first red card on either
+    # side, and shots after it count in the totals but in no state.
+    reds = red_card_minutes(d)
+    eleven_until = min((float(r) for r in reds if r is not None), default=math.inf)
     by_player: dict[int, dict[str, float]] = {}
     for sh in shots:
         if sh.get("isOwnGoal") or sh.get("playerId") is None:
@@ -214,7 +218,7 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
             b["penalties"] += 1
             continue
         minute = float(sh.get("min") or 0) + (sh.get("minAdded") or 0) / 100
-        st = _state(goals, minute, sh["teamId"] == home_id)
+        st = _state(goals, minute, sh["teamId"] == home_id) if minute < eleven_until else None
         xg = sh.get("expectedGoals") or 0.0
         goal = sh.get("eventType") == "Goal"
         outside = not sh.get("isFromInsideBox")
@@ -229,17 +233,17 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
         b["np_shots_blocked"] += bool(sh.get("isBlocked"))
         b["np_shots_headed"] += sh.get("shotType") == "Header"
         b["np_shot_distance_sum_m"] += dist
-        b[f"{st}_np_shots"] += 1
-        b[f"{st}_npxg_shots"] += xg
-        b[f"{st}_np_goals"] += goal
-        b[f"{st}_np_shots_outside_box"] += outside
-        b[f"{st}_np_shot_distance_sum_m"] += dist
+        if st is not None:
+            b[f"{st}_np_shots"] += 1
+            b[f"{st}_npxg_shots"] += xg
+            b[f"{st}_np_goals"] += goal
+            b[f"{st}_np_shots_outside_box"] += outside
+            b[f"{st}_np_shot_distance_sum_m"] += dist
     cards = player_cards(d)
     for pl in players:
         pl |= by_player.get(pl["player_id"], _SHOT_ZERO)
         pl.setdefault("errors_led_to_goal", 0.0)
         pl["yellow"], pl["red"] = cards.get(pl["player_id"], (0, 0))
-    reds = red_card_minutes(d)
     records = []
     for i, side in enumerate(sides):
         own, opp = team_vals[i], team_vals[1 - i]
@@ -268,7 +272,7 @@ def parse_match(d: dict) -> tuple[list[dict], list[dict]]:
         own_shots = shot_profile(shots, side["id"])
         opp_shots = shot_profile(shots, sides[1 - i]["id"])
         rec |= own_shots | {f"{k}_conceded": v for k, v in opp_shots.items()}
-        rec |= state_profile(shots, goals, side["id"], i == 0)
+        rec |= state_profile(shots, goals, side["id"], i == 0, eleven_until)
         team_players = [pl for pl in players if pl["team_id"] == side["id"]]
         for k in PLAYER_SUMS:
             vals = [pl[k] for pl in team_players if pl.get(k) is not None]
@@ -371,12 +375,15 @@ def _state(goals: list[tuple[float, bool]], minute: float, is_home: bool) -> str
     return "level" if diff == 0 else "ahead" if diff > 0 else "behind"
 
 
-def state_minutes(goals: list[tuple[float, bool]], is_home: bool) -> dict[str, float]:
-    """Minutes spent in each state on a 90-minute clock."""
+def state_minutes(
+    goals: list[tuple[float, bool]], is_home: bool, until: float = math.inf
+) -> dict[str, float]:
+    """Minutes spent in each state on a 90-minute clock, stopped at ``until`` (the first red
+    card, D-069) so the states mean 11 v 11."""
     out = dict.fromkeys(STATES, 0.0)
     prev = 0.0
     for t, _ in [*goals, (MATCH_MINUTES, None)]:
-        t = min(t, MATCH_MINUTES)
+        t = min(t, MATCH_MINUTES, until)
         if t > prev:
             out[_state(goals, prev + 1e-6, is_home)] += t - prev
             prev = t
@@ -384,12 +391,18 @@ def state_minutes(goals: list[tuple[float, bool]], is_home: bool) -> dict[str, f
 
 
 def state_profile(
-    shots: list[dict], goals: list[tuple[float, bool]], team_id: int, is_home: bool
+    shots: list[dict],
+    goals: list[tuple[float, bool]],
+    team_id: int,
+    is_home: bool,
+    until: float = math.inf,
 ) -> dict[str, float | int]:
     """Shots for and against by the score at the time of the shot (penalties and own
-    goals excluded), plus minutes in each state. Rates are derived in corridor.profile."""
+    goals excluded), plus minutes in each state, up to ``until`` (the first red card: the
+    states are 11 v 11 only, D-069; added-time shots still sit at the end of their half).
+    Rates are derived in corridor.profile."""
     out: dict[str, float | int] = {}
-    for s, mins in state_minutes(goals, is_home).items():
+    for s, mins in state_minutes(goals, is_home, until).items():
         out[f"{s}_minutes"] = round(mins, 2)
         for suffix in ("", "_conceded"):
             out[f"{s}_np_shots{suffix}"] = 0
@@ -400,6 +413,8 @@ def state_profile(
         if sh.get("isOwnGoal") or sh.get("situation") == "Penalty":
             continue
         minute = float(sh.get("min") or 0) + (sh.get("minAdded") or 0) / 100
+        if minute >= until:
+            continue
         s = _state(goals, minute, is_home)
         suffix = "" if sh["teamId"] == team_id else "_conceded"
         out[f"{s}_np_shots{suffix}"] += 1

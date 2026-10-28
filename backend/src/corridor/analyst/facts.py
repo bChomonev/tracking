@@ -352,7 +352,8 @@ def build_facts(
             "counter-attack npxG) exclude penalties and own goals. In goals_by_type, "
             "of_which_from_outside_box is a subset of the other categories.",
             "game_state splits the shot numbers by the score at the time (level, ahead, "
-            "behind). A match counts for a state only if it spent 20+ minutes in it, so the "
+            "behind), 11 v 11 only: the clock stops at a red card on either side. A match "
+            "counts for a state only if it spent 20+ minutes in it, so the "
             "'typical match' there is the median of those matches. The 'when level' numbers "
             "are the cleanest read of how the team plays: whole-match numbers are shaped by "
             "the score, these are not.",

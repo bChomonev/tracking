@@ -1028,7 +1028,7 @@ ${detailOf(m)}      </details>`;
         <thead><tr><th scope="col"><span class="full">Per 90 min in that state</span><span class="short">Per 90</span></th>${GS_STATES.map((st, i) => `<th scope="col"><span class="tip below${i === GS_STATES.length - 1 ? " end" : ""}" tabindex="0" data-tip="${esc(GS_HEAD_TIPS[st])}">${st[0].toUpperCase() + st.slice(1)}</span></th>`).join("")}</tr></thead>
         <tbody>${group("for", "For")}${group("against", "Against")}</tbody>
       </table>
-      <p class="stack-note">Shots split by the score at the time, as rates per 90 minutes in that state; a match counts for a state only with 20+ minutes in it. Whole-match numbers are shaped by the score, these are not. Chip = league rank (green top third, amber middle, red bottom). E / W = the typical match reaches the elite line / sits at the worst line. Tap a number for its detail. Not counted in the impact scores or the tiers: they explain them.</p>
+      <p class="stack-note">Shots split by the score at the time, as rates per 90 minutes in that state; a match counts for a state only with 20+ minutes in it, and the clock stops at a red card on either side (the states are 11 v 11 only). Whole-match numbers are shaped by the score, these are not. Chip = league rank (green top third, amber middle, red bottom). E / W = the typical match reaches the elite line / sits at the worst line. Tap a number for its detail. Not counted in the impact scores or the tiers: they explain them.</p>
       <div class="gs-details">${ms.map((m) => `<div hidden data-for="${m.key}">${listMetric(m)}</div>`).join("")}</div>
     </article>`;
   };

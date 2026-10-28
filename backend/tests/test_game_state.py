@@ -266,3 +266,18 @@ def test_shooting_by_state_uses_role_averages_measured_in_the_same_state():
     assert team["shots"] == 8 and team["quality_gap"] == pytest.approx(
         sum(r["by_state"]["level"]["quality_gap"] for r in sh["players"])
     )
+
+
+def test_game_state_stops_at_the_first_red_card():
+    # D-069: the states are 11 v 11 only. A red card in the 60th minute ends the clock;
+    # shots after it count in the totals (not tested here) but in no state.
+    goals = [(30.0, True)]
+    home = state_minutes(goals, is_home=True, until=60.0)
+    assert home == pytest.approx({"level": 30.0, "ahead": 30.0, "behind": 0.0})
+    shots = [_shot(1, 10, xg=0.2), _shot(1, 50, xg=0.1), _shot(1, 75, xg=0.5), _shot(2, 80, xg=0.4)]
+    p = state_profile(shots, goals, team_id=1, is_home=True, until=60.0)
+    assert p["level_minutes"] == 30 and p["ahead_minutes"] == 30
+    assert (
+        p["level_np_shots"] == 1 and p["ahead_np_shots"] == 1 and p["ahead_np_shots_conceded"] == 0
+    )
+    assert p["ahead_npxg"] == pytest.approx(0.1)  # the 75th-minute shot is in no state

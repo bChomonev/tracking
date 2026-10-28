@@ -8,6 +8,25 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-069 — Game state is 11 v 11 only: the clock stops at a red card · 2026-10-28 · accepted
+D-051 said "red cards are ignored for now". The when-level / ahead / behind numbers are
+meant to say how a team plays in each score state, and a side playing against ten men (or
+with ten) is in a different game. Now the state clock stops at the first red card on either
+side (`fotmob.state_minutes` / `state_profile`, ``until``; the players' per-state shot
+splits likewise), so minutes and shots after it count in the whole-match totals but in no
+state. A match that had fewer than 20 minutes in a state before the card drops out of that
+state by the existing rule. Added-time shots still sit at the end of their half (the first
+cut used the 90-minute clock as the cutoff and silently dropped every stoppage-time shot
+from the states — caught by diffing the rebuilt rows: 114 team-matches had changed with no
+red card in them).
+
+Scale: 26 of 160 PL team-matches this season have a red card on one side. Rebuilt all
+processed seasons (2024-25 → now, four leagues and the Champions League). United's rows
+move a little: when behind, npxG conceded per 90 1.10 → 0.49 (a ten-men match leaves the
+state), shots per 90 25.6 → 27.7; most ranks move by one place or not at all. The lines,
+impact tests and the D-051 trait numbers were not re-derived: the change is small and
+their method is unchanged. The page and the fact sheet say the states are 11 v 11 only.
+
 ## D-068 — Two models averaged: the goals model's own 1X2 blended in · 2026-10-28 · accepted
 D-027 left the question open: for win/draw/loss the logistic model won the tuning seasons
 and the unshrunk goals model won the held-out ones, and switching on held-out evidence would
