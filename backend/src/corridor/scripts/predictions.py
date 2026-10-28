@@ -77,12 +77,8 @@ def _label(y: int) -> str:
     return f"{y}-{(y + 1) % 100:02d}"
 
 
-def team_news_test(
-    league, scored: list[dict], season: int, published: dict[str, np.ndarray]
-) -> dict | None:
-    """Out-of-sample test of the frozen team-news weight (fitted on the Premier League,
-    D-026) on another league's own matches: RPS with and without the adjustment, applied
-    to the walk-forward predictions as published (``published``: match id → chances)."""
+def absence_seasons(league, season: int) -> list[tuple[int, list[dict], list[dict]]]:
+    """The last three seasons' processed rows, chronological, for corridor.absences."""
     seasons = []
     for s in range(season - 2, season + 1):
         d = processed_dir(s, league)
@@ -94,14 +90,17 @@ def team_news_test(
                     json.loads((d / "player_matches.json").read_text()),
                 )
             )
-    if len(seasons) < 2:
-        return None
-    absn = AB.history(seasons)
-    base_p = published
-    rows = []
+    return seasons
+
+
+def absences_by_match(league, scored: list[dict], seasons: list, absn: dict) -> dict[str, dict]:
+    """Understat match id → that match's absences / line-ups entry (joined by the FotMob
+    fixture list: team names and date)."""
+    out = {}
+    idx = {(a["home_team"], a["away_team"], a["kickoff"][:10]): a for a in absn.values()}
     for s, *_ in seasons:
         fm = fotmob.league_matches(f"{s}/{s + 1}", league.fotmob_id)
-        us = [m for m in scored if m["season"] == s and m["played"]]
+        us = [m for m in scored if m["season"] == s]
         nm = _name_map(
             fm,
             [
@@ -109,22 +108,48 @@ def team_news_test(
                 for m in us
             ],
         )
-        idx = {(a["home_team"], a["away_team"], a["kickoff"][:10]): a for a in absn.values()}
         for m in us:
             a = idx.get((nm.get(m["home"]), nm.get(m["away"]), m["kickoff"][:10]))
-            if a and m["id"] in base_p:
-                rows.append((m, a))
+            if a:
+                out[m["id"]] = a
+    return out
+
+
+def team_news_test(
+    league,
+    scored: list[dict],
+    seasons: list,
+    by_id: dict[str, dict],
+    published: dict[str, np.ndarray],
+    measure: str = "minutes",
+    k: float = AB.K_MINUTES,
+    big_gap: float = 0.12,
+) -> dict | None:
+    """Out-of-sample test of a frozen weight (fitted on the Premier League: team news D-026,
+    official line-ups D-065) on another league's own matches: RPS with and without the
+    adjustment, applied to the walk-forward predictions as published (``published``:
+    match id → chances). ``measure`` is the per-side share in the absences entry."""
+    if len(seasons) < 2:
+        return None
+    rows = [
+        (m, by_id[m["id"]])
+        for m in scored
+        if m["played"]
+        and m["id"] in published
+        and m["id"] in by_id
+        and all(measure in by_id[m["id"]][side] for side in ("home", "away"))
+    ]
     if not rows:
         return None
-    base = [P.rps(base_p[m["id"]], m["result"]) for m, _ in rows]
+    base = [P.rps(published[m["id"]], m["result"]) for m, _ in rows]
     adj_p = [
-        AB.adjust(base_p[m["id"]], a["home"]["minutes"], a["away"]["minutes"]) for m, a in rows
+        AB.adjust(published[m["id"]], a["home"][measure], a["away"][measure], k) for m, a in rows
     ]
     adj = [P.rps(p, m["result"]) for p, (m, _) in zip(adj_p, rows, strict=True)]
     big = [
         (m, a, p)
         for (m, a), p in zip(rows, adj_p, strict=True)
-        if a["home"]["minutes"] - a["away"]["minutes"] >= 0.12
+        if a["home"][measure] - a["away"][measure] >= big_gap
     ]
     label = f"{_label(seasons[0][0])} to {_label(seasons[-1][0])}"
     return {
@@ -134,14 +159,14 @@ def team_news_test(
                 "fit_on": "Premier League (frozen, not refitted)",
                 "tested_on": f"{league.name} {label}",
                 "n": len(rows),
-                "k": AB.K_MINUTES,
+                "k": k,
                 "rps_base": float(np.mean(base)),
                 "rps_adjusted": float(np.mean(adj)),
             }
         ],
         "big_gap": {
             "n": len(big),
-            "base_home_win": float(np.mean([base_p[m["id"]][0] for m, _, _ in big]))
+            "base_home_win": float(np.mean([published[m["id"]][0] for m, _, _ in big]))
             if big
             else None,
             "adjusted_home_win": float(np.mean([p[0] for _, _, p in big])) if big else None,
@@ -290,10 +315,35 @@ def main() -> None:
         return json.loads(p.read_text()) if p.exists() else []
 
     contrib = AB.current_contributions(_players(season - 1), _players(season))
+    # Past matches' team news and official line-ups (cached pages), joined to our matches.
+    ab_seasons = absence_seasons(league, season)
+    ab_by_id = absences_by_match(league, scored, ab_seasons, AB.history(ab_seasons))
     # The adjustment is applied only where its own out-of-sample test shows a gain (D-031):
     # England's two cross-season tests did; Spain's clean test with the frozen weight didn't.
-    tn_test = AB.TEST if league.key == "pl" else team_news_test(league, scored, season, published)
+    tn_test = (
+        AB.TEST
+        if league.key == "pl"
+        else team_news_test(league, scored, ab_seasons, ab_by_id, published)
+    )
     tn_on = bool(tn_test) and all(f["rps_adjusted"] < f["rps_base"] for f in tn_test["fits"])
+    # Official line-ups (D-065), same rule. Today it fails in every league (in the PL one of
+    # the two folds loses; elsewhere sides missing regulars still win), so it is measured and
+    # logged, not applied; the rule stays so the record can switch it on.
+    lu_test = (
+        AB.LINEUP_TEST
+        if league.key == "pl"
+        else team_news_test(
+            league,
+            scored,
+            ab_seasons,
+            ab_by_id,
+            published,
+            measure="regulars_missing",
+            k=AB.K_LINEUP,
+            big_gap=0.27,
+        )
+    )
+    lu_on = bool(lu_test) and all(f["rps_adjusted"] < f["rps_base"] for f in lu_test["fits"])
     fm_open = {
         (m["home"]["name"], m["away"]["name"]): m for m in fm_fix if not m["status"].get("finished")
     }
@@ -319,6 +369,25 @@ def main() -> None:
         if tn_on:
             f["p"] = [round(x, 4) for x in adj]
             pmap[f["id"]] = np.array(f["p"])
+        # Once the official XI is out, it replaces team news: who is missing is now known,
+        # not expected. Rarely in time for the day-before run; the log scores it after.
+        xi = AB.lineups(details)
+        rm = (
+            {side: contrib.regulars_missing(f[side], xi[side]) for side in ("home", "away")}
+            if xi
+            else {}
+        )
+        if rm and None not in rm.values():
+            with_xi = AB.adjust(f["p_base"], rm["home"], rm["away"], AB.K_LINEUP)
+            f["lineups"] = {
+                "home": {"regulars_missing": round(rm["home"], 3)},
+                "away": {"regulars_missing": round(rm["away"], 3)},
+                "p_with": [round(x, 4) for x in with_xi],
+                "applied": lu_on,
+            }
+            if lu_on:
+                f["p"] = [round(x, 4) for x in with_xi]
+                pmap[f["id"]] = np.array(f["p"])
     if upcoming:
         probs = np.array([pmap[m["id"]] for m in upcoming])
 
@@ -391,6 +460,27 @@ def main() -> None:
             for book in ("avg", "closing"):
                 if book in m.get("odds", {}):
                     e[f"{book}_rps"] = P.rps(m["odds"][book], m["result"])
+    # With the official line-ups (D-065): the pre-kickoff chances shifted by the share of
+    # each side's usual XI that did not start, from the cached match page. Filled in for
+    # every scored prediction that lacks it (the page may be cached after the scoring run).
+    for fid, e in log.items():
+        if "result" in e and "rps_with_xi" not in e and (m := by_id.get(fid)):
+            a = ab_by_id.get(fid)
+            if a and all("regulars_missing" in a[side] for side in ("home", "away")):
+                e["p_with_xi"] = [
+                    round(x, 4)
+                    for x in AB.adjust(
+                        e.get("p_base", e["p"]),
+                        a["home"]["regulars_missing"],
+                        a["away"]["regulars_missing"],
+                        AB.K_LINEUP,
+                    )
+                ]
+                e["rps_with_xi"] = P.rps(e["p_with_xi"], m["result"])
+                e["regulars_missing"] = [
+                    a["home"]["regulars_missing"],
+                    a["away"]["regulars_missing"],
+                ]
     log_path.write_text(json.dumps(log, indent=1))
     done = [e for e in log.values() if "result" in e]
 
@@ -418,6 +508,12 @@ def main() -> None:
         if any("rps_noform" in e for e in done)
         else None,
         "n_noform": sum("rps_noform" in e for e in done),
+        # With the official line-ups, had we known them (D-065): scored after the match from
+        # the pre-kickoff chances (before team news) and the XI on the cached page.
+        "rps_with_xi": float(np.mean([e["rps_with_xi"] for e in done if "rps_with_xi" in e]))
+        if any("rps_with_xi" in e for e in done)
+        else None,
+        "n_with_xi": sum("rps_with_xi" in e for e in done),
         "avg_rps": float(np.mean([e["avg_rps"] for e in done if "avg_rps" in e]))
         if any("avg_rps" in e for e in done)
         else None,
@@ -449,6 +545,8 @@ def main() -> None:
         "backtest_goals": ev_goals,
         "team_news_test": tn_test,
         "team_news_applied": tn_on,
+        "lineup_test": lu_test,
+        "lineups_applied": lu_on,
         "record": record,
         "mistakes": mistakes,
         "trained_on": len(train),

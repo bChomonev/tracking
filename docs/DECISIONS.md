@@ -8,6 +8,49 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-065 — Official line-ups: measured in the record, not yet in the odds · 2026-10-28 · accepted (watch)
+The bookmakers' edge over the model is mostly who actually plays. The laptop is not on
+before every kickoff, so line-ups cannot be published reliably — but their value can be
+measured honestly after the fact: the FotMob page keeps the official XI, and shifting the
+*pre-kickoff* chances by it uses nothing from the match. `absences.lineups` reads the official
+XI (``lineupType == "standard"``, 11 starters a side); the measure is each side's
+**share of its usual XI not starting** — the 11 players with the most earlier minutes (last
+season at half weight) among those seen in one of its squads this season, and only once the
+team has played 3 matches this season (`Contributions.regulars`, `MIN_TEAM_MATCHES`). The
+shift is the D-026 one (`adjust`, k = `K_LINEUP` = 0.9).
+
+**What was tried first, and why it was wrong.** Minutes not in the XI, minutes not in the
+squad, the XI's market value against the team's usual (FotMob gives it; k fitted to 0 — no
+information), and the usual XI from *all* earlier minutes. That last one looked best (PL folds
+−0.0021 / −0.0034, k 1.1 / 0.9) until this season's log showed Spurs "missing" 8 of 11
+regulars every week: players sold in the summer were still in the usual XI, and promoted sides
+(no last season in the data) looked fully present. Squad churn is a different signal from
+line-ups, worth its own test some day; it was removed from this one.
+
+**Result with the clean measure** (D-026 protocol: k fitted on one season on a 0–8 grid,
+tested on the other two; PL 750 matches, 2024-25 → now). Fit on 2024-25: k = 1.2, test
+0.2086 → 0.2091 (+0.0005). Fit on 2025-26: k = 0.6, test 0.2078 → 0.2046 (−0.0031). By season
+at k = 1: 2024-25 −0.0047, 2025-26 −0.0004, this season's 50 +0.0022. Big gap (home side
+missing 3+ regulars more than the away side, 73 matches): we said 44%, with line-ups 34%, it
+won 32%. So: a clear gain in one season, none in the other, and one fold loses — **it fails the
+D-031 bar today**, so it is **not applied** anywhere. Other leagues, PL-frozen weight: La Liga
+0.1954 → 0.1965, Serie A 0.1912 → 0.1920, Bundesliga 0.1986 → 0.1992, all worse; home sides
+missing 3+ regulars still won 50% in Spain and 42% in Germany against 32% in England.
+Rotation is not weakness everywhere. The unavailable-list team news (D-026) stays as it is.
+
+**What is built.** Every scored prediction gets `p_with_xi` / `rps_with_xi` (filled in by the
+post-match job from the cached page, for earlier entries too), the record carries
+`rps_with_xi` / `n_with_xi`, and the round summary and whole-season line say "with the
+official line-ups, had we known them, X on the N with one". `predictions.json` carries
+`lineup_test` (frozen for the PL, computed for the other leagues by the generalised
+`team_news_test`) and `lineups_applied`; the "What was tested" page has an Official line-ups
+card. When the official XI *is* out at prediction time, the fixture card says who is missing
+how many of their usual XI and that it is not used; the switch (`lu_on`, same rule as team
+news, replacing team news rather than stacking on it) is in place for when the record and a
+third season earn it. **Revisit at the end of 2026-27.** Also found: stacking line-ups on team
+news was 0.0003–0.0007 better than line-ups alone in the two full seasons and worse this
+season — not adopted, it double-counts the same absences.
+
 ## D-064 — Absences weighted by player quality: no better than minutes share · 2026-10-28 · accepted (not adopted)
 The idea: losing a top player and losing a rotation player count the same in D-026 if their
 minutes match, so weight each absent player's minutes by his quality. D-026 had already found

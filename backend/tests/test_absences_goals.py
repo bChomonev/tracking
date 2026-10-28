@@ -84,3 +84,46 @@ def test_reconciled_scorelines_sum_exactly_to_the_prediction():
     p = [0.4668, 0.2647, 0.2685]
     mk = P.markets(P.reconcile(g.matrix(*P.align(g, 1.7, 1.3, p)), p))
     assert np.allclose(mk["p"], p, atol=1e-9)
+
+
+def test_usual_xi_excludes_players_who_left_and_waits_for_three_matches():
+    # D-065: last season's regulars count at half weight, but only players seen in a squad
+    # this season can be in the usual XI, and the measure waits for three team matches.
+    C = AB.Contributions()
+    for pid in range(1, 15):  # last season: 1-11 played a lot, 12-14 a little
+        C.add(
+            {"team": "T", "player_id": pid, "minutes": 2000 if pid <= 11 else 300, "match_id": 0},
+            0.5,
+        )
+    assert C.regulars("T") == [] and C.regulars_missing("T", set(range(1, 12))) is None
+    # This season: player 1 has left; 12 plays every match; three matches.
+    for mid in (101, 102, 103):
+        for pid in range(2, 15):
+            C.add(
+                {"team": "T", "player_id": pid, "minutes": 90 if pid != 14 else 0, "match_id": mid}
+            )
+    reg = C.regulars("T")
+    assert 1 not in reg and len(reg) == 11 and set(reg) == set(range(2, 13))
+    # The whole usual XI starts → 0; three of them on the bench → 3/11.
+    assert C.regulars_missing("T", set(range(2, 13))) == 0.0
+    assert abs(C.regulars_missing("T", set(range(5, 13)) | {13, 14, 1}) - 3 / 11) < 1e-9
+
+
+def test_lineups_only_when_official_and_complete():
+    starters = [{"id": i} for i in range(11)]
+    d = {
+        "content": {
+            "lineup": {
+                "lineupType": "standard",
+                "homeTeam": {"starters": starters},
+                "awayTeam": {"starters": [{"id": 100 + i} for i in range(11)]},
+            }
+        }
+    }
+    xi = AB.lineups(d)
+    assert xi["home"] == set(range(11)) and xi["away"] == set(range(100, 111))
+    d["content"]["lineup"]["lineupType"] = "predicted"
+    assert AB.lineups(d) is None
+    d["content"]["lineup"]["lineupType"] = "standard"
+    d["content"]["lineup"]["awayTeam"]["starters"] = starters[:10]
+    assert AB.lineups(d) is None

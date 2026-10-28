@@ -8,6 +8,12 @@ upcoming ones the same list is the team news.
 A player's weight is his share of the team's chance creation (non-penalty xG from the
 shot map + expected assists) and of its minutes, counted over the team's earlier matches
 this season plus last season at half weight — only matches before the one in question.
+
+Official line-ups (D-065) are the stronger signal once they are out (about an hour before
+kickoff): the share of a side's usual XI — the 11 players with the most earlier minutes —
+that is not starting. The post-match job scores every prediction with that number too, so
+the record says what the line-ups would have been worth even when they were not out when
+the prediction was made.
 """
 
 import math
@@ -35,18 +41,61 @@ def unavailable(details: dict) -> dict[str, list[dict]]:
     return out
 
 
+def lineups(details: dict) -> dict[str, set[int]] | None:
+    """{'home': {starter ids}, 'away': {...}} from a FotMob match page, only when the
+    line-up is official (``lineupType == "standard"``); None before that."""
+    lu = (details.get("content") or {}).get("lineup") or {}
+    if lu.get("lineupType") != "standard":
+        return None
+    out = {}
+    for key, side in (("homeTeam", "home"), ("awayTeam", "away")):
+        starters = (lu.get(key) or {}).get("starters") or []
+        if len(starters) != 11:
+            return None
+        out[side] = {x["id"] for x in starters}
+    return out
+
+
 class Contributions:
     """Running per-team, per-player totals of output (npxG + xA) and minutes."""
 
     def __init__(self) -> None:
         self.player: dict[tuple[str, int], list[float]] = defaultdict(lambda: [0.0, 0.0])
         self.team: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0])
+        # This season only: who has been in a squad, and how many matches the team has had.
+        self.seen: dict[str, set[int]] = defaultdict(set)
+        self.matches: dict[str, set[int]] = defaultdict(set)
 
     def add(self, p: dict, weight: float = 1.0) -> None:
+        if weight == 1.0:
+            self.seen[p["team"]].add(p["player_id"])
+            if "match_id" in p:
+                self.matches[p["team"]].add(p["match_id"])
         out = (p.get("npxg_shots") or 0.0) + (p.get("xa") or 0.0)
         for acc in (self.player[(p["team"], p["player_id"])], self.team[p["team"]]):
             acc[0] += weight * out
             acc[1] += weight * p["minutes"]
+
+    def regulars(self, team: str, n: int = 11) -> list[int]:
+        """The team's usual XI: its ``n`` players with the most earlier minutes (last season
+        at half weight) among those who have been in one of its squads this season — so a
+        player who left in the summer is not "missing" every week. Empty until the team has
+        played ``MIN_TEAM_MATCHES`` this season."""
+        if len(self.matches.get(team, ())) < MIN_TEAM_MATCHES:
+            return []
+        seen = self.seen.get(team, set())
+        mine = [
+            (k[1], v[1])
+            for k, v in self.player.items()
+            if k[0] == team and v[1] > 0 and k[1] in seen
+        ]
+        return [pid for pid, _ in sorted(mine, key=lambda kv: -kv[1])[:n]]
+
+    def regulars_missing(self, team: str, xi: set[int]) -> float | None:
+        """Share of the usual XI not in the starting line-up (D-065): 3 of 11 → 0.27. None
+        when the usual XI is not yet known."""
+        reg = self.regulars(team)
+        return sum(1 for pid in reg if pid not in xi) / len(reg) if reg else None
 
     def missing(self, team: str, ids: list[int]) -> dict[str, float]:
         t_out, t_min = self.team.get(team, (0.0, 0.0))
@@ -78,15 +127,23 @@ def history(seasons: list[tuple[int, list[dict], list[dict]]]) -> dict[int, dict
         for mid in sorted(matches, key=lambda k: matches[k]["kickoff"]):
             m = matches[mid]
             try:
-                un = unavailable(fotmob.match_details(mid))  # cached page
+                details = fotmob.match_details(mid)  # cached page
+                un = unavailable(details)
             except Exception:  # noqa: BLE001 — a missing page just means no data
-                un = None
+                details, un = None, None
             if un is not None and "home_team" in m and "away_team" in m:
                 out[mid] = m | {
                     side: C.missing(m[f"{side}_team"], [u["id"] for u in un[side]])
                     | {"n": len(un[side])}
                     for side in ("home", "away")
                 }
+                # Official line-ups (D-065): the share of each side's usual XI not starting.
+                xi = lineups(details) if details is not None else None
+                if xi:
+                    for side in ("home", "away"):
+                        rm = C.regulars_missing(m[f"{side}_team"], xi[side])
+                        if rm is not None:
+                            out[mid][side]["regulars_missing"] = rm
             for p in by_match.get(mid, []):
                 C.add(p)
         prev_players = players
@@ -117,6 +174,37 @@ TEST = {
         },
     ],
     "big_gap": {"n": 30, "base_home_win": 0.38, "adjusted_home_win": 0.30, "actual_home_win": 0.20},
+}
+
+
+# Official line-ups (D-065): the share of the usual XI not starting. Measured, not applied:
+# fitted on the PL the weight was 1.2 on 2024-25 and 0.6 on 2025-26, and one of the two
+# cross-season folds lost, so it fails the D-031 bar for now. The post-match job scores every
+# prediction with it anyway ("with the official line-ups, had we known them"); revisit at the
+# end of 2026-27 with three seasons.
+MIN_TEAM_MATCHES = 3
+K_LINEUP = 0.9  # the mean of the two fits, used for the logged measurement
+LINEUP_TEST = {
+    "matches": 750,
+    "fits": [
+        {
+            "fit_on": "2024-25",
+            "tested_on": "2025-26 + 2026-27",
+            "n": 400,
+            "k": 1.2,
+            "rps_base": 0.2086,
+            "rps_adjusted": 0.2091,
+        },
+        {
+            "fit_on": "2025-26",
+            "tested_on": "2024-25 + 2026-27",
+            "n": 400,
+            "k": 0.6,
+            "rps_base": 0.2078,
+            "rps_adjusted": 0.2046,
+        },
+    ],
+    "big_gap": {"n": 73, "base_home_win": 0.44, "adjusted_home_win": 0.34, "actual_home_win": 0.32},
 }
 
 
