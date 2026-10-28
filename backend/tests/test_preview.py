@@ -125,3 +125,18 @@ def test_opponent_factor_remembers_last_season_at_half_weight():
     # 1 match now + 10 last season at half weight (5) + 3 average: (1*1 + 5*0.5 + 3)/9
     assert abs(f["A"][0] - (1 + 5 * 0.5 + 3) / 9) < 1e-9
     assert opponent_factors(now, prev_rows=last, prev_weight=0)["A"][0] == 1.0
+
+
+def test_shooter_form_is_off_by_default_and_mixes_recent_matches_when_on(monkeypatch):
+    # D-063: tested, not adopted. The switch stays so the test can be re-run.
+    roles = {"ST": {"shots90": 3.0, "npxg90": 0.4, "xa90": 0.1, "yellow90": 0.1, "accuracy": 0.35}}
+    R = V.PlayerRates(roles)
+    for _ in range(20):  # a steady 2 shots a match, then five blanks
+        R.add({"player_id": 1, "np_shots": 2, "npxg_shots": 0.2, "minutes": 90.0, "started": True})
+    for _ in range(5):
+        R.add({"player_id": 1, "np_shots": 0, "npxg_shots": 0.0, "minutes": 90.0, "started": True})
+    season, _ = R.rate(1, "ST")
+    assert len(R.recent[1]) == V.FORM_MATCHES == 5
+    monkeypatch.setattr(V, "FORM_WEIGHT", 0.5)
+    mixed, _ = R.rate(1, "ST")
+    assert mixed < season  # the blanks pull the rate down only when form is switched on

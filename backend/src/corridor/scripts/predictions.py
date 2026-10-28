@@ -40,7 +40,7 @@ FEATURE_WORDS = {
     "goal_diff": "goal difference",
     "elite_diff": "elite lines reached",
     "danger_diff": "worst lines hit",
-    "form_diff": "recent form",
+    "form_diff": "recent form (the model's short window)",
     "form_goal_diff": "recent results",
 }
 
@@ -254,6 +254,16 @@ def main() -> None:
                 for side, s in (("home", "h"), ("away", "a"))
             }
             out["form"]["push"] = round(contrib.get("form_diff", 0.0), 3)
+            # The same push in percentage points: this fixture's chances with the form
+            # feature at its training average, against with its actual value (same
+            # temperature as the published chances, before team news).
+            i = model.feats.index("form_diff")
+            m0 = m | {"x": x | {"form_diff": float(model.mu[i])}}
+            p1, p0 = P.temper(model.predict([m, m0]), temperature)
+            out["form"]["points"] = {
+                k: round(100 * float(a - b), 1)
+                for k, a, b in zip(("home", "draw", "away"), p1, p0, strict=True)
+            }
         return out
 
     # FotMob's matchday numbers decide what "the next round" is (leftover Monday games and

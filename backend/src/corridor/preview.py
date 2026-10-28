@@ -33,6 +33,10 @@ LAST_SEASON_WEIGHT = 0.5
 # Opponent shots / npxG conceded: last season counts half (D-042: 15 of 16 checks better
 # across four leagues; making the factor count more lost everywhere).
 OPP_PREV_WEIGHT = 0.5
+# Shooter form (task 3 of the trend work): mix the player's rate over his last FORM_MATCHES
+# appearances into his season rate at FORM_WEIGHT. 0 = off (D-063: tested, not adopted).
+FORM_MATCHES = 5
+FORM_WEIGHT = 0.0
 
 
 # ---------------------------------------------------------------------------- corners
@@ -223,6 +227,7 @@ class PlayerRates:
         self.acc: dict[int, list[float]] = defaultdict(lambda: [0.0] * 5)
         self.starts: dict[int, list[float]] = defaultdict(list)
         self.on_target: dict[int, float] = defaultdict(float)
+        self.recent: dict[int, list[tuple[float, float, float]]] = defaultdict(list)
 
     def add(self, p: dict, weight: float = 1.0) -> None:
         a = self.acc[p["player_id"]]
@@ -234,15 +239,27 @@ class PlayerRates:
         self.on_target[p["player_id"]] += weight * p.get("np_shots_on_target", 0)
         if p["started"] and weight == 1.0:
             self.starts[p["player_id"]].append(p["minutes"])
+        if weight == 1.0 and p["minutes"] > 0:
+            r = self.recent[p["player_id"]]
+            r.append((p["np_shots"], p["npxg_shots"], p["minutes"]))
+            del r[:-FORM_MATCHES]
 
     def rate(self, pid: int, role: str | None) -> tuple[float, float]:
         prior = self.roles.get(role or "UNK") or {"shots90": 1.0, "npxg90": 0.1}
         s, x, m, *_ = self.acc.get(pid, (0.0, 0.0, 0.0, 0.0, 0.0))
         k = SHRINK_MIN
-        return (
-            90 * (s + prior["shots90"] * k / 90) / (m + k),
-            90 * (x + prior["npxg90"] * k / 90) / (m + k),
-        )
+        s90 = 90 * (s + prior["shots90"] * k / 90) / (m + k)
+        x90 = 90 * (x + prior["npxg90"] * k / 90) / (m + k)
+        if FORM_WEIGHT and (rec := self.recent.get(pid)):
+            # Recent form: the same shrunk rate over his last few appearances only.
+            rs, rx, rm = (sum(v[i] for v in rec) for i in range(3))
+            s90 = (1 - FORM_WEIGHT) * s90 + FORM_WEIGHT * 90 * (rs + prior["shots90"] * k / 90) / (
+                rm + k
+            )
+            x90 = (1 - FORM_WEIGHT) * x90 + FORM_WEIGHT * 90 * (rx + prior["npxg90"] * k / 90) / (
+                rm + k
+            )
+        return s90, x90
 
     def extra(self, pid: int, role: str | None) -> tuple[float, float]:
         """(xA per 90, yellow cards per 90), shrunk towards the role average. Bookings are

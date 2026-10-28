@@ -1209,17 +1209,23 @@ ${detailOf(m)}      </details>`;
     if (f.absence.applied === false) return `<p class="fx-why">Team news: ${side("home")}; ${side("away")}. Not used in the ${esc(LN)} odds — tested on past ${esc(LN)} matches, it didn't improve them.</p>`;
     return `<p class="fx-why">Team news: ${side("home")}; ${side("away")}.${moved ? ` That moved it from ${pc(bh)} / ${pc(1 - bh - ba)} / ${pc(ba)}.` : " Little effect on the odds."}</p>`;
   };
-  // Recent form in the model (D-061): each side's chance quality over its last few matches
-  // against its usual level, shown only where the form feature is applied in this league.
+  // Recent form in the model (D-061, D-063): each side's chance quality over its last few
+  // matches against its usual level, shown only where the form feature is applied in this
+  // league. Said as the model's short window, because the team pages' "recent form" (last
+  // 5 matches against the earlier ones this season) is a different comparison.
   const formLine = (f) => {
     const F = f.form;
     if (!F) return "";
+    const pts = F.points ? Object.entries(F.points).reduce((a, b) => Math.abs(b[1]) > Math.abs(a[1]) ? b : a) : null;
+    const who = (k) => k === "home" ? short(f.home) : k === "away" ? short(f.away) : "the draw";
+    const effect = !pts ? (Math.abs(F.push) >= 0.05 ? ` It nudges the odds towards ${esc(short(F.push > 0 ? f.home : f.away))}.` : " Little effect on the odds.")
+      : Math.abs(pts[1]) < 1 ? " It moves the chances by less than a point." : ` It moves the chances by about <span class="num">${pts[1] > 0 ? "+" : "−"}${Math.abs(pts[1]).toFixed(0)}</span> points for ${esc(who(pts[0]))}.`;
     const side = (t, s) => {
       const dFor = s.xg_for - s.usual_for, dAg = s.xg_against - s.usual_against;
       const w = (d) => Math.abs(d) < 0.15 ? "about as usual" : `<span class="num">${Math.abs(d).toFixed(2)}</span> ${d > 0 ? "more" : "fewer"} than usual`;
       return `${esc(short(t))}: creating <span class="num">${s.xg_for.toFixed(2)}</span> a match lately, ${w(dFor)}; conceding <span class="num">${s.xg_against.toFixed(2)}</span>, ${w(dAg)}`;
     };
-    return `<p class="fx-why">Recent form (last few matches, opponent-adjusted, against each side's usual level): ${side(f.home, F.home)}. ${side(f.away, F.away)}.${Math.abs(F.push) >= 0.05 ? ` It nudges the odds towards ${esc(short(F.push > 0 ? f.home : f.away))}.` : " Little effect on the odds."}</p>`;
+    return `<p class="fx-why">Form in the model's short window (the last two or three matches count most, opponent-adjusted, against each side's usual level): ${side(f.home, F.home)}. ${side(f.away, F.away)}.${effect} <span class="tip below" tabindex="0" data-tip="The team pages compare the last 5 league matches with the earlier ones this season; the model weighs the last two or three matches most against a level built over about 24 matches. The two can point different ways, and both are small effects: in the backtest the form feature improves the predictions' score by well under half a percent.">Not the same as the team page's recent form.</span></p>`;
   };
   const fixtureCard = (f) => {
     const [h, d, a] = f.p, lab = (x) => (x >= 0.12 ? Math.round(100 * x) + "%" : "");

@@ -170,3 +170,22 @@ def test_calibration_never_uses_its_own_season():
     assert cal[2017][3] == 1.0  # nothing earlier to fit on
     assert cal[2018][3] == P.fit_temperature(wf[2017][1], ["H"] * 80 + ["D"] * 10 + ["A"] * 10)
     assert P.temperature_for(wf, 2019, 2017) > cal[2018][3]  # 2018's misses now count
+
+
+def test_window_form_is_the_mean_of_the_last_n_matches_minus_level():
+    # The page's measure as a model feature (D-063, tested and not chosen): with a 3-match
+    # window the form twin is the plain mean of the last three adjusted matches.
+    ms = [_match(i, 2020, "S", "W", 3, 0, 2.5, 0.4) for i in range(10)]
+    ms += [_match(10 + i, 2020, "S", "W", 0, 1, 0.6, 1.4) for i in range(3)]
+    ms.append(_match(13, 2020, "S", "W", 5, 0, 4.0, 0.1))
+    p = P.Params(half_life=24, adjust=False, form_window=3, features="xg+goals+lines+form")
+    scored, R = P.walk(ms, p)
+    assert isinstance(R.form, P.WindowRatings) and R.form.window == 3
+    x = [m for m in scored if m["id"] == "13"][0]["x"]
+    # S's last three: 0.6 npxG for, 1.4 against; W's: 1.4 for, 0.6 against.
+    assert abs(x["h_form_npxg"] - 0.6) < 1e-9 and abs(x["h_form_npxga"] - 1.4) < 1e-9
+    assert x["form_diff"] < -1.0 and x["xg_diff"] > 1.0
+    # form_window takes precedence over form_half_life.
+    both = P.Params(half_life=24, adjust=False, form_window=3, form_half_life=2)
+    _, R2 = P.walk(ms, both)
+    assert isinstance(R2.form, P.WindowRatings)

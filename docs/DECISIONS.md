@@ -8,6 +8,48 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-063 — Trends in the prediction: the page's form loses to the EWMA; shooter form never helps · 2026-10-28 · accepted
+Task 3 of three. Two tests, two "no", and one fix on the fixture card.
+
+**Why test at all.** After D-061/D-062 the site carried two "recent forms": the team page's
+(the last 5 league matches against the earlier ones this season, opponent-adjusted by season
+medians) and the model's (a 2-match-half-life EWMA of the same ratings against a 24-match
+level). In the round of 31 Oct they pointed different ways in 4 of 10 fixtures — the team
+page said Chelsea were trending down while the fixture card said recent form favoured
+Chelsea (because United's form-minus-level was worse still). If the page's own measure also
+predicted, one number could serve both.
+
+**A. The page's measure as the 1X2 feature** (`predict.WindowRatings`, `Params.form_window`:
+the form twin is the plain mean of each team's last N opponent-adjusted matches, running
+across the season boundary; the feature is still "recent minus level"). D-023 protocol:
+chosen on the PL tuning seasons 2016-17…2019-20, held out 2020-21…now, every league on its
+own matches, against no form and against the EWMA. Tuning seasons: N = 3 was the best of
+anything tried (−0.00021 RPS against −0.00003 for the EWMA; N = 4 −0.00008, N = 5/8 worse
+than no form), so N = 3 is the protocol's pick. Held out it loses to the EWMA wherever form
+is applied: PL −0.00064 (better in 4/7 seasons) against −0.00077 (5/7); Serie A −0.00003
+(4/7) against −0.00037 (5/7); Bundesliga −0.00065 (5/7) against −0.00082 (7/7); La Liga both
+worse than no form (+0.00013 / +0.00011), off as before. **Kept: the EWMA.** The window twin
+stays in the code (tested, switched off) so the test can be re-run.
+
+**B. Shooter form in the shooter model** (`preview.FORM_MATCHES` / `FORM_WEIGHT`: the
+player's shrunk rate over his last 5 appearances mixed into his season rate). D-024/D-042
+protocol: walk-forward Brier on every start in 2025-26 and 2026-27, four checks (1+ shots,
+2+ shots, on target, goal), chosen on the PL, checked on the other leagues. At weight 0.25:
+PL 4 of 8 checks better, all within ±0.00014; La Liga 1/8, Serie A 0/8, Bundesliga 1/8, each
+by +0.0001 to +0.0008 worse. At 0.5 worse in 31 of 32 checks; last 3 or last 8 matches no
+better. **Not adopted** (weight stays 0), which is what D-062's lag-1 r = −0.02 predicted:
+a shooter's last few matches say less about his next one than his season rate does.
+
+**The fix is on the card, not in the model.** The fixture card now says "form in the model's
+short window (the last two or three matches count most)", shows the effect in percentage
+points rather than log-odds — the chances with the form feature at its training average
+against with its actual value, same temperature as the published chances, before team news
+(Chelsea v United: +2.1 points for Chelsea) — and carries a tooltip saying it is not the
+team page's recent form and that both are small effects. The drivers list labels the feature
+"recent form (the model's short window)". The team page, the fact sheet and the preview read
+keep the plain last-5-v-before description, because that is what "form" means to a reader;
+the model keeps the EWMA because that is what the held-out test keeps.
+
 ## D-062 — Player trend: each player's last matches against his earlier ones · 2026-10-28 · accepted
 Task 2 of three (teams D-061, then players, then "which metrics" in the prediction). Nothing
 per player existed match by match: the players table is a season per-90 percentile, and

@@ -71,6 +71,9 @@ class Params:
     # Half-life of the short "form" ratings (matches); None = no form ratings. The form
     # features are the form ratings' differences minus the level ratings' differences.
     form_half_life: float | None = None
+    # Alternative form twin: the plain mean of each team's last N matches (the page's
+    # "recent", D-061) instead of an EWMA. Takes precedence over form_half_life when set.
+    form_window: int | None = None
 
 
 # ---------------------------------------------------------------------------- data
@@ -243,12 +246,48 @@ class Ratings:
             self.form.start_season(season, teams)
 
 
+class WindowRatings(Ratings):
+    """A form twin that is the plain mean of a team's last ``window`` matches (opponent-
+    adjusted like the level ratings), so the model's "recent" is the page's "recent". The
+    window runs across a season boundary (a team's last N matches are its last N matches);
+    a promoted side starts from the relegated sides' mean as one pseudo-match."""
+
+    def __init__(self, p: Params, window: int):
+        super().__init__(p)
+        self.window = window
+        self.hist: dict[str, dict[str, list[float]]] = {}
+
+    def start_season(self, season: int, teams: set[str]) -> None:
+        if self.state:
+            gone = [s for t, s in self.state.items() if t not in teams]
+            mean = {k: float(np.mean([s[k] for s in self.state.values()])) for k in STATS}
+            prior = {k: float(np.mean([s[k] for s in gone])) for k in STATS} if gone else mean
+            self.hist = {t: h for t, h in self.hist.items() if t in teams}
+            for t in teams:
+                if t not in self.hist:
+                    self.hist[t] = {k: [prior[k]] for k in STATS}
+            self.state = {
+                t: {k: float(np.mean(v[k])) if v[k] else 0.0 for k in STATS}
+                for t, v in self.hist.items()
+            }
+        self.season = season
+
+    def update(self, team: str, x: dict[str, float | None]) -> None:
+        h = self.hist.setdefault(team, {k: [] for k in STATS})
+        for k in STATS:
+            if x[k] is not None:
+                h[k] = (h[k] + [float(x[k])])[-self.window :]
+        self.state[team] = {k: float(np.mean(v)) if v else 0.0 for k, v in h.items()}
+
+
 def walk(history: list[dict], p: Params) -> tuple[list[dict], Ratings]:
     """Run the ratings through history. Returns each match with its pre-kickoff features
     (unplayed fixtures get features from the latest ratings) and the final ratings."""
     lines = _core_lines(history)
     R = Ratings(p)
-    if p.form_half_life:
+    if p.form_window:
+        R.form = WindowRatings(p, p.form_window)
+    elif p.form_half_life:
         R.form = Ratings(p, half_life=p.form_half_life)
     out = []
     by_season: dict[int, list[dict]] = defaultdict(list)
