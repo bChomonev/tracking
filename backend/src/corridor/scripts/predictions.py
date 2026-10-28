@@ -264,6 +264,10 @@ def main() -> None:
                 k: round(100 * float(a - b), 1)
                 for k, a, b in zip(("home", "draw", "away"), p1, p0, strict=True)
             }
+            # Logged with the prediction and scored after the match, so the season record
+            # can say what form did this season (D-063); the switch itself stays decided by
+            # the held-out test.
+            out["p_noform"] = [round(float(v), 4) for v in p0]
         return out
 
     # FotMob's matchday numbers decide what "the next round" is (leftover Monday games and
@@ -369,6 +373,7 @@ def main() -> None:
         if datetime.fromisoformat(f["kickoff"]) > now:
             log[f["id"]] = {k: f[k] for k in ("kickoff", "home", "away", "p", "p_base")} | {
                 "p_with_news": (f.get("absence") or {}).get("p_with"),
+                "p_noform": f.get("p_noform"),
                 "made_at": made_at,
             }
     by_id = {m["id"]: m for m in current}
@@ -381,6 +386,8 @@ def main() -> None:
             e["rps_base"] = P.rps(e.get("p_base", e["p"]), m["result"])
             if e.get("p_with_news"):
                 e["rps_with_news"] = P.rps(e["p_with_news"], m["result"])
+            if e.get("p_noform"):
+                e["rps_noform"] = P.rps(e["p_noform"], m["result"])
             for book in ("avg", "closing"):
                 if book in m.get("odds", {}):
                     e[f"{book}_rps"] = P.rps(m["odds"][book], m["result"])
@@ -405,6 +412,12 @@ def main() -> None:
         "rps": float(np.mean([e["rps"] for e in done])) if done else None,
         "hits": sum(P.OUTCOMES[int(np.argmax(e["p"]))] == e["result"] for e in done),
         "rps_base": float(np.mean([e["rps_base"] for e in done])) if done else None,
+        # Form this season (D-063): the same predictions with the form feature at its
+        # average, before team news, on the matches that were logged with one.
+        "rps_noform": float(np.mean([e["rps_noform"] for e in done if "rps_noform" in e]))
+        if any("rps_noform" in e for e in done)
+        else None,
+        "n_noform": sum("rps_noform" in e for e in done),
         "avg_rps": float(np.mean([e["avg_rps"] for e in done if "avg_rps" in e]))
         if any("avg_rps" in e for e in done)
         else None,

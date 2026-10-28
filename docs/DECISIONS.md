@@ -50,6 +50,15 @@ team page's recent form and that both are small effects. The drivers list labels
 keep the plain last-5-v-before description, because that is what "form" means to a reader;
 the model keeps the EWMA because that is what the held-out test keeps.
 
+**Monitoring (same day).** Every prediction is now logged with `p_noform` (the form feature
+at its training average, before team news) and scored as `rps_noform` once the result is in,
+so the season record says what form did *this season*: the round summary and the whole-season
+line show "without recent form X against Y with it, on the N logged with it" (Y is the
+without-team-news score, the fair comparison), with a tooltip saying it is a running check,
+not the test that decides. The "What was tested" cards say what was tried and not used: the
+page's measure (Recent form card) and shooter form (Likely shooters card). The "How far off"
+chart is left alone — a "without form" bar would differ by 0.0008 on a 0.20 scale.
+
 ## D-062 — Player trend: each player's last matches against his earlier ones · 2026-10-28 · accepted
 Task 2 of three (teams D-061, then players, then "which metrics" in the prediction). Nothing
 per player existed match by match: the players table is a season per-90 percentile, and
