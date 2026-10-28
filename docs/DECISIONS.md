@@ -8,6 +8,18 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-072 — How much this season weighs: the 24-match half-life stays · 2026-10-28 · accepted
+Asked after Stuttgart (D-071): after seven rounds a level rating is 18% this season and 82%
+before. Re-tuned on the model as published (form and the blend in), PL: the tuning seasons
+still pick half-life 24 / carry 1.0 (D-023). Held out, half-lives 12–18 are better by
+0.0003–0.0005 RPS in 4 of 7 seasons, which the protocol does not let us pick; a rolling,
+honest choice (before each season, the half-life best on every season before it) picks 24
+four times and 18 three times and ties fixed 24 pooled (0.20269 vs 0.20271). Forgetting more
+over the summer (carry 0.6–0.8) is worse at every half-life, as D-071 found from the other
+side. The fast component is the form feature (2-match twin, D-061); the slow rating stays
+slow. Stuttgart's rating catches up progressively: this season carries about a third of the
+weight by round 15 and two-thirds by the end.
+
 ## D-071 — Squad continuity: neither a carry shrink nor a feature helps · 2026-10-28 · accepted (not adopted)
 Prompted by Stuttgart (2 wins, 5 losses, still a 24% away win at Leverkusen with 47% not to
 lose): the level ratings have a 24-match half-life, so after seven rounds 82% of a rating is
