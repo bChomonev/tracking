@@ -8,6 +8,39 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-066 — Squad depth: resting regulars is free for big clubs, not for small ones · 2026-10-28 · accepted (finding, watch)
+The user's hypothesis on top of D-065: a missing regular costs a thin squad more than a deep
+one. Tested on the same rows (official line-ups, 2024-25 → now), three ways.
+
+**A multiplier on the missing share** — share × exp(−g · z), z the side's level rating
+(npxG for minus against), its XI's market value, or its bench-to-XI value ratio, (k, g)
+fitted on one season and tested on the others. England: g fits to 0 for level and value; the
+split by home-side strength even goes the other way (home missing 3+ regulars more than the
+away side: weak sides 30% said → 21% won, strong sides 56% → 40%). Serie A: level g = 1.0 /
+0.75, test −0.0015 / −0.0017 where the plain share did nothing; weak home sides 27% → 15%,
+strong 62% → 57%. La Liga leans the same way (strong home sides missing regulars 70% → 77%)
+but the fits are unstable; the Bundesliga is too thin.
+
+**Why England looked different: injured against rested.** Splitting the missing regulars into
+those on the unavailable list and those fit but not picked (`Contributions.regulars_split`):
+- *Injured / suspended regulars cost everyone.* PL, home side with 2+ more than the away
+  side: weaker half 29% said → 17% won (n 18), stronger half 46% → 32% (n 19); Bundesliga
+  35% → 25% and 53% → 44% (n 16 each).
+- *Rested regulars cost only the small clubs.* PL weaker half 37% → 26% (n 76), stronger
+  half 56% → 55% (n 77). La Liga weaker half 39% → 31%, stronger half 61% → 64% (n 83 each):
+  the giants rotate for free. Serie A small drops at both ends (27% → 24%, 53% → 50%); the
+  Bundesliga weaker 34% → 36%, stronger 54% → 49% (n 61 each, noisy).
+That is the hypothesis, and it is also why D-065's plain share fails outside England: in
+Spain and Italy most "missing regulars" are big clubs rotating. A two-parameter fit
+(k_unavailable, k_rested) per league is not yet stable season to season (PL 1.8/1.2 then
+1.4/0.4; La Liga 2.6/0.8 then 0/0), because the effect lives in ~150 matches a league.
+
+**What is done.** Nothing changes in the odds. The log now carries, for every scored
+prediction with an official XI, the split (`regulars_unavailable`, `regulars_rested`) and
+each side's level (`level`), next to `regulars_missing`, so the interaction can be fitted on
+three seasons at the end of 2026-27 — the natural form is k_injured · d_injured +
+k_rested · d_rested with k_rested shrinking with the side's level. Revisit then, with D-065.
+
 ## D-065 — Official line-ups: measured in the record, not yet in the odds · 2026-10-28 · accepted (watch)
 The bookmakers' edge over the model is mostly who actually plays. The laptop is not on
 before every kickoff, so line-ups cannot be published reliably — but their value can be

@@ -481,6 +481,20 @@ def main() -> None:
                     a["home"]["regulars_missing"],
                     a["away"]["regulars_missing"],
                 ]
+                # D-066: the split (injured / rested) and each side's level, so the squad-
+                # depth question can be fitted on three seasons at the end of this one.
+                e["regulars_unavailable"] = [
+                    a["home"].get("regulars_unavailable"),
+                    a["away"].get("regulars_unavailable"),
+                ]
+                e["regulars_rested"] = [
+                    a["home"].get("regulars_rested"),
+                    a["away"].get("regulars_rested"),
+                ]
+                e["level"] = [
+                    round(m["x"]["h_npxg"] - m["x"]["h_npxga"], 3),
+                    round(m["x"]["a_npxg"] - m["x"]["a_npxga"], 3),
+                ]
     log_path.write_text(json.dumps(log, indent=1))
     done = [e for e in log.values() if "result" in e]
 

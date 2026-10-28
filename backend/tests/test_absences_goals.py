@@ -127,3 +127,15 @@ def test_lineups_only_when_official_and_complete():
     d["content"]["lineup"]["lineupType"] = "standard"
     d["content"]["lineup"]["awayTeam"]["starters"] = starters[:10]
     assert AB.lineups(d) is None
+
+
+def test_regulars_split_separates_injured_from_rested():
+    C = AB.Contributions()
+    for mid in (1, 2, 3):
+        for pid in range(1, 15):
+            C.add(
+                {"team": "T", "player_id": pid, "minutes": 90 if pid <= 11 else 10, "match_id": mid}
+            )
+    xi = set(range(4, 12)) | {12, 13, 14}  # regulars 1, 2, 3 out
+    assert C.regulars_split("T", xi, unavailable={1}) == (1 / 11, 2 / 11)
+    assert C.regulars_split("Other", xi, set()) is None

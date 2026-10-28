@@ -97,6 +97,19 @@ class Contributions:
         reg = self.regulars(team)
         return sum(1 for pid in reg if pid not in xi) / len(reg) if reg else None
 
+    def regulars_split(
+        self, team: str, xi: set[int], unavailable: set[int]
+    ) -> tuple[float, float] | None:
+        """The same share split into regulars on the unavailable list (injured, suspended)
+        and regulars fit but not picked (D-066): injuries cost every side, resting costs
+        only the thin squads."""
+        reg = self.regulars(team)
+        if not reg:
+            return None
+        out = [pid for pid in reg if pid not in xi]
+        unav = sum(1 for pid in out if pid in unavailable)
+        return unav / len(reg), (len(out) - unav) / len(reg)
+
     def missing(self, team: str, ids: list[int]) -> dict[str, float]:
         t_out, t_min = self.team.get(team, (0.0, 0.0))
         m_out = sum(self.player.get((team, i), (0.0, 0.0))[0] for i in ids)
@@ -144,6 +157,11 @@ def history(seasons: list[tuple[int, list[dict], list[dict]]]) -> dict[int, dict
                         rm = C.regulars_missing(m[f"{side}_team"], xi[side])
                         if rm is not None:
                             out[mid][side]["regulars_missing"] = rm
+                            ru, rr = C.regulars_split(
+                                m[f"{side}_team"], xi[side], {u["id"] for u in un[side]}
+                            )
+                            out[mid][side]["regulars_unavailable"] = ru
+                            out[mid][side]["regulars_rested"] = rr
             for p in by_match.get(mid, []):
                 C.add(p)
         prev_players = players
