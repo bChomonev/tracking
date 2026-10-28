@@ -59,6 +59,14 @@ FEATURE_SETS: dict[str, tuple[str, ...]] = {
         "form_goal_diff",
     ),
 }
+# Rest and congestion (D-067): days since each side's last match in any competition
+# (capped at 10) and whether it played in Europe in the last four days, home minus away.
+# Need a calendar (corridor.calendar) passed to walk().
+for _base in ("xg+goals+lines", "xg+goals+lines+form"):
+    FEATURE_SETS[_base + "+rest"] = FEATURE_SETS[_base] + ("rest_diff",)
+    FEATURE_SETS[_base + "+europe"] = FEATURE_SETS[_base] + ("europe_diff",)
+    FEATURE_SETS[_base + "+rest+europe"] = FEATURE_SETS[_base] + ("rest_diff", "europe_diff")
+REST_FEATURES = ("rest_diff", "europe_diff")
 
 
 @dataclass(frozen=True)
@@ -280,9 +288,45 @@ class WindowRatings(Ratings):
         self.state[team] = {k: float(np.mean(v)) if v else 0.0 for k, v in h.items()}
 
 
-def walk(history: list[dict], p: Params) -> tuple[list[dict], Ratings]:
+REST_CAP = 10.0  # days; a fortnight off is no better than ten days
+
+
+def rest_features(calendar: dict, team: str, kickoff: str) -> tuple[float, int]:
+    """(days since the team's last match in any competition, capped at REST_CAP; 1 if that
+    last match was in Europe within the last 4 days). ``calendar``: team → sorted
+    [(kickoff 'YYYY-MM-DD HH:MM', kind)] from corridor.calendar.build. Before the team's
+    first known match: the cap, 0."""
+    when = kickoff[:16]
+    last = next(((w, k) for w, k in reversed(calendar.get(team, [])) if w < when), None)
+    if last is None:
+        return REST_CAP, 0
+    days = (datetime.fromisoformat(when) - datetime.fromisoformat(last[0])).total_seconds()
+    days /= 86400
+    return min(days, REST_CAP), int(last[1] == "europe" and days <= 4)
+
+
+def _rest(calendar: dict | None, m: dict) -> dict[str, float]:
+    """Rest-and-congestion features for a fixture (D-067), zeros without a calendar."""
+    if not calendar:
+        return {"rest_diff": 0.0, "europe_diff": 0.0, "h_rest": REST_CAP, "a_rest": REST_CAP}
+    rh, eh = rest_features(calendar, m["home"], m["kickoff"])
+    ra, ea = rest_features(calendar, m["away"], m["kickoff"])
+    return {
+        "rest_diff": rh - ra,
+        "europe_diff": float(eh - ea),
+        "h_rest": rh,
+        "a_rest": ra,
+        "h_europe": eh,
+        "a_europe": ea,
+    }
+
+
+def walk(
+    history: list[dict], p: Params, calendar: dict | None = None
+) -> tuple[list[dict], Ratings]:
     """Run the ratings through history. Returns each match with its pre-kickoff features
-    (unplayed fixtures get features from the latest ratings) and the final ratings."""
+    (unplayed fixtures get features from the latest ratings) and the final ratings.
+    ``calendar`` (corridor.calendar.build) adds the rest features; without it they are 0."""
     lines = _core_lines(history)
     R = Ratings(p)
     if p.form_window:
@@ -298,7 +342,7 @@ def walk(history: list[dict], p: Params) -> tuple[list[dict], Ratings]:
         R.start_all(s, {t for m in ms for t in (m["home"], m["away"])})
         for m in ms:  # chronological
             if R.state.get(m["home"]) and R.state.get(m["away"]):
-                out.append(m | {"x": R.features(m["home"], m["away"])})
+                out.append(m | {"x": R.features(m["home"], m["away"]) | _rest(calendar, m)})
             if m["played"]:
                 xs = {side: _team_stats(m["rows"][side], lines.get(s)) for side in ("home", "away")}
                 if p.adjust:
@@ -310,7 +354,7 @@ def walk(history: list[dict], p: Params) -> tuple[list[dict], Ratings]:
     # Unplayed fixtures must see the ratings after *every* played match.
     for m in out:
         if not m["played"]:
-            m["x"] = R.features(m["home"], m["away"])
+            m["x"] = R.features(m["home"], m["away"]) | _rest(calendar, m)
     return out, R
 
 

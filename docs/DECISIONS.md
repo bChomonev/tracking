@@ -8,6 +8,36 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-067 — Rest and congestion add nothing once strength is known · 2026-10-28 · accepted (not adopted)
+The classic small feature: days since a side's last match in any competition, and whether it
+played in Europe in the week. `corridor.calendar` builds every league team's full calendar
+back to 2015-16 — the league from the model's Understat history, domestic cups and Europe
+from FotMob's fixture lists (Champions League and Europa League from 2016-17, Conference
+League from 2021-22; FA Cup and League Cup, Copa del Rey, Coppa Italia, DFB-Pokal), names
+matched by similarity one to one per season. `predict.rest_features` gives days of rest
+(capped at 10) and a flag for a European match within the last four days; `walk(…,
+calendar=…)` adds `rest_diff` and `europe_diff` (home minus away) and the feature sets
+`+rest`, `+europe`, `+rest+europe` on top of the frozen model, with and without form.
+
+**The raw read is a trap.** PL home sides on three days' rest or less won 52% of matches,
+those on eight or more 41%; a home side that played in Europe in the week won 57% (La Liga
+64%). Short rest means you were playing midweek, and the sides playing midweek are the
+strong ones. The model already knows who is strong.
+
+**D-023 protocol** (tune on PL 2016-17…2019-20, hold out 2020-21…now, every league on its own
+matches; RPS change against the model as published):
+- PL: +rest tune +0.00089 / held +0.00013 (better in 1 of 7 seasons); +europe −0.00006 /
+  +0.00005 (5/7); both +0.00085 / +0.00016.
+- La Liga: +rest +0.00038 / +0.00009 (1/7); +europe +0.00008 / +0.00016 (2/7).
+- Serie A: +rest +0.00077 / −0.00005 (3/7); +europe +0.00016 / +0.00013 (3/7).
+- Bundesliga: +rest +0.00058 / +0.00002 (3/7); +europe +0.00052 / −0.00024 (6/7) — a
+  held-out gain with a worse tuning score, which D-027 says is not ours to pick.
+Rest days make the tuning seasons worse in every league; the Europe flag is noise. **Not
+adopted.** The calendar and the features stay in the code, switched off (no calendar is
+passed in the pipeline), so the test can be re-run; the calendar could also serve the fixture
+card one day as plain information ("played in Europe on Wednesday"), which is a different
+purpose and a fetch per run.
+
 ## D-066 — Squad depth: resting regulars is free for big clubs, not for small ones · 2026-10-28 · accepted (finding, watch)
 The user's hypothesis on top of D-065: a missing regular costs a thin squad more than a deep
 one. Tested on the same rows (official line-ups, 2024-25 → now), three ways.

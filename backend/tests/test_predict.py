@@ -189,3 +189,43 @@ def test_window_form_is_the_mean_of_the_last_n_matches_minus_level():
     both = P.Params(half_life=24, adjust=False, form_window=3, form_half_life=2)
     _, R2 = P.walk(ms, both)
     assert isinstance(R2.form, P.WindowRatings)
+
+
+def test_rest_features_count_days_since_any_match_and_europe_midweek():
+    # D-067 (tested, not adopted): rest in days since the last match in any competition,
+    # capped at 10; the Europe flag only when that last match was in Europe within 4 days.
+    cal = {
+        "S": [("2020-09-12 15:00", "league"), ("2020-09-16 20:00", "europe")],
+        "W": [("2020-08-01 15:00", "league")],
+    }
+    days, eu = P.rest_features(cal, "S", "2020-09-19 15:00:00")
+    assert abs(days - (2 + 19 / 24)) < 1e-9 and eu == 1
+    days, eu = P.rest_features(cal, "S", "2020-09-22 20:00:00")
+    assert days == 6 and eu == 0  # Europe, but six days ago
+    assert P.rest_features(cal, "W", "2020-09-19 15:00:00") == (P.REST_CAP, 0)
+    assert P.rest_features(cal, "New", "2020-09-19 15:00:00") == (P.REST_CAP, 0)
+    ms = [_match(i, 2020, "S", "W", 2, 0, 1.5, 0.8) for i in range(3)]
+    for i, m in enumerate(ms):
+        m["kickoff"] = f"2020-09-{19 + i:02d} 15:00:00"
+    scored, _ = P.walk(ms, P.Params(half_life=24, adjust=False), calendar=cal)
+    x = scored[-1]["x"]  # the walk's own league matches are not in this calendar: fine
+    assert "rest_diff" in x and "europe_diff" in x
+    plain, _ = P.walk(ms, P.Params(half_life=24, adjust=False))
+    assert plain[-1]["x"]["rest_diff"] == 0.0 and plain[-1]["x"]["europe_diff"] == 0.0
+
+
+def test_calendar_name_matching_is_one_to_one_and_accent_blind():
+    from corridor import calendar as CAL
+
+    fm = [
+        {"home": {"name": "Atlético Madrid"}, "away": {"name": "Deportivo Alavés"}},
+        {"home": {"name": "Real Madrid"}, "away": {"name": "Málaga"}},
+    ]
+    us = {"Atletico Madrid", "Alaves", "Real Madrid", "Malaga", "Elsewhere"}
+    mp = CAL._names(fm, us)
+    assert mp == {
+        "Atlético Madrid": "Atletico Madrid",
+        "Deportivo Alavés": "Alaves",
+        "Real Madrid": "Real Madrid",
+        "Málaga": "Malaga",
+    }
