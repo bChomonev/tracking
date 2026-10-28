@@ -8,6 +8,17 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-070 — Fact sheet: chance quality difference is the headline trend · 2026-10-28 · accepted
+The team's `recent_form` block (D-061) carries three series — chance quality difference,
+elite score, danger score — and their calls can disagree (Arsenal, round 8: steady / down /
+up), so the analyst could pick whichever suited the sentence. The block now names the
+headline (`headline`, `call`): chance quality difference per match, the series the table and
+the team page call recent form; the note says elite and danger scores are supporting detail
+in coarse steps and that when they point the other way the form is "mixed", not a trend.
+Also on the overview page: the "most like a top team / furthest the other way" sentence now
+ranks by the decisive-line counts it quotes, with the weighted scores only as a tie-break
+(it had named Villa at 0 elite / 2 relegation level over United at 0 / 4).
+
 ## D-069 — Game state is 11 v 11 only: the clock stops at a red card · 2026-10-28 · accepted
 D-051 said "red cards are ignored for now". The when-level / ahead / behind numbers are
 meant to say how a team plays in each score state, and a side playing against ten men (or

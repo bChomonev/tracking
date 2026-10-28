@@ -106,3 +106,17 @@ def test_slim_facts_drops_only_the_per_match_lists():
     )
     assert "per_match" in facts["metrics"][0]  # the original is untouched
     assert "per_match" in facts["players"][0]["recent_form"]
+
+
+def test_recent_form_facts_name_the_headline_series():
+    from corridor.analyst.facts import _recent_form_facts
+    from corridor.engine import trend
+
+    up = trend.recent([-1.0, -0.8, -1.2, -1.0, 0.8, 1.0, 1.2, 0.9, 1.1])
+    flat = trend.recent([0.3, 0.2, 0.3, 0.2, 0.3, 0.2, 0.3, 0.2, 0.3])
+    f = _recent_form_facts({"trend": {"window": 5, "xg_diff": up, "elite": flat, "danger": None}})
+    assert f["headline"] == "chance_quality_difference_per_match" and f["call"] == "up"
+    assert f["chance_quality_difference_per_match"]["call"] == "up"
+    assert f["elite_score"]["call"] == "steady" and "danger_score" not in f
+    assert "headline" in f["note"]
+    assert _recent_form_facts({}) is None

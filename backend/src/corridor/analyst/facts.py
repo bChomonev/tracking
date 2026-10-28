@@ -403,14 +403,21 @@ def _recent_form_facts(profile: dict) -> dict | None:
     tr = profile.get("trend")
     if not tr:
         return None
+    xg = tr.get("xg_diff") or {}
     out: dict[str, Any] = {
         "last_matches": tr["window"],
+        "headline": "chance_quality_difference_per_match",
+        "call": xg.get("call"),
         "note": (
             f"recent = the mean of the last {tr['window']} league matches, before = the mean of "
             "the earlier ones. 'up' / 'down' only when the gap is at least one standard error "
             "wide; otherwise 'steady'. Say what each number counts. chance_quality_difference "
             "is npxG for minus npxG against per match, each adjusted for what the opponent "
-            "usually allows and creates."
+            "usually allows and creates. It is the headline: it is what the site's table and "
+            "the team page call recent form, and 'call' above is its call. elite_score and "
+            "danger_score are supporting detail (shares of lines reached, in coarse steps) and "
+            "can point the other way; if they do, say the team's form is mixed rather than "
+            "quoting one of them as the trend."
         ),
     }
     for key, name, scale, dec in (
