@@ -8,17 +8,36 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
-## D-072 — How much this season weighs: the 24-match half-life stays · 2026-10-28 · accepted
+## D-072 — How much this season weighs: a little slow on the outliers, and no rule fixes it · 2026-10-28 · accepted
 Asked after Stuttgart (D-071): after seven rounds a level rating is 18% this season and 82%
-before. Re-tuned on the model as published (form and the blend in), PL: the tuning seasons
-still pick half-life 24 / carry 1.0 (D-023). Held out, half-lives 12–18 are better by
-0.0003–0.0005 RPS in 4 of 7 seasons, which the protocol does not let us pick; a rolling,
-honest choice (before each season, the half-life best on every season before it) picks 24
-four times and 18 three times and ties fixed 24 pooled (0.20269 vs 0.20271). Forgetting more
-over the summer (carry 0.6–0.8) is worse at every half-life, as D-071 found from the other
-side. The fast component is the form feature (2-match twin, D-061); the slow rating stays
-slow. Stuttgart's rating catches up progressively: this season carries about a third of the
-weight by round 15 and two-thirds by the end.
+before. Three tests on the model as published (form and the blend in), D-023 protocol.
+
+**League-wide knobs.** Re-tuned in the PL, the tuning seasons still pick half-life 24 /
+carry 1.0 (D-023). Held out, half-lives 12–18 are better by 0.0003–0.0005 RPS in 4 of 7
+seasons, which the protocol does not let us pick; a rolling, honest choice (before each
+season, the half-life best on every season before it) picks 24 four times and 18 three
+times and ties fixed 24 pooled (0.20269 vs 0.20271). Forgetting more over the summer (carry
+0.6–0.8) is worse at every half-life, as D-071 found from the other side.
+
+**The targeted question: when the first seven matches disagree strongly with the rating,
+which one predicts the rest of the season?** Every complete team-season 2015-16 → 2025-26
+(PL 240, La Liga 240, Serie A 240, Bundesliga 216): the rating after match 7 correlates with
+the remaining matches' npxG difference at 0.73–0.78, the raw first seven at 0.71–0.77. When
+the early matches were *much worse* than the rating (gap under −0.6 per match, 17–22 cases a
+league), the rest of the season sat 11% of the way from the rating to the early number in
+the PL, 46% in La Liga, 37% in Serie A, 39% in the Bundesliga; when much better, 27–51%. The
+model moves 18%. So on the outliers the rating is somewhat too slow — by a few tenths of an
+npxG difference, worth about 2–3 points on the chances of a Stuttgart-type card.
+
+**A rule for the outliers only** (`Params.surprise_gain`: the update step grows with the
+size of the surprise, alpha × (1 + g · min(|x − s|, 3)) on the chance and goal stats, g on a
+0.1–1.0 grid): PL tune +0.0000 … +0.0010 / held −0.0002 … −0.0005 (4/7); Bundesliga the
+mirror image (tune −0.0012 … −0.0000 / held +0.0000 … +0.0008); La Liga and Serie A flat.
+Noise, not a harvestable effect. **Nothing changes**: the slow rating stays slow, the fast
+component is the form feature (D-061), the switch stays in the code, off. Stuttgart's rating
+catches up progressively — this season carries about a third of the weight by round 15 and
+two-thirds by the end — and their 6 points from performances worth 8.8 are the model's
+defence of its own view.
 
 ## D-071 — Squad continuity: neither a carry shrink nor a feature helps · 2026-10-28 · accepted (not adopted)
 Prompted by Stuttgart (2 wins, 5 losses, still a 24% away win at Leverkusen with 47% not to

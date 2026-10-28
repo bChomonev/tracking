@@ -89,6 +89,10 @@ class Params:
     # Blend (D-068): weight on the goals model's own win/draw/loss chances (unshrunk
     # Poisson + Dixon-Coles on the same ratings), the rest on the logistic model. 0 = off.
     goals_weight: float = 0.0
+    # Surprise gain (D-072): the update step grows with the size of the surprise,
+    # alpha × (1 + surprise_gain × min(|x − s|, 3)) on the chance-quality and goal stats,
+    # so a team whose matches keep disagreeing with its rating is re-rated faster. 0 = off.
+    surprise_gain: float = 0.0
     # Squad continuity (D-071): at a season start a team keeps carry × continuity ** power
     # of its rating's distance from the mean, continuity being the share of last season's
     # minutes still at the club. 0 = off (every team keeps the full carry).
@@ -185,6 +189,7 @@ class Ratings:
         self.alpha = 1 - 0.5 ** (1 / (half_life or p.half_life))
         self.carry = p.carry
         self.churn_power = p.churn_power
+        self.surprise_gain = p.surprise_gain
         self.state: dict[str, dict[str, float]] = {}
         self.season: int | None = None
         self.form: Ratings | None = None  # the short-half-life twin, when Params asks for one
@@ -218,7 +223,10 @@ class Ratings:
             return
         for k in STATS:
             if x[k] is not None:
-                s[k] += self.alpha * (x[k] - s[k])
+                step = self.alpha
+                if self.surprise_gain and k in ("npxg", "npxga", "gf", "ga"):
+                    step *= 1 + self.surprise_gain * min(abs(x[k] - s[k]), 3.0)
+                s[k] += min(step, 1.0) * (x[k] - s[k])
 
     def opponent_adjusted(self, home: str, away: str, xs: dict[str, dict]) -> dict[str, dict]:
         """Credit chances and goals relative to the opponent: 1.5 npxG against a side that

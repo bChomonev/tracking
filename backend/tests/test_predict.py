@@ -303,3 +303,19 @@ def test_understat_continuity_shares_last_seasons_minutes_by_who_stayed(monkeypa
     assert c["A"] == 3000 / 5000  # player 1 stayed; 2 left; 3's half-share went to B
     assert c["B"] == 1000 / 1900  # player 3 stayed (his half), 9 left
     assert "C" not in c  # new to the league: no last season here
+
+
+def test_surprise_gain_speeds_up_large_updates_only():
+    # D-072 (tested, not adopted): a bigger surprise moves the rating more, capped at a
+    # full step; a small one moves it as before.
+    R0, R1 = P.Ratings(P.Params(half_life=24)), P.Ratings(P.Params(half_life=24, surprise_gain=1.0))
+    for R in (R0, R1):
+        R.update("S", {"npxg": 1.0, "npxga": 1.0, "gf": 1, "ga": 1, "elite": 0.5, "danger": 0.5})
+    small = {"npxg": 1.1, "npxga": 1.0, "gf": 1, "ga": 1, "elite": 0.5, "danger": 0.5}
+    R0.update("S", small)
+    R1.update("S", small)
+    assert abs((R1.state["S"]["npxg"] - 1.0) / (R0.state["S"]["npxg"] - 1.0) - 1.1) < 1e-9
+    big = {"npxg": 4.0, "npxga": 1.0, "gf": 1, "ga": 1, "elite": 0.5, "danger": 0.5}
+    R0.update("S", big)
+    R1.update("S", big)
+    assert R1.state["S"]["npxg"] > R0.state["S"]["npxg"] and R1.state["S"]["npxg"] <= 4.0
