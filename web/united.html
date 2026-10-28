@@ -1599,7 +1599,10 @@ ${detailOf(m)}      </details>`;
     const played = Math.max(...T.map((r) => r.played));
     $("ov-season").textContent = `${LN} ${L.season} · after ${played} rounds`;
     $("ov-fresh").innerHTML = updated;
-    const byGap = [...T].sort((a, b) => (b.elite_score - b.danger_score) - (a.elite_score - a.danger_score));
+    // Ranked by what the sentence quotes: elite minus relegation-level counts on the decisive
+    // lines; the weighted scores (every line, by impact) only break ties.
+    const gap = (r) => (r.decisive.best - r.decisive.worst) + (r.elite_score - r.danger_score) / 100;
+    const byGap = [...T].sort((a, b) => gap(b) - gap(a));
     const best = byGap[0], worst = byGap[byGap.length - 1];
     const lucky = [...T].sort((a, b) => luck(b) - luck(a))[0], unlucky = [...T].sort((a, b) => luck(a) - luck(b))[0];
     const me = T.find((r) => r.team === ME);
@@ -1607,7 +1610,11 @@ ${detailOf(m)}      </details>`;
     $("ov-lede").innerHTML = [
       `<b>${esc(short(best.team))}</b> play most like a top team: their typical match is at the elite line on ${best.decisive.best} of the ${n} things that decide matches and at relegation level on ${best.decisive.worst}. <b>${esc(short(worst.team))}</b> are furthest the other way (${worst.decisive.best} elite, ${worst.decisive.worst} relegation level).`,
       `<b>${esc(short(lucky.team))}</b> have ${lucky.points} points from performances worth ${lucky.deserved_points.toFixed(1)} — the most ahead of their football. <b>${esc(short(unlucky.team))}</b> have ${unlucky.points} from ${unlucky.deserved_points.toFixed(1)} — the unluckiest.`,
-      me && `<b>${esc(short(me.team))}</b>: ${ord(me.position)}, ${me.points} points from performances worth ${me.deserved_points.toFixed(1)}; elite on ${me.decisive.best} and relegation level on ${me.decisive.worst} of the ${n}.`,
+      // When the focus team is already the "furthest the other way" side, don't quote the
+      // same counts twice: the third line gives the position and the points only.
+      me && (me === worst || me === best
+        ? `<b>${esc(short(me.team))}</b> are ${ord(me.position)}, with ${me.points} points from performances worth ${me.deserved_points.toFixed(1)}.`
+        : `<b>${esc(short(me.team))}</b>: ${ord(me.position)}, ${me.points} points from performances worth ${me.deserved_points.toFixed(1)}; elite on ${me.decisive.best} and relegation level on ${me.decisive.worst} of the ${n}.`),
     ].filter(Boolean).map((t) => `<p>${t}</p>`).join("");
     $("ov-cta").parentElement.hidden = !ME;
     if (ME) { $("ov-cta").textContent = `${short(ME)}: the full breakdown →`; $("ov-cta").href = teamHref(ME); }
