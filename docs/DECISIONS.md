@@ -8,6 +8,29 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-064 — Absences weighted by player quality: no better than minutes share · 2026-10-28 · accepted (not adopted)
+The idea: losing a top player and losing a rotation player count the same in D-026 if their
+minutes match, so weight each absent player's minutes by his quality. D-026 had already found
+that weighting by output share (npxG + xA) overfits; the quality number tried here is one every
+outfield player has, FotMob's match rating averaged over his earlier matches (last season at
+half weight), as two multipliers: rating − 6 (floor 0.2) and exp(1.5 × (rating − 6.9)). The
+share is then quality-weighted minutes missing over the team's quality-weighted minutes.
+
+Protocol as D-026: for every FotMob match with team news on its cached page (PL 840, La Liga
+858, Serie A 842, Bundesliga 674; 2024-25 → now), the published walk-forward chances are
+shifted by `absences.adjust` with k fitted on one season (grid 0–6) and tested on the other
+two, both ways. Premier League, RPS change on the test matches (fit on 2024-25 / fit on
+2025-26): minutes share −0.0002 / −0.0014; rating − 6: −0.0004 / −0.0011; exponential rating:
+−0.0005 / −0.0008; output share −0.0007 / +0.0030 (the D-026 overfit again). The quality
+versions are better on one fold and worse on the other, summing to the same as minutes
+(−0.0015 against −0.0016). Elsewhere nothing changes: La Liga still points the wrong way with
+any weighting (+0.003 to +0.005 when k is fitted on 2024-25, k = 0 when fitted on 2025-26),
+Serie A fits k = 0 with every weighting, the Bundesliga is ±0.001 either way. **Not adopted;
+minutes share stays.** The honest reading is that ~800 matches cannot tell weightings apart
+when the whole team-news effect is ~0.001 RPS; FotMob ratings are also compressed (sd 0.8
+around 7.0), so the multiplier barely reorders players. Revisit only with official line-ups
+as the signal (who actually played), which is a different and larger question.
+
 ## D-063 — Trends in the prediction: the page's form loses to the EWMA; shooter form never helps · 2026-10-28 · accepted
 Task 3 of three. Two tests, two "no", and one fix on the fixture card.
 
