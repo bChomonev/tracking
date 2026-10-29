@@ -23,7 +23,6 @@ def _fx(i, home, away, p, over=0.5):
         "home": home,
         "away": away,
         "p": p,
-        "drivers": [{"feature": "chance quality", "favours": "home"}],
         "goals": {"over_2_5": over, "exp_home": 1.5, "exp_away": 1.2},
     }
 
@@ -148,3 +147,39 @@ def test_goals_shooters_and_cards_apply_their_floors():
         }
     ]
     assert c["backtest"] == {"n": 400, "happened": 0.61}
+
+
+def test_why_says_only_the_numbers_that_support_the_call():
+    att = lambda v, r, of=20: {"value": v, "rank": r, "of": of}  # noqa: E731
+    pairings = {
+        "home_attack_v_away_defence": [{"attack": att(3.3, 1), "defence": att(0.8, 3)}],
+        "away_attack_v_home_defence": [{"attack": att(0.9, 18), "defence": att(1.0, 5)}],
+    }
+    shape = {
+        "A": {"recent_form": {"last_matches": 5, "xg_diff": {"call": "steady"}}},
+        "B": {
+            "recent_form": {
+                "last_matches": 5,
+                "xg_diff": {"call": "down", "recent": -0.3, "before": 0.5},
+            }
+        },
+    }
+    w = picks.why({"pairings": pairings, "shape": shape}, True, "A", "B")
+    # A's attack is 1st (said), B's defence is 3rd (good: not said); B's attack is 18th (said),
+    # A's defence 5th (top third: said); B trending down (said).
+    assert w == (
+        "A create 3.3 npxG a match (1st of 20); B create 0.9 (18th of 20); A concede 1.0 (5th); "
+        "B trending down: -0.30 a match over the last 5 against +0.50 before."
+    )
+    # A fourth clause (the favourite also trending up) is dropped: three read, five don't.
+    shape["A"]["recent_form"]["xg_diff"] = {"call": "up", "recent": 1.0, "before": 0.2}
+    w = picks.why({"pairings": pairings, "shape": shape}, True, "A", "B")
+    assert w.endswith("A trending up: +1.00 a match over the last 5 against +0.20 before.")
+    assert "B trending" not in w
+    # Nothing supports the call → nothing said.
+    mid = {
+        "home_attack_v_away_defence": [{"attack": att(1.2, 10), "defence": att(1.2, 9)}],
+        "away_attack_v_home_defence": [{"attack": att(1.2, 11), "defence": att(1.2, 10)}],
+    }
+    assert picks.why({"pairings": mid, "shape": {}}, True, "A", "B") is None
+    assert picks.why(None, True, "A", "B") is None

@@ -56,6 +56,57 @@ def _pool(bins: list[dict], lo: float, hi: float, k_from: str, k_said: str, k_hi
     }
 
 
+def _ord(n: int) -> str:
+    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def why(matchup: dict | None, fav_home: bool, home: str, away: str) -> str | None:
+    """Plain numbers behind a favourite, from the match page's pairings — and only the
+    ones that support the call: the favourite's attack when it is in the league's top
+    third, the opponent's defence when it is in the bottom half, the opponent's attack
+    when it is in the bottom third, the favourite's defence when it is in the top third,
+    and a form call ("trending up" / "down", D-061) when it points the same way. Nothing
+    is said when nothing supports it."""
+    if not matchup:
+        return None
+    fav, opp = (home, away) if fav_home else (away, home)
+    pr = matchup.get("pairings") or {}
+    h_att, a_att = "home_attack_v_away_defence", "away_attack_v_home_defence"
+    fav_att = (pr.get(h_att if fav_home else a_att) or [{}])[0]
+    opp_att = (pr.get(a_att if fav_home else h_att) or [{}])[0]
+    parts = []
+    a, d = fav_att.get("attack") or {}, fav_att.get("defence") or {}
+    if a.get("rank") and a["rank"] <= a["of"] / 3:
+        line = f"{fav} create {a['value']:.1f} npxG a match ({_ord(a['rank'])} of {a['of']})"
+        if d.get("rank") and d["rank"] > d["of"] / 2:
+            line += f"; {opp} concede {d['value']:.1f} ({_ord(d['rank'])})"
+        parts.append(line)
+    elif d.get("rank") and d["rank"] > d["of"] / 2:
+        parts.append(
+            f"{opp} concede {d['value']:.1f} npxG a match ({_ord(d['rank'])} of {d['of']})"
+        )
+    a, d = opp_att.get("attack") or {}, opp_att.get("defence") or {}
+    if a.get("rank") and a["rank"] > 2 * a["of"] / 3:
+        line = f"{opp} create {a['value']:.1f} ({_ord(a['rank'])} of {a['of']})"
+        if d.get("rank") and d["rank"] <= d["of"] / 3:
+            line += f"; {fav} concede {d['value']:.1f} ({_ord(d['rank'])})"
+        parts.append(line)
+    elif d.get("rank") and d["rank"] <= d["of"] / 3:
+        parts.append(
+            f"{fav} concede {d['value']:.1f} npxG a match ({_ord(d['rank'])} of {d['of']})"
+        )
+    shape = matchup.get("shape") or {}
+    for team, good in ((fav, "up"), (opp, "down")):
+        rf = ((shape.get(team) or {}).get("recent_form") or {}).get("xg_diff") or {}
+        if rf.get("call") == good:
+            parts.append(
+                f"{team} trending {good}: {rf['recent']:+.2f} a match over the last "
+                f"{shape[team]['recent_form']['last_matches']} against {rf['before']:+.2f} before"
+            )
+    return "; ".join(parts[:3]) + "." if parts else None  # three clauses read; five don't
+
+
 def double_chance(leagues: dict[str, dict]) -> list[dict]:
     tiers: list[dict] = []
     for lo, hi in TIERS:
@@ -72,11 +123,13 @@ def double_chance(leagues: dict[str, dict]) -> list[dict]:
     bt_bins: list[dict] = []
     for key, lg in leagues.items():
         P = lg.get("predictions") or {}
+        fixtures = (lg.get("previews") or {}).get("fixtures") or {}
         for f in P.get("next_round") or []:
             fav, p = _dc(f["p"])
             t = _tier(p)
             if t is None:
                 continue
+            matchup = (fixtures.get(str(f["id"])) or {}).get("matchup")
             tiers[t]["picks"].append(
                 {
                     "league": key,
@@ -89,13 +142,7 @@ def double_chance(leagues: dict[str, dict]) -> list[dict]:
                     "call": "1X" if fav == 0 else "X2",
                     "p": _r(p),
                     "chances": [_r(x, 4) for x in f["p"]],
-                    "drivers": [
-                        {
-                            "feature": d["feature"],
-                            "team": f["home"] if d["favours"] == "home" else f["away"],
-                        }
-                        for d in f.get("drivers") or []
-                    ],
+                    "why": why(matchup, fav == 0, f["home"], f["away"]),
                 }
             )
         bt_bins += ((P.get("mistakes") or {}).get("bands") or {}).get("win_or_draw") or []

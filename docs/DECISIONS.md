@@ -36,6 +36,15 @@ record — and a market appears only where its backtest beats the naive guess.
 - **No "value against the bookmakers"**: the record has the model a few thousandths of RPS
   behind them, so a disagreement is not an edge; the page says so.
 
+**Why column (same day, user's call).** The model's drivers ("chance quality for and
+against (Barcelona)") read as nothing. `picks.why` now writes the numbers from the match
+page's pairings — and only the ones that support the call: the favourite's attack when it
+is in the league's top third, the opponent's defence when in the bottom half, the
+opponent's attack when in the bottom third, the favourite's defence when in the top third,
+and a D-061 form call when it points the same way; at most three clauses; nothing when
+nothing supports it. "Como create 1.8 npxG a match (5th of 20); Venezia concede 2.2 (20th);
+Como concede 1.1 npxG a match (6th of 20)."
+
 ## D-072 — How much this season weighs: a little slow on the outliers, and no rule fixes it · 2026-10-28 · accepted
 Asked after Stuttgart (D-071): after seven rounds a level rating is 18% this season and 82%
 before. Three tests on the model as published (form and the blend in), D-023 protocol.

@@ -213,7 +213,8 @@ tr.ref td.l { text-transform: uppercase; letter-spacing: .06em; font-weight: 600
 .diff.up { color: var(--good); } .diff.down { color: var(--bad); }
 .diff { font-size: .8rem; margin-left: 4px; }
 .tspark { width: 72px; height: 22px; vertical-align: middle; }
-.trend-cell, th.nowrap { white-space: nowrap; } .trend-cell .diff { font-family: var(--mono); }
+.trend-cell, th.nowrap { white-space: nowrap; }
+td.pk-why { white-space: normal; min-width: 22em; max-width: 34em; line-height: 1.3; } .trend-cell .diff { font-family: var(--mono); }
 .record .trend-tile .tspark { width: 110px; height: 28px; }
 .record .trend-tile b { display: flex; align-items: center; gap: 8px; }
 .pct-chip { display: inline-block; min-width: 2.4em; text-align: center; padding: 3px 4px; border-radius: 3px; font-family: var(--mono); font-size: .82rem; }
@@ -1937,7 +1938,7 @@ ${detailOf(m)}      </details>`;
     const nPicks = K.double_chance.reduce((a, t) => a + t.picks.length, 0);
     $("pk-dc-sub").textContent = `${nPicks} of the round's matches have a favourite at 70% or more to win or draw (a 1X or X2 bet). Each tier shows how that kind of call has done.`;
     $("pk-tiers").innerHTML = K.double_chance.map((t) => `<article class="tier${t.from >= 0.9 ? " decisive" : ""}"><header><h3>${esc(t.label)}<small>${t.picks.length ? `${t.picks.length} ${t.picks.length === 1 ? "match" : "matches"} this round` : "none this round"}</small></h3><span class="tally">${rec(t.backtest, t.season, "calls")}</span></header>${t.picks.length ? `<div class="table-wrap"><table><thead><tr><th class="l">Match</th><th>Call</th><th>Chance</th><th>Win / draw / loss</th><th class="l">Why</th></tr></thead><tbody>` +
-      t.picks.map((x) => `<tr>${fixCell(x)}<td class="cell"><b>${esc(short(x.favourite))}</b> <span class="pos">${x.call}</span></td><td class="cell">${pc(x.p)}</td><td class="cell">${x.chances.map((c) => pc(c)).join(" / ")}</td><td class="l"><small>${x.drivers.map((d) => `${esc(d.feature)} (${esc(short(d.team))})`).join(", ") || "—"}</small></td></tr>`).join("") + "</tbody></table></div>" : ""}</article>`).join("");
+      t.picks.map((x) => `<tr>${fixCell(x)}<td class="cell"><b>${esc(short(x.favourite))}</b> <span class="pos">${x.call}</span></td><td class="cell">${pc(x.p)}</td><td class="cell">${x.chances.map((c) => pc(c)).join(" / ")}</td><td class="l pk-why"><small>${x.why ? esc(x.why) : "—"}</small></td></tr>`).join("") + "</tbody></table></div>" : ""}</article>`).join("");
     // Goals
     const G = K.goals;
     $("pk-goals-sub").textContent = `Over or under 2.5 goals, only where the scoreline model is at ${pc(G.min)} or more. ${G.picks.length ? `${G.picks.length} this round.` : "None this round."}`;
