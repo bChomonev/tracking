@@ -8,6 +8,34 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-073 — Picks: the round at a glance, every league, each tier next to its record · 2026-10-29 · accepted
+A new tab that synthesises the four leagues' next round into the calls the models are
+surest of. The rule that makes it a page and not a tips sheet: every tier carries its own
+track record — the held-out band record (D-060's "when we say it, does it happen?", pooled
+across leagues by matches) and this season's running count from the frozen prediction
+record — and a market appears only where its backtest beats the naive guess.
+
+`corridor.picks` is a pure aggregation over the leagues' `predictions.json` and
+`previews.json` (nothing recomputed), embedded by `build_site` as `SITE.picks`:
+- **Favourite to win or draw** (1X / X2) in tiers 90%+, 85–90, 80–85, 75–80, 70–75; below 70%
+  it is not a call. First round: 3 / 9 / 4 / 6 / 7 matches; held-out records 91% of 1,115,
+  89% of 2,324, 85% of 2,655, 80% of 2,970, 76% of 3,161 — each within a point or two of
+  what we said; this season so far 8 of 8, 11 of 17, 15 of 17, 4 of 7, 9 of 13, shown as
+  they are. Each row links to its match page and names the drivers.
+- **Goals**: over or under 2.5 only at 70%+ (held out: over calls at 70%+ said 74%, happened
+  74% of 397; under calls 62% said / 65% happened of 224 — thin). Both teams to score is left
+  off until its calibration is kept the same way. The prediction log now stores `over_2_5`
+  with each prediction so the tier gets a season record from the 31 Oct round on.
+- **Shooters**: the twelve starters likeliest to have two or more shots, with the held-out
+  rate for players given that chance (80–90% band: 84% did, of 138). A player with two
+  fixtures in the round appears twice, once per opponent.
+- **Cards**: the side likelier to draw more yellows at 60%+ (none this round — the most
+  lopsided match is at 64%); the only cards call the backtest supports (right 57% of 1,776
+  past matches, draws counted as wrong). Totals and reds are stated as unpredictable, not
+  listed.
+- **No "value against the bookmakers"**: the record has the model a few thousandths of RPS
+  behind them, so a disagreement is not an edge; the page says so.
+
 ## D-072 — How much this season weighs: a little slow on the outliers, and no rule fixes it · 2026-10-28 · accepted
 Asked after Stuttgart (D-071): after seven rounds a level rating is 18% this season and 82%
 before. Three tests on the model as published (form and the blend in), D-023 protocol.

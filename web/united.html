@@ -607,6 +607,34 @@ th[aria-sort="ascending"]::after { content: " ▴"; }
     </section>
   </div>
 
+  <div id="picks-view" hidden>
+    <section class="hero" aria-labelledby="pk-h">
+      <p class="eyebrow" id="pk-eyebrow">Every league, next round</p>
+      <h1 id="pk-h">The round <span>at a glance</span></h1>
+      <p class="ov-lede" id="pk-lede">The calls the models are surest of, across all four leagues, each next to its own track record: how often that kind of call came in on past seasons the model never saw, and how it is going this season. Lower tiers are still calls; below 70% they are not.</p>
+      <p class="how-toc"><a href="#picks" data-jump="pk-dc">Favourite to win or draw</a> · <a href="#picks" data-jump="pk-goals">Goals</a> · <a href="#picks" data-jump="pk-shooters">Shooters</a> · <a href="#picks" data-jump="pk-cards">Cards</a> · <a href="#predictions">How good are the predictions? →</a></p>
+    </section>
+    <section aria-labelledby="pk-dc-title" id="pk-dc">
+      <div class="section-head"><h2 id="pk-dc-title">Favourite to win or draw</h2><p id="pk-dc-sub"></p></div>
+      <div id="pk-tiers"></div>
+    </section>
+    <section aria-labelledby="pk-goals-title" id="pk-goals">
+      <div class="section-head"><h2 id="pk-goals-title">Goals</h2><p id="pk-goals-sub"></p></div>
+      <div class="table-wrap"><table id="pk-goals-table"></table></div>
+      <p class="bl-foot" id="pk-goals-foot"></p>
+    </section>
+    <section aria-labelledby="pk-shooters-title" id="pk-shooters">
+      <div class="section-head"><h2 id="pk-shooters-title">Most likely to shoot</h2><p id="pk-shooters-sub"></p></div>
+      <div class="table-wrap"><table id="pk-shooters-table"></table></div>
+    </section>
+    <section aria-labelledby="pk-cards-title" id="pk-cards">
+      <div class="section-head"><h2 id="pk-cards-title">Cards</h2><p id="pk-cards-sub"></p></div>
+      <div class="table-wrap"><table id="pk-cards-table"></table></div>
+      <p class="bl-foot" id="pk-cards-foot"></p>
+    </section>
+    <footer class="notes" id="pk-notes"></footer>
+  </div>
+
   <div id="match-view" hidden>
     <section class="hero" aria-labelledby="mv-title">
       <p class="eyebrow" id="mv-when"></p>
@@ -1893,26 +1921,62 @@ ${detailOf(m)}      </details>`;
     current = null;
   };
   const FT_NAME = SITE.leagues[FOCUS_LK].focus_team;
+  // ===== Picks: the round at a glance, every league (D-073) =====
+  let pkDone = false;
+  const renderPicks = () => {
+    document.title = "Picks · the round at a glance";
+    if (pkDone) return;
+    pkDone = true;
+    const K = SITE.picks;
+    if (!K) { $("pk-tiers").innerHTML = "<p>Nothing to show yet.</p>"; return; }
+    const lgName = (k) => esc(K.leagues[k] || k);
+    const hm = (x) => `#${x.league}/match/${x.id}`;
+    const rec = (b, s, what) => `<small>${b && b.n ? `On ${b.n.toLocaleString()} past ${what} we said ${pc(b.said)} and it happened ${pc(b.happened)}.` : "No past record for this band."}${s && s.n ? ` This season: ${s.hit} of ${s.n}.` : " This season: none scored yet."}</small>`;
+    const fixCell = (x) => `<td class="l"><a href="${hm(x)}">${esc(short(x.home))} v ${esc(short(x.away))}</a><br><small>${lgName(x.league)} · ${esc(when(x.kickoff.replace(" ", "T"), true))}</small></td>`;
+    // Favourite to win or draw, by tier
+    const nPicks = K.double_chance.reduce((a, t) => a + t.picks.length, 0);
+    $("pk-dc-sub").textContent = `${nPicks} of the round's matches have a favourite at 70% or more to win or draw (a 1X or X2 bet). Each tier shows how that kind of call has done.`;
+    $("pk-tiers").innerHTML = K.double_chance.map((t) => `<article class="tier${t.from >= 0.9 ? " decisive" : ""}"><header><h3>${esc(t.label)}<small>${t.picks.length ? `${t.picks.length} ${t.picks.length === 1 ? "match" : "matches"} this round` : "none this round"}</small></h3><span class="tally">${rec(t.backtest, t.season, "calls")}</span></header>${t.picks.length ? `<div class="table-wrap"><table><thead><tr><th class="l">Match</th><th>Call</th><th>Chance</th><th>Win / draw / loss</th><th class="l">Why</th></tr></thead><tbody>` +
+      t.picks.map((x) => `<tr>${fixCell(x)}<td class="cell"><b>${esc(short(x.favourite))}</b> <span class="pos">${x.call}</span></td><td class="cell">${pc(x.p)}</td><td class="cell">${x.chances.map((c) => pc(c)).join(" / ")}</td><td class="l"><small>${x.drivers.map((d) => `${esc(d.feature)} (${esc(short(d.team))})`).join(", ") || "—"}</small></td></tr>`).join("") + "</tbody></table></div>" : ""}</article>`).join("");
+    // Goals
+    const G = K.goals;
+    $("pk-goals-sub").textContent = `Over or under 2.5 goals, only where the scoreline model is at ${pc(G.min)} or more. ${G.picks.length ? `${G.picks.length} this round.` : "None this round."}`;
+    $("pk-goals-table").innerHTML = G.picks.length ? `<thead><tr><th class="l">Match</th><th>Call</th><th>Chance</th><th>Expected goals</th></tr></thead><tbody>` + G.picks.map((x) => `<tr>${fixCell(x)}<td class="cell"><b>${esc(x.call)}</b></td><td class="cell">${pc(x.p)}</td><td class="cell">${x.expected_goals}</td></tr>`).join("") + "</tbody>" : "";
+    $("pk-goals-foot").innerHTML = `Over: ${rec(G.backtest.over, G.season.over, "over calls")} Under: ${rec(G.backtest.under, G.season.under, "under calls")} The scoreline model is honest at this level and a little behind the bookmakers; both teams to score is left off until its record is kept the same way.`;
+    // Shooters
+    const S = K.shooters;
+    $("pk-shooters-sub").textContent = `The starters likeliest to have two or more shots this round, from ${S.n_starters.toLocaleString()} expected starters across the leagues, "if he starts". The last column is how often players given that chance on past seasons actually did.`;
+    $("pk-shooters-table").innerHTML = S.top.length ? `<thead><tr><th class="l">Player</th><th class="l">Match</th><th>2+ shots</th><th>Expected shots</th><th>Scores</th><th>Past record</th></tr></thead><tbody>` + S.top.map((x) => `<tr><td class="l"><b>${esc(x.name)}</b> <span class="pos">${esc(x.role || "")}</span><br><small>${esc(short(x.team || ""))}</small></td><td class="l"><a href="${hm(x)}">v ${esc(short(x.opponent))}</a><br><small>${lgName(x.league)} · ${esc(when(x.kickoff.replace(" ", "T"), true))}</small></td><td class="cell">${pc(x.p_shot2)}</td><td class="cell">${x.exp_shots}</td><td class="cell">${pc(x.p_goal)}</td><td class="cell">${x.band && x.band.n ? `${pc(x.band.happened)} <small>of ${x.band.n}</small>` : "—"}</td></tr>`).join("") + "</tbody>" : "";
+    // Cards
+    const C = K.cards;
+    $("pk-cards-sub").textContent = `The side likelier to draw more yellows, only where the cards model is at ${pc(C.min)} or more. ${C.picks.length ? `${C.picks.length} this round.` : "None this round: no match is that lopsided."}`;
+    $("pk-cards-table").innerHTML = C.picks.length ? `<thead><tr><th class="l">Match</th><th class="l">Call</th><th>Chance</th><th>Expected yellows</th></tr></thead><tbody>` + C.picks.map((x) => `<tr>${fixCell(x)}<td class="l"><b>${esc(x.call)}</b></td><td class="cell">${pc(x.p)}</td><td class="cell">${x.expected[0]} – ${x.expected[1]}</td></tr>`).join("") + "</tbody>" : "";
+    $("pk-cards-foot").textContent = `${C.backtest.n ? `Which side gets more yellows: right ${pc(C.backtest.happened)} of the time on ${C.backtest.n.toLocaleString()} past matches (draws count as wrong).` : ""} Total cards and red cards can't be predicted (tested), so there are no calls on them.`;
+    $("pk-notes").innerHTML = `<p>Every number here is the same prediction shown on the match pages, made before kickoff and frozen; the past records come from seasons the model never trained on. No "value against the bookmakers": over the backtest the model sits a few thousandths behind them, so a disagreement is not an edge. Lower tiers are riskier by definition — that is what the tier says.</p>`;
+  };
+
   $("topnav").innerHTML = Object.entries(SITE.leagues).map(([k, lg]) => `<a href="#${k}" data-nav="${k}">${esc(lg.competition)}</a>`).join("") +
-    (FT_NAME ? `<a href="${hTeam(FT_NAME, FOCUS_LK)}" data-nav="focus">${esc(FT_NAME)}</a>` : "") + `<a href="#predictions" data-nav="predictions">Predictions</a><a href="#how" data-nav="how">How we know</a>`;
+    (FT_NAME ? `<a href="${hTeam(FT_NAME, FOCUS_LK)}" data-nav="focus">${esc(FT_NAME)}</a>` : "") + `<a href="#picks" data-nav="picks">Picks</a><a href="#predictions" data-nav="predictions">Predictions</a><a href="#how" data-nav="how">How we know</a>`;
   let jumpTo = null;
   const route = () => {
     let parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
     if (parts[0] === "team" || parts[0] === "match") parts = ["pl", ...parts];
-    const pred = parts[0] === "predictions", how = parts[0] === "how" || pred;
-    const want = how ? (SITE.leagues[parts[1]] ? parts[1] : LK || "pl") : SITE.leagues[parts[0]] ? parts[0] : "pl";
+    const pred = parts[0] === "predictions", pk = parts[0] === "picks", how = parts[0] === "how" || pred;
+    const want = how ? (SITE.leagues[parts[1]] ? parts[1] : LK || "pl") : SITE.leagues[parts[0]] ? parts[0] : LK || "pl";
     if (want !== LK) useLeague(want);
-    const t = !how && parts[1] === "team" && bySlug[parts[2]];
-    const mm = !how && parts[1] === "match" ? parts[2] : null;
-    $("overview").hidden = !!(t || mm || how);
+    const t = !how && !pk && parts[1] === "team" && bySlug[parts[2]];
+    const mm = !how && !pk && parts[1] === "match" ? parts[2] : null;
+    $("overview").hidden = !!(t || mm || how || pk);
     $("team-view").hidden = !t;
     $("match-view").hidden = !mm;
     $("how-view").hidden = !how || pred;
     $("pred-view").hidden = !pred;
-    if (how) renderHow();
+    $("picks-view").hidden = !pk;
+    if (pk) renderPicks();
+    else if (how) renderHow();
     else if (mm) renderMatch(mm);
     else if (t) { if (t !== current) renderTeam(L.teams[t]); current = t; } else renderOverview();
-    const page = pred ? "predictions" : how ? "how" : t && t === ME ? "focus" : !t && !mm ? LK : "";
+    const page = pk ? "picks" : pred ? "predictions" : how ? "how" : t && t === ME ? "focus" : !t && !mm ? LK : "";
     document.querySelectorAll(".topnav a").forEach((a) => (a.dataset.nav === page ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
     const target = jumpTo && document.getElementById(jumpTo);
     jumpTo = null;

@@ -12,7 +12,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from corridor import cup
+from corridor import cup, picks
 from corridor.ingest import fotmob
 from corridor.ingest.http import DATA_DIR
 from corridor.leagues import LEAGUES, site_dir
@@ -56,7 +56,7 @@ def main() -> None:
         leagues[key] = league
     now = datetime.now(UTC)
     add_next_cup(leagues, args.season, now.isoformat())
-    site = {"generated_at": now.isoformat(), "leagues": leagues}
+    site = {"generated_at": now.isoformat(), "leagues": leagues, "picks": picks.build(leagues)}
     analysis_path = out / "analysis.json"
     analysis = json.loads(analysis_path.read_text()) if analysis_path.exists() else None
 

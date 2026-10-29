@@ -478,6 +478,7 @@ def main() -> None:
             log[f["id"]] = {k: f[k] for k in ("kickoff", "home", "away", "p", "p_base")} | {
                 "p_with_news": (f.get("absence") or {}).get("p_with"),
                 "p_noform": f.get("p_noform"),
+                "over_2_5": (f.get("goals") or {}).get("over_2_5"),  # for the Picks record
                 "made_at": made_at,
             }
     by_id = {m["id"]: m for m in current}
