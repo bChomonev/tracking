@@ -8,6 +8,16 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-074 — A source that cannot be reached serves its cached copy · 2026-11-02 · accepted
+On 2 November Understat's nameservers failed (SERVFAIL from every resolver) and every
+scheduled run died in `build_season` before the Sunday round could be built, because a
+refresh raised on DNS failure. Now `fetch_json` / `fetch_text` catch network failures on a
+refresh (DNS, connection, timeout, 5xx) and, when a cached copy exists, return it with a
+line on stderr naming the copy's age. A 4xx is a wrong request, never masked; nothing
+cached still raises. The update's existing gate then does the right thing: Sunday's rows
+lack PPDA, so it logs "source data not published yet" and retries each run for up to 72 h
+(D-018) rather than crashing or shipping a build without the slow data.
+
 ## D-073 — Picks: the round at a glance, every league, each tier next to its record · 2026-10-29 · accepted
 A new tab that synthesises the four leagues' next round into the calls the models are
 surest of. The rule that makes it a page and not a tips sheet: every tier carries its own

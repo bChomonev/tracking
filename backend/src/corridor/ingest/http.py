@@ -6,7 +6,9 @@ import gzip
 import hashlib
 import json
 import re
+import sys
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -20,6 +22,17 @@ USER_AGENT = (
 MIN_INTERVAL_S = 1.5
 
 _last_request = 0.0
+
+
+def _unreachable(url: str, path: Path, err: Exception) -> bool:
+    """True when a source cannot be reached (DNS, connection, timeout, 5xx) and we hold an
+    earlier copy. A 4xx means the request is wrong, not the network: never masked."""
+    if isinstance(err, urllib.error.HTTPError) and err.code < 500:
+        return False
+    if not path.exists():
+        return False
+    print(f"{url}: {err}; using the copy from {time.ctime(path.stat().st_mtime)}", file=sys.stderr)
+    return True
 
 
 def _cache_path(source: str, url: str) -> Path:
@@ -41,8 +54,13 @@ def fetch_text(source: str, url: str, *, max_age_h: float | None = None) -> str:
     if wait > 0:
         time.sleep(wait)
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        body = resp.read().decode("utf-8-sig", errors="replace")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = resp.read().decode("utf-8-sig", errors="replace")
+    except OSError as e:  # URLError, HTTPError, socket timeouts
+        if _unreachable(url, path, e):
+            return path.read_text()
+        raise
     _last_request = time.monotonic()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(body)
@@ -64,10 +82,15 @@ def fetch_json(
         url,
         headers={"User-Agent": USER_AGENT, "Accept-Encoding": "gzip", **(headers or {})},
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        body = resp.read()
-        if resp.headers.get("Content-Encoding") == "gzip":
-            body = gzip.decompress(body)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = resp.read()
+            if resp.headers.get("Content-Encoding") == "gzip":
+                body = gzip.decompress(body)
+    except OSError as e:  # URLError, HTTPError, socket timeouts
+        if _unreachable(url, path, e):
+            return json.loads(path.read_text())
+        raise
     _last_request = time.monotonic()
 
     data = json.loads(body)

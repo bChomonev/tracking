@@ -133,7 +133,11 @@ def publish(page: Path, label: str, previous_session: str | None) -> str | None:
         subprocess.run([str(CLAUDE), "rm", previous_session], capture_output=True, check=False)
     prompt = PUBLISH_PROMPT.format(page=page, url=ARTIFACT_URL, label=label[:60])
     res = subprocess.run(
-        [str(CLAUDE), "--bg", prompt], cwd=REPO, capture_output=True, text=True, timeout=120
+        [str(CLAUDE), "--bg", "--no-chrome", prompt],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     if res.returncode:
         raise RuntimeError("could not start the publishing Claude session")
