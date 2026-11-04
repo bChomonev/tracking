@@ -48,3 +48,35 @@ def test_a_client_error_is_never_masked_by_the_cache(monkeypatch, tmp_path):
     monkeypatch.setattr(http.urllib.request, "urlopen", not_found)
     with pytest.raises(urllib.error.HTTPError):
         http.fetch_json("src", url, refresh=True)
+
+
+class _Resp:
+    headers: dict = {}
+
+    def __init__(self, body: bytes):
+        self._body = body
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_an_error_page_with_status_200_serves_the_cache_and_keeps_it(monkeypatch, tmp_path):
+    url = "https://understat.com/getLeagueData/EPL/2026"
+    path = _cache(monkeypatch, tmp_path, url, {"teams": "old"})
+    page = b"<!DOCTYPE html><html><title>Understat.com</title></html>"
+    monkeypatch.setattr(http.urllib.request, "urlopen", lambda *a, **k: _Resp(page))
+    assert http.fetch_json("src", url, refresh=True) == {"teams": "old"}
+    assert json.loads(path.read_text()) == {"teams": "old"}
+
+
+def test_an_error_page_with_nothing_cached_raises(monkeypatch, tmp_path):
+    monkeypatch.setattr(http, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(http.urllib.request, "urlopen", lambda *a, **k: _Resp(b"<html>"))
+    with pytest.raises(ValueError):
+        http.fetch_json("src", "https://understat.com/x", refresh=True)

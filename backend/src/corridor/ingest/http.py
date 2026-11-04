@@ -93,7 +93,14 @@ def fetch_json(
         raise
     _last_request = time.monotonic()
 
-    data = json.loads(body)
+    try:
+        data = json.loads(body)
+    except ValueError as e:
+        # A source that answers with an error page (HTML, HTTP 200) is as unreachable as
+        # one that times out: serve the cached copy and never overwrite it with the page.
+        if _unreachable(url, path, e):
+            return json.loads(path.read_text())
+        raise
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data))
     return data

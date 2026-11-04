@@ -7,6 +7,7 @@ FotMob match page (events, shot map) and the predictions log (what we said befor
 """
 
 import math
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -219,6 +220,132 @@ def standouts(players: list[dict], match_id: int, team: str, min_minutes: int = 
     return sorted(out, key=lambda r: -r["minutes"])
 
 
+# FotMob's per-half team stats (``stats.Periods``), by the name the fact sheet uses.
+HALF_STATS = {
+    "BallPossesion": "possession_pct",
+    "expected_goals": "xg",
+    "expected_goals_non_penalty": "npxg",
+    "expected_goals_on_target": "xgot",
+    "total_shots": "shots",
+    "ShotsOnTarget": "shots_on_target",
+    "shots_inside_box": "shots_inside_box",
+    "touches_opp_box": "box_touches",
+    "big_chance": "big_chances",
+    "big_chances_missed_title": "big_chances_missed",
+    "big_chance_missed_title": "big_chances_missed",
+    "accurate_passes": "accurate_passes",
+    "opposition_half_passes": "passes_in_their_half",
+    "corners": "corners",
+    "interceptions": "interceptions",
+    "duel_won": "duels_won",
+    "physical_metrics_distance_covered": "distance_m",
+    "physical_metrics_number_of_sprints": "sprints",
+}
+HALVES = (("FirstHalf", "first_half"), ("SecondHalf", "second_half"))
+
+
+def _num(v: Any) -> float | None:
+    """'180 (70%)' → 180, '1.83' → 1.83, 28 → 28, None → None."""
+    if v is None:
+        return None
+    if isinstance(v, int | float):
+        return v
+    m = re.match(r"\s*(-?\d+(?:\.\d+)?)", str(v))
+    if not m:
+        return None
+    return float(m.group(1)) if "." in m.group(1) else int(m.group(1))
+
+
+def half_stats(details: dict, home: bool) -> dict | None:
+    """Each half as FotMob publishes it (D-076): the team's numbers, the opponent's, the
+    goals in that half and the non-penalty xG margin. None when FotMob has no halves."""
+    periods = ((details.get("content") or {}).get("stats") or {}).get("Periods") or {}
+    if not all(periods.get(k) for k, _ in HALVES):
+        return None
+    goals = [e for e in events(details, home) if e["type"] == "goal"]
+    out: dict[str, Any] = {}
+    for period, name in HALVES:
+        us: dict[str, Any] = {}
+        them: dict[str, Any] = {}
+        for group in periods[period].get("stats", []):
+            for s in group.get("stats", []):
+                key = HALF_STATS.get(s.get("key"))
+                if not key or key in us or s.get("type") == "title":
+                    continue
+                a, b = s.get("stats") or [None, None]
+                us[key], them[key] = (_num(a), _num(b)) if home else (_num(b), _num(a))
+        first = name == "first_half"
+        in_half = (
+            [g for g in goals if (g["minute"] or 0) <= 45]
+            if first
+            else [g for g in goals if (g["minute"] or 0) > 45]
+        )
+        us["goals"] = sum(1 for g in in_half if g["for"] == "us")
+        them["goals"] = sum(1 for g in in_half if g["for"] == "them")
+        out[name] = {
+            "us": us,
+            "them": them,
+            "npxg_margin": _r(us["npxg"] - them["npxg"], 2)
+            if us.get("npxg") is not None and them.get("npxg") is not None
+            else None,
+        }
+    return out
+
+
+def season_halves(matches: list[tuple[dict, dict]]) -> dict | None:
+    """The team's first and second halves across the season so far (D-076): per match,
+    the non-penalty xG for and against in each half and the goals, plus the totals and
+    how many matches each half was lost on chance quality. ``matches`` pairs each match
+    record (opponent, kickoff_utc, is_home, competition) with its FotMob page."""
+    rows = []
+    for mt, details in sorted(matches, key=lambda x: x[0]["kickoff_utc"]):
+        h = half_stats(details, mt["is_home"])
+        if not h:
+            continue
+        rows.append(
+            {
+                "date": mt["kickoff_utc"][:10],
+                "opponent": mt["opponent"],
+                "competition": mt.get("competition") or "league",
+                "score": f"{mt['goals_for']}-{mt['goals_against']}",
+                **{
+                    name: {
+                        "npxg_for": h[name]["us"].get("npxg"),
+                        "npxg_against": h[name]["them"].get("npxg"),
+                        "npxg_margin": h[name]["npxg_margin"],
+                        "goals": f"{h[name]['us']['goals']}-{h[name]['them']['goals']}",
+                    }
+                    for _, name in HALVES
+                },
+            }
+        )
+    if not rows:
+        return None
+    totals = {}
+    for _, name in HALVES:
+        xs = [r[name] for r in rows if r[name]["npxg_margin"] is not None]
+        totals[name] = {
+            "matches": len(xs),
+            "npxg_for_total": _r(sum(x["npxg_for"] for x in xs), 2),
+            "npxg_against_total": _r(sum(x["npxg_against"] for x in xs), 2),
+            "npxg_margin_total": _r(sum(x["npxg_margin"] for x in xs), 2),
+            "matches_lost_on_chance_quality": sum(1 for x in xs if x["npxg_margin"] < 0),
+            "goals_for_total": sum(int(x["goals"].split("-")[0]) for x in xs),
+            "goals_against_total": sum(int(x["goals"].split("-")[1]) for x in xs),
+        }
+    return {
+        "how_to_read": (
+            "Every match this season (league and Champions League), split at half-time, from "
+            "FotMob's per-half stats: non-penalty xG for and against in each half, the margin "
+            "(ours minus theirs) and the goals. 'matches_lost_on_chance_quality' counts the "
+            "matches where the opponent's chances in that half were worth more than ours. "
+            "Compare the two totals to say whether the first half is a pattern."
+        ),
+        "totals": totals,
+        "matches": rows,
+    }
+
+
 def match_facts(
     league: dict,
     team: str,
@@ -228,6 +355,7 @@ def match_facts(
     pre: dict | None,
     nxt: list[dict] | dict | None,
     competition: str = "league",
+    season: list[tuple[dict, dict]] | None = None,
 ) -> dict[str, Any]:
     ucl = competition == "ucl"
     prof = ucl_view(league["teams"][team]) if ucl else league["teams"][team]
@@ -325,6 +453,18 @@ def match_facts(
             "opponent_league_position_now": mt.get("opponent_league_position"),
         },
         "events": events(details, home),
+        "halves": {
+            "how_to_read": (
+                "FotMob's own stats for each half, as published: 'us' is "
+                f"{team}, 'them' the opponent. npxg_margin is ours minus theirs. Goals are "
+                "the goals scored in that half. Say which half the match was decided in only "
+                "when the two halves genuinely differ."
+            ),
+            **half_stats(details, home),
+        }
+        if half_stats(details, home)
+        else None,
+        "halves_this_season": season_halves(season) if season else None,
         "shots_summary": shots_summary(details, home),
         "game_state": game_state(prof, i),
         "running_vs_opponent": running(prof, i)
@@ -489,11 +629,23 @@ def running(prof: dict, i: int) -> dict | None:
     gap, spr = by.get("distance_gap_km"), by.get("sprints_gap")
     if gap is None and spr is None:
         return None
+    dist, sprints = by.get("distance_km"), by.get("sprints")
     return {
         "outrun_by_opponent": None if gap is None else gap < 0,
         "distance_more_than_opponent_km": None if gap is None else round(gap, 1),
         "outsprinted_by_opponent": None if spr is None else spr < 0,
         "sprints_more_than_opponent": None if spr is None else int(spr),
+        "us": {
+            "distance_km": _r(dist, 1),
+            "sprints": None if sprints is None else int(sprints),
+            "high_intensity_runs": None
+            if by.get("high_intensity_runs") is None
+            else int(by["high_intensity_runs"]),
+        },
+        "them": {
+            "distance_km": None if dist is None or gap is None else _r(dist - gap, 1),
+            "sprints": None if sprints is None or spr is None else int(sprints - spr),
+        },
     }
 
 

@@ -166,3 +166,103 @@ def test_running_vs_role_is_per_90_and_counts_games_with_more():
     assert rows["km covered per 90"]["games_with_more"] == 19  # 10.1 … 11.9 km
     assert rows["sprints per 90"]["games_with_more"] == 25  # 4 per 90; 5 … 29 are more
     assert all("opponent had the ball" not in s for s in rows)  # no data, no row
+
+
+def _page(first, second, goals):
+    """A FotMob page with per-half stats [home, away] and goals (minute, is_home)."""
+
+    def period(xg_home, xg_away, bc_home, bc_away):
+        return {
+            "stats": [
+                {
+                    "title": "Top stats",
+                    "stats": [
+                        {"key": "BallPossesion", "stats": [60, 40]},
+                        {"key": "expected_goals", "stats": [str(xg_home), str(xg_away)]},
+                        {"key": "big_chance", "stats": [bc_home, bc_away]},
+                        {"key": "accurate_passes", "stats": ["174 (78%)", "186 (84%)"]},
+                    ],
+                },
+                {
+                    "title": "Expected goals (xG)",
+                    "stats": [
+                        {"key": "expected_goals", "type": "title", "stats": [None, None]},
+                        {
+                            "key": "expected_goals_non_penalty",
+                            "stats": [str(xg_home), str(xg_away)],
+                        },
+                    ],
+                },
+            ]
+        }
+
+    return {
+        "content": {
+            "stats": {
+                "Periods": {"All": {}, "FirstHalf": period(*first), "SecondHalf": period(*second)}
+            },
+            "matchFacts": {
+                "events": {
+                    "events": [
+                        {"type": "Goal", "time": t, "isHome": h, "nameStr": "x"} for t, h in goals
+                    ]
+                }
+            },
+        }
+    }
+
+
+def test_half_stats_split_the_match_at_half_time_from_the_teams_side():
+    page = _page((0.44, 1.15, 1, 4), (1.78, 0.09, 3, 0), [(45, False), (50, True), (64, True)])
+    h = POST.half_stats(page, home=False)  # we are the away side
+    assert h["first_half"]["us"] == {
+        "possession_pct": 40,
+        "xg": 1.15,
+        "big_chances": 4,
+        "accurate_passes": 186,
+        "npxg": 1.15,
+        "goals": 1,
+    }
+    assert h["first_half"]["them"]["big_chances"] == 1
+    assert h["first_half"]["npxg_margin"] == 0.71
+    assert h["second_half"]["us"]["goals"] == 0
+    assert h["second_half"]["them"]["goals"] == 2
+    assert h["second_half"]["npxg_margin"] == -1.69
+    assert POST.half_stats({"content": {"stats": {"Periods": {"All": {}}}}}, True) is None
+
+
+def test_season_halves_total_each_half_and_count_the_ones_lost_on_chance_quality():
+    a = {
+        "opponent": "A",
+        "kickoff_utc": "2026-09-01T15:00:00Z",
+        "is_home": True,
+        "goals_for": 1,
+        "goals_against": 0,
+    }
+    b = {
+        "opponent": "B",
+        "kickoff_utc": "2026-08-20T15:00:00Z",
+        "is_home": False,
+        "goals_for": 0,
+        "goals_against": 2,
+        "competition": "ucl",
+    }
+    out = POST.season_halves(
+        [
+            (a, _page((0.2, 0.9, 0, 1), (1.4, 0.3, 2, 0), [(70, True)])),
+            (b, _page((0.5, 0.6, 1, 1), (0.1, 0.8, 0, 1), [(10, True), (80, True)])),
+        ]
+    )
+    assert [r["opponent"] for r in out["matches"]] == ["B", "A"]  # date order
+    assert out["matches"][0]["first_half"] == {
+        "npxg_for": 0.6,
+        "npxg_against": 0.5,
+        "npxg_margin": 0.1,
+        "goals": "0-1",
+    }
+    t = out["totals"]
+    assert t["first_half"]["matches_lost_on_chance_quality"] == 1
+    assert t["second_half"]["matches_lost_on_chance_quality"] == 0
+    assert t["first_half"]["npxg_margin_total"] == -0.6
+    assert t["second_half"]["npxg_margin_total"] == 1.8
+    assert t["first_half"]["goals_against_total"] == 1

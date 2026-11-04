@@ -574,8 +574,27 @@ def main() -> None:
             None,
         )
     nxt = next_matches(team, mt["kickoff_utc"], args.season, site)
+    # Every United match so far this season, league and Champions League, up to and
+    # including this one (all cached locally by build_season).
+    season = [
+        ({**m, "competition": comp}, fotmob.match_details(m["match_id"]))
+        for comp, ms in (
+            ("league", prof["matches"]),
+            ("ucl", (prof.get("ucl") or {}).get("matches", [])),
+        )
+        for m in ms
+        if m["kickoff_utc"] <= mt["kickoff_utc"]
+    ]
     facts = POST.match_facts(
-        league, team, mt["match_id"], details, players, pre, nxt, competition=args.competition
+        league,
+        team,
+        mt["match_id"],
+        details,
+        players,
+        pre,
+        nxt,
+        competition=args.competition,
+        season=season,
     )
 
     out = (

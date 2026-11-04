@@ -8,6 +8,35 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-076 — The fact sheet splits every match at half-time, and the season too · 2026-11-04 · accepted
+Two columns running (Chelsea, Roma) were stories of two different halves, and the first
+one needed FotMob's per-half numbers pasted into `facts.json` by hand. `match_facts` now
+carries a `halves` block built from the FotMob page's `stats.Periods`: each half's team
+numbers for us and the opponent (possession, xG, non-penalty xG, xG on target, shots, box
+touches, big chances, passes, corners, interceptions, duels, distance and sprints where
+FotMob publishes them), the goals in that half (a goal timed 45 or earlier is first-half;
+stoppage-time goals carry FotMob's base minute) and the non-penalty xG margin, ours minus
+theirs — the one derived number, so the writer never subtracts. The halves are never
+placed against the lines: the lines are whole-match rates and a half is not a match.
+A second block, `halves_this_season`, lists every United match so far this season (league
+and Champions League, from the pages `build_season` already cached) with the same per-half
+margin and goals, and totals each half: xG for, against, margin, goals, and how many matches
+that half was lost on chance quality. That is what turns "we were absent again before the
+break" from a feeling into a count. `scripts/post.py` loads the season's pages up to and
+including the match; `match_facts` takes them as an optional `season` argument so older
+callers and tests are unchanged. Nothing is predicted or scored from the halves yet; if the
+first-half count keeps growing, a first-half-only corridor is the next question.
+
+## D-075 — An error page is an unreachable source · 2026-11-04 · amends D-074
+Understat came back on 4 November answering HTTP 200 with an HTML error page, so D-074's
+fallback (network errors only) never fired and every run died in `build_season` on a JSON
+parse error. `fetch_json` now treats a body that is not JSON the same way: serve the cached
+copy with the same stderr line, never overwrite the cache with the page, and still raise
+when nothing is cached. The slow-data gate (D-018) then holds the build for up to 72 h as
+before; on 4 November that window had all but lapsed for the Sunday round, so it was forced
+through once to let the Roma match in, with the PL pressing numbers for that round imputed
+to the benchmark mean (D-004) until Understat serves data again.
+
 ## D-074 — A source that cannot be reached serves its cached copy · 2026-11-02 · accepted
 On 2 November Understat's nameservers failed (SERVFAIL from every resolver) and every
 scheduled run died in `build_season` before the Sunday round could be built, because a
