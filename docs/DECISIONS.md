@@ -24,8 +24,9 @@ margin and goals, and totals each half: xG for, against, margin, goals, and how 
 that half was lost on chance quality. That is what turns "we were absent again before the
 break" from a feeling into a count. `scripts/post.py` loads the season's pages up to and
 including the match; `match_facts` takes them as an optional `season` argument so older
-callers and tests are unchanged. Nothing is predicted or scored from the halves yet; if the
-first-half count keeps growing, a first-half-only corridor is the next question.
+callers and tests are unchanged. The halves are for the column only: the user decided on 4 November that the site page does
+not show them. Nothing is predicted or scored from the halves; if the first-half count keeps
+growing, a first-half-only corridor is the next question.
 
 ## D-075 — An error page is an unreachable source · 2026-11-04 · amends D-074
 Understat came back on 4 November answering HTTP 200 with an HTML error page, so D-074's
