@@ -39,6 +39,18 @@ def add_next_cup(leagues: dict, season: int, now: str) -> None:
             lg["next_cup"] = cup.next_cup_match(lg["focus_team"], fixtures, leagues, rows, now)
 
 
+def _trim(obj: object, places: int = 5) -> object:
+    """The same data with every float rounded: the page shows at most 4 decimals, and the
+    full-precision floats were a sixth of a page that sits at the artifact size limit."""
+    if isinstance(obj, float):
+        return round(obj, places)
+    if isinstance(obj, dict):
+        return {k: _trim(v, places) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_trim(v, places) for v in obj]
+    return obj
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2026)
@@ -61,7 +73,9 @@ def main() -> None:
     analysis = json.loads(analysis_path.read_text()) if analysis_path.exists() else None
 
     def embed(obj: object) -> str:
-        return json.dumps(obj, separators=(",", ":"), ensure_ascii=False).replace("</", "<\\/")
+        return json.dumps(_trim(obj), separators=(",", ":"), ensure_ascii=False).replace(
+            "</", "<\\/"
+        )
 
     html = (
         TEMPLATE.read_text()
