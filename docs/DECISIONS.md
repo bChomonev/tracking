@@ -8,6 +8,17 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-077 — The running record scores from FotMob when Understat is behind · 2026-11-09 · accepted
+The Picks record scored each logged prediction only against the Understat season, so the
+outage from 2 November (D-075) froze it at the 31 October round while eleven finished matches
+sat unscored, and the tab looked abandoned. `predictions` now scores any entry Understat has
+no result for from FotMob's fixture list, matched by team names (the log already holds
+FotMob names). Such entries are tagged `scored_from: fotmob` and carry no xG or odds; the
+Understat pass re-scores them, adding both and dropping the tag, once the season catches up.
+The model's history is unchanged: predictions still train on Understat only, so during an
+outage the picks for the next round do not see the latest results. That is the FotMob PPDA
+proxy question, still open (see the outage note, revisit 2026-11-10).
+
 ## D-076 — The fact sheet splits every match at half-time, and the season too · 2026-11-04 · accepted
 Two columns running (Chelsea, Roma) were stories of two different halves, and the first
 one needed FotMob's per-half numbers pasted into `facts.json` by hand. `match_facts` now

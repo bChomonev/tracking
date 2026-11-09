@@ -212,6 +212,36 @@ def _pct(x: float) -> float:
     return round(100 * x, 1)
 
 
+def fotmob_result(fm: dict) -> tuple[str, str] | None:
+    """(result, 'h-a') from a FotMob fixture's final score, or None when it is not final."""
+    st = fm.get("status") or {}
+    if not st.get("finished") or st.get("cancelled") or not st.get("scoreStr"):
+        return None
+    hg, ag = (int(x) for x in st["scoreStr"].split("-"))
+    return ("H" if hg > ag else "D" if hg == ag else "A"), f"{hg}-{ag}"
+
+
+def score_from_fotmob(log: dict[str, dict], fm_fix: list[dict]) -> int:
+    """D-077: score logged predictions whose result Understat has not published yet from
+    FotMob's fixture list, matched by team names (the log holds FotMob names). Provisional:
+    no xG, no odds; tagged so the Understat pass replaces it when the season catches up."""
+    done = {(m["home"]["name"], m["away"]["name"]): r for m in fm_fix if (r := fotmob_result(m))}
+    n = 0
+    for e in log.values():
+        if "result" in e or (e["home"], e["away"]) not in done:
+            continue
+        e["result"], e["score"] = done[(e["home"], e["away"])]
+        e["rps"] = P.rps(e["p"], e["result"])
+        e["rps_base"] = P.rps(e.get("p_base", e["p"]), e["result"])
+        if e.get("p_with_news"):
+            e["rps_with_news"] = P.rps(e["p_with_news"], e["result"])
+        if e.get("p_noform"):
+            e["rps_noform"] = P.rps(e["p_noform"], e["result"])
+        e["scored_from"] = "fotmob"
+        n += 1
+    return n
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=2026)
@@ -484,7 +514,9 @@ def main() -> None:
     by_id = {m["id"]: m for m in current}
     for fid, e in log.items():
         m = by_id.get(fid)
-        if m and m["played"] and "result" not in e:
+        # A FotMob-scored entry (D-077) is scored again here: Understat adds xG and odds.
+        if m and m["played"] and ("result" not in e or e.get("scored_from") == "fotmob"):
+            e.pop("scored_from", None)
             e["result"] = m["result"]
             e["score"] = f"{m['hg']}-{m['ag']}"
             e["rps"] = P.rps(e["p"], m["result"])
@@ -496,11 +528,14 @@ def main() -> None:
             for book in ("avg", "closing"):
                 if book in m.get("odds", {}):
                     e[f"{book}_rps"] = P.rps(m["odds"][book], m["result"])
+    # Results Understat has not published yet come from FotMob's fixture list (D-077).
+    if n_fm := score_from_fotmob(log, fm_fix):
+        print(f"record: {n_fm} result(s) scored from FotMob, Understat not caught up")
     # With the official line-ups (D-065): the pre-kickoff chances shifted by the share of
     # each side's usual XI that did not start, from the cached match page. Filled in for
     # every scored prediction that lacks it (the page may be cached after the scoring run).
     for fid, e in log.items():
-        if "result" in e and "rps_with_xi" not in e and (m := by_id.get(fid)):
+        if "result" in e and "rps_with_xi" not in e and (m := by_id.get(fid)) and m["played"]:
             a = ab_by_id.get(fid)
             if a and all("regulars_missing" in a[side] for side in ("home", "away")):
                 e["p_with_xi"] = [
