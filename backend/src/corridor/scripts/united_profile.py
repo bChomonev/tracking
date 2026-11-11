@@ -13,7 +13,6 @@ import json
 from corridor import proof
 from corridor.best_line import build_line, compare, hits_line
 from corridor.engine import player_trend, trend
-from corridor.ingest import understat
 from corridor.ingest.http import DATA_DIR
 from corridor.leagues import LEAGUES, League, processed_dir, site_dir
 from corridor.profile import player_profiles, shooting, team_profile
@@ -35,59 +34,37 @@ def proof_record(season: int, league: League = LEAGUES["pl"]) -> dict:
         if (p := processed_dir(y, league) / "team_matches.json").exists()
     ]
     fm = proof.evaluate(proof.fotmob_seasons(fot), proof.FOTMOB_METRICS, proof.FOTMOB_BINS)
-    us_seasons = [
-        (
-            _label(y),
-            proof.understat_rows(
-                understat.team_matches(understat.league_data(league.understat, y))
-            ),
-        )
-        for y in range(2014, season + 1)
+    # The core record (D-079): the five core metrics since 2020-21, FotMob's first xG season.
+    core_seasons = [
+        (_label(y), proof.core_rows(json.loads(p.read_text())))
+        for y in range(2020, season + 1)
+        if (p := processed_dir(y, league) / "team_matches.json").exists()
     ]
-    us = proof.evaluate(us_seasons, proof.UNDERSTAT_METRICS, proof.UNDERSTAT_BINS)
-    us_lines = {
+    core = proof.evaluate(core_seasons, proof.CORE_METRICS, proof.CORE_BINS)
+    core_lines = {
         side: build_line(
-            us_seasons[-2][1],
-            us_seasons[-2][0],
-            us_seasons[-1][1],
+            core_seasons[-2][1],
+            core_seasons[-2][0],
+            core_seasons[-1][1],
             side,
-            proof.UNDERSTAT_METRICS,
+            proof.CORE_METRICS,
             derived=True,
         )
         for side in ("best", "worst")
     }
-    return {"fotmob": fm, "understat": us, "us_lines": us_lines, "us_rows": us_seasons[-1][1]}
-
-
-def _understat_row(rec: dict, fm_row: dict) -> dict | None:
-    """The Understat row for a FotMob team-match: same day, same score, and the same
-    Understat PPDA and deep completions for/against (joined into FotMob rows at build
-    time). A draw on the same day can share a score, so the score alone is not enough."""
-    day = fm_row["kickoff_utc"][:10]
-    for r in rec["us_rows"]:
-        if (
-            r["kickoff_utc"][:10] == day
-            and r["goals_for"] == fm_row["goals_for"]
-            and r["goals_against"] == fm_row["goals_against"]
-            and r["deep_completions"] == fm_row.get("deep_completions")
-            and r["deep_allowed"] == fm_row.get("deep_allowed")
-            and fm_row.get("ppda") is not None
-            and abs(r["ppda"] - fm_row["ppda"]) < 1e-6
-        ):
-            return r
-    return None
+    return {"fotmob": fm, "core": core, "core_lines": core_lines}
 
 
 def place(prof: dict, rows: list[dict], rec: dict) -> dict:
     """Place each of a team's matches (and its typical match) on the proof record."""
-    fm, us = rec["fotmob"], rec["understat"]
+    fm, core = rec["fotmob"], rec["core"]
     keys = fm["pairs"][-1]["metrics"]
     weights = fm["weighted"]["weights"]
     by_id = {r["match_id"]: r for r in rows if r["team"] == prof["team"]}
     placed = []
     for i, mt in enumerate(prof["matches"]):
         out: dict = {"match_id": mt["match_id"]}
-        ur = _understat_row(rec, by_id[mt["match_id"]]) if mt["match_id"] in by_id else None
+        cr = proof.core_row(by_id[mt["match_id"]]) if mt["match_id"] in by_id else None
         for side in ("best", "worst"):
             by = {}
             for m in prof["metrics"]:
@@ -109,19 +86,16 @@ def place(prof: dict, rows: list[dict], rec: dict) -> dict:
                 "share": ws,
                 "history": proof.place(ws, {"bins": fm["weighted"]["bins"][side]}),
             }
-            if ur:
-                uh, un = proof.score(
-                    ur,
-                    rec["us_lines"][side],
-                    proof.UNDERSTAT_METRICS,
-                    [m.key for m in proof.UNDERSTAT_METRICS],
+            if cr:
+                ch, cn = proof.score(
+                    cr, rec["core_lines"][side], proof.CORE_METRICS, proof.CORE_KEYS
                 )
-                ushare = uh / un if un else None
+                cshare = ch / cn if cn else None
                 out[f"{side}_core"] = {
-                    "hits": uh,
-                    "of": un,
-                    "share": ushare,
-                    "history": proof.place(ushare, us[side]),
+                    "hits": ch,
+                    "of": cn,
+                    "share": cshare,
+                    "history": proof.place(cshare, core[side]),
                 }
         placed.append(out)
     typical = {}
@@ -263,9 +237,6 @@ def table_row(prof: dict) -> dict:
         "points": prof["record"]["points"],
         "xg": sum(m["xg"] or 0 for m in ms),
         "xga": sum(m["xg_conceded"] or 0 for m in ms),
-        "understat_xpts": sum(m["us_xpts"] or 0 for m in ms)
-        if all(m.get("us_xpts") is not None for m in ms)
-        else None,
         "stacks": {st["id"]: st["score"] for st in prof["stacks"]},
         "form": [m["result"] for m in ms[-5:]],
     }
@@ -337,7 +308,7 @@ def main() -> None:
         p["shooting"]["teams"] = len(gaps)
     out = site_dir(args.season, league)
     out.mkdir(parents=True, exist_ok=True)
-    shared = {"fotmob": rec["fotmob"], "understat": rec["understat"]} if rec else None
+    shared = {"fotmob": rec["fotmob"], "core": rec["core"]} if rec else None
     league_out = {
         "league": league.key,
         "season": ctx["season"],

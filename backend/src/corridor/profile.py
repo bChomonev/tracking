@@ -487,7 +487,7 @@ STATE_KEYS = frozenset(m.key for m in METRICS if m.stack == "state")
 
 
 def derive(r: dict) -> dict:
-    """Add derived per-match metrics to a FotMob/Understat team-match record."""
+    """Add derived per-match metrics to a FotMob team-match record."""
     d = dict(r)
     d["distance_km"] = r["distance_m"] / 1000 if r.get("distance_m") else None
     d["distance_gap_km"] = (
@@ -680,7 +680,6 @@ def team_profile(rows: list[dict], team: str) -> dict:
                     "possession_pct",
                     "xg",
                     "xg_conceded",
-                    "us_xpts",
                     "ppda",
                     *(f"{s}_minutes" for s in STATES),
                 )

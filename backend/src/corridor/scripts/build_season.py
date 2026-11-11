@@ -2,51 +2,18 @@
 
     uv run python -m corridor.scripts.build_season [--season 2026] [--competition <league>|ucl]
 
-leagues (pl, laliga, seriea, bundesliga): FotMob + Understat (PPDA, deep completions) — see
-corridor.leagues
+leagues (pl, laliga, seriea, bundesliga): FotMob — see corridor.leagues (D-079)
 ucl: FotMob events + UEFA physical data (distance, sprints, running without the ball)
 
 Outputs (gitignored): data/processed/{season}/[ucl/|laliga/]team_matches.json, player_matches.json
 """
 
 import argparse
-import difflib
 import json
-from collections import defaultdict
 
-from corridor import proxy
-from corridor.ingest import fotmob, uefa, understat
+from corridor.ingest import fotmob, uefa
 from corridor.ingest.http import DATA_DIR
 from corridor.leagues import LEAGUES, processed_dir
-
-
-def _name_map(fm_fixtures: list[dict], us_dates: list[dict]) -> dict[str, str]:
-    """Map Understat team titles → FotMob names by pairing matches with the same kickoff."""
-    by_time: dict[str, list[dict]] = defaultdict(list)
-    for m in fm_fixtures:
-        by_time[m["status"]["utcTime"][:16].replace("T", " ")].append(m)
-    votes: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
-    for u in us_dates:
-        candidates = by_time.get(u["datetime"][:16], [])
-        if not candidates:
-            continue
-        best = max(
-            candidates,
-            key=lambda m: (
-                difflib.SequenceMatcher(
-                    None, u["h"]["title"].lower(), m["home"]["name"].lower()
-                ).ratio()
-                + difflib.SequenceMatcher(
-                    None, u["a"]["title"].lower(), m["away"]["name"].lower()
-                ).ratio()
-            ),
-        )
-        votes[u["h"]["title"]][best["home"]["name"]] += 1
-        votes[u["a"]["title"]][best["away"]["name"]] += 1
-    mapping = {us: max(fm.items(), key=lambda kv: kv[1])[0] for us, fm in votes.items()}
-    if len(set(mapping.values())) != len(mapping):
-        raise RuntimeError(f"ambiguous team-name mapping: {mapping}")
-    return mapping
 
 
 def _fotmob_season(season: int, league_id: int) -> tuple[list[dict], list[dict], list[dict]]:
@@ -159,54 +126,7 @@ def main() -> None:
     league = LEAGUES[args.competition]
     fixtures, team_rows, player_rows = _fotmob_season(season, league.fotmob_id)
 
-    us_data = understat.league_data(league.understat, season, refresh=True)
-    names = _name_map(fixtures, us_data["dates"])
-    us_rows = {(names[r["team"]], r["kickoff"][:10]): r for r in understat.team_matches(us_data)}
-    joined = 0
-    for r in team_rows:
-        u = us_rows.get((r["team"], r["kickoff_utc"][:10]))
-        if u and u["goals_for"] == r["goals_for"] and u["goals_against"] == r["goals_against"]:
-            r.update(
-                {
-                    k: u[k]
-                    for k in (
-                        "ppda",
-                        "ppda_allowed",
-                        "deep_completions",
-                        "deep_allowed",
-                        "us_xg",
-                        "us_xga",
-                        "us_xpts",
-                    )
-                }
-            )
-            joined += 1
-    print(f"Understat: joined {joined}/{len(team_rows)} team-matches")
-
-    # Matches Understat has not published get stand-ins fitted on the ones it has (D-078).
-    # The real join above wins whenever it exists, so a later run replaces them.
-    opp = proxy.opponents(team_rows)
-    pairs = [
-        (u, r, opp[(r["match_id"], r["team"])])
-        for r in team_rows
-        if "us_xpts" in r
-        and (r["match_id"], r["team"]) in opp
-        and (u := us_rows.get((r["team"], r["kickoff_utc"][:10])))
-    ]
-    fits = proxy.fit(pairs)
-    filled = 0
-    for r in team_rows:
-        if "us_xpts" in r or (r["match_id"], r["team"]) not in opp:
-            continue
-        r.update(proxy.apply(r, opp[(r["match_id"], r["team"])], fits))
-        filled += r.get("understat_proxy", False)
-    if filled:
-        print(f"Understat proxy: filled {filled} team-matches from FotMob, fitted on {len(pairs)}")
-    out = processed_dir(season, league)
-    _write(out, team_rows, player_rows)
-    (out / "understat_proxy.json").write_text(
-        json.dumps({"fits": fits, "filled": filled}, indent=1)
-    )
+    _write(processed_dir(season, league), team_rows, player_rows)
 
 
 if __name__ == "__main__":

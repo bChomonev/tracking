@@ -528,7 +528,7 @@ def _focus_facts(profile: dict, labels: list[str]) -> dict | None:
             "count_at_worst_line": t["worst"],
         }
     wf = pr["fotmob"]["weighted"]["walk_forward"]
-    us_wf = pr["understat"]["weighted"]["walk_forward"]
+    core_wf = pr["core"]["weighted"]["walk_forward"]
 
     def score(x: dict, res: str) -> dict:
         h = x.get("history") or {}
@@ -547,8 +547,8 @@ def _focus_facts(profile: dict, labels: list[str]) -> dict | None:
         "weighting_check": {
             "what": "Weights learned only from earlier seasons, then tested on later ones. "
             "AUC: 0.5 = no better than a coin, 1 = perfect.",
-            "long_record_auc_equal_lines": round(us_wf["best"]["auc_equal"], 2),
-            "long_record_auc_weighted_lines": round(us_wf["best"]["auc_weighted"], 2),
+            "long_record_auc_equal_lines": round(core_wf["best"]["auc_equal"], 2),
+            "long_record_auc_weighted_lines": round(core_wf["best"]["auc_weighted"], 2),
             "this_season_auc_equal_lines": round(wf["best"]["auc_equal"], 2),
             "this_season_auc_weighted_lines": round(wf["best"]["auc_weighted"], 2),
         },
@@ -571,7 +571,7 @@ def _proof_facts(profile: dict, labels: list[str]) -> dict | None:
     pr = profile.get("proof")
     if not pr:
         return None
-    us, fm = pr["understat"], pr["fotmob"]
+    core, fm = pr["core"], pr["fotmob"]
 
     def bins(side: str, res: str) -> list[dict]:
         word = "won" if res == "W" else "lost"
@@ -581,7 +581,7 @@ def _proof_facts(profile: dict, labels: list[str]) -> dict | None:
                 "matches": b["n"],
                 f"pct_{word}": _pct(b[res]),
             }
-            for i, b in enumerate(us[side]["bins"])
+            for i, b in enumerate(core[side]["bins"])
         ]
 
     lines = [
@@ -601,12 +601,14 @@ def _proof_facts(profile: dict, labels: list[str]) -> dict | None:
             "proof of cause."
         ),
         "long_record": {
-            "source": "Understat, 5 core metrics: npxG for/against, PPDA, deep completions "
-            "for/against",
-            "team_matches": us["team_matches"],
-            "seasons_tested": f"{us['pairs'][0]['tested_on']} to {us['pairs'][-1]['tested_on']}",
-            "baseline_pct_won": _pct(us["baseline"]["W"]),
-            "baseline_pct_lost": _pct(us["baseline"]["L"]),
+            "source": "FotMob since 2020-21, 5 core metrics: npxG for/against, passes allowed "
+            "per defensive action, box touches for/against",
+            "team_matches": core["team_matches"],
+            "seasons_tested": (
+                f"{core['pairs'][0]['tested_on']} to {core['pairs'][-1]['tested_on']}"
+            ),
+            "baseline_pct_won": _pct(core["baseline"]["W"]),
+            "baseline_pct_lost": _pct(core["baseline"]["L"]),
             "best_lines": bins("best", "W"),
             "worst_lines": bins("worst", "L"),
         },

@@ -8,7 +8,41 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
-## D-078 — Understat stand-ins from FotMob while Understat is down · 2026-11-10 · accepted · revisit
+## D-079 — FotMob is the only source: Understat retired · 2026-11-11 · accepted
+Understat had been down nine days (D-075, D-078) and everything else on the site already
+came from FotMob. On 10 November the user chose to drop Understat for good. The test first:
+the same prediction model on a FotMob-only history (2020-21, FotMob's first xG season, to
+now) against the Understat one, both trained from 2020 and scored on the same held-out
+seasons 2023-24 to 2026-27 (to 31 October). RPS, lower is better: PL 0.2041 vs 0.2018,
+La Liga 0.1924 vs 0.1915, Serie A 0.1921 vs 0.1923, Bundesliga 0.1997 vs 0.1990. Training
+from 2015 instead of 2020 changed nothing (±0.0005), so the shorter history is free. The
+user accepted the PL gap as the price of one source.
+
+What changed:
+- `predict.season_matches` / `load_history` read the processed FotMob seasons; match ids
+  are FotMob ids; team names are FotMob names everywhere, so the Understat→FotMob name
+  map is gone. `FIRST_TRAIN, FIRST_TEST = 2020, 2023`; the tuned parameters (D-023) are
+  kept as they were, not retuned.
+- The five core metrics (`proof.CORE_METRICS`) are FotMob's: npxG for/against, passes
+  allowed per defensive action (opponent passes ÷ tackles + interceptions + fouls, the
+  D-078 proxy, now a metric in its own right), box touches for/against. They feed the
+  model's line features and the site's long record ("core", 4,000 team-matches over six
+  season pairs, replacing Understat's 2014-15 record). The detailed FotMob record (all
+  metrics, since 2024-25) is unchanged, so tiers and impact weights are unchanged.
+- The predictions log was re-keyed from Understat ids to FotMob ids by fixture (teams and
+  day); every logged pick carried over, nothing was rescored.
+- Bookmaker names map to FotMob names (`odds.ALIAS`), and an unmapped name now skips the
+  match instead of failing the run.
+- The slow-data gate (D-018) applies to the Champions League only; league matches have no
+  slow source any more. D-077 and D-078 are superseded (the bridge is no longer needed);
+  `corridor.ingest.understat` and `corridor.proxy` are deleted. Cached Understat files stay
+  in `data/raw/understat/` and are read by nothing.
+
+Open: FotMob has shot-quality fields Understat lacked (xGOT, big chances). Without the line
+features the FotMob xG alone scored worse than Understat's (PL 0.2026 vs 0.2013), so the
+richer features are what closed the gap; tuning on them is the next model experiment.
+
+## D-078 — Understat stand-ins from FotMob while Understat is down · 2026-11-10 · superseded by D-079
 Understat was still on its error page on the agreed check-in date (D-075, eight days). The
 prediction model's current season stopped on 31 October and the site's pressing and deep-
 completion metrics for the twelve matches since showed the benchmark average (D-004). On the
@@ -30,7 +64,7 @@ the update no longer waits 72 h for Understat; and "why it went wrong" on the Pi
 reads FotMob-fitted xG for those matches. Revisit: D-079, the FotMob-only model, which
 would retire Understat and this bridge.
 
-## D-077 — The running record scores from FotMob when Understat is behind · 2026-11-09 · accepted
+## D-077 — The running record scores from FotMob when Understat is behind · 2026-11-09 · superseded by D-079
 The Picks record scored each logged prediction only against the Understat season, so the
 outage from 2 November (D-075) froze it at the 31 October round while eleven finished matches
 sat unscored, and the tab looked abandoned. `predictions` now scores any entry Understat has

@@ -3,7 +3,7 @@ an honest running record of every prediction made before kickoff (D-023).
 
     uv run python -m corridor.scripts.predictions [--season 2026]
 
-Reads the cached Understat seasons (build_season refreshes the current one) and the
+Reads the processed FotMob seasons (build_season writes them; D-079) and the
 football-data odds files; writes data/site/{season}/predictions.json and appends to
 predictions_log.json. Both gitignored.
 """
@@ -22,10 +22,10 @@ from corridor.ingest import fotmob
 from corridor.ingest.fotmob import BASE
 from corridor.ingest.http import fetch_json
 from corridor.leagues import LEAGUES, processed_dir, site_dir
-from corridor.scripts.build_season import _name_map
 
-# Frozen after tuning on 2016-17 … 2019-20 (D-023). Re-tune only deliberately, never to
-# chase the held-out seasons.
+# Frozen after tuning on Understat's 2016-17 … 2019-20 (D-023) and kept as they were when the
+# history moved to FotMob (D-079). Re-tune only deliberately, never to chase the held-out
+# seasons.
 PARAMS = P.Params(half_life=24.0, carry=1.0, features="xg+goals+lines", C=0.05, adjust=True)
 # Recent form (D-061): the same ratings over a 2-match half-life, as "recent minus level".
 # Chosen on the tuning seasons like everything else; applied per league only where its
@@ -34,7 +34,8 @@ FORM_PARAMS = replace(PARAMS, form_half_life=2.0, features="xg+goals+lines+form"
 # Two models averaged (D-068): 0.4 on the goals model's own 1X2, chosen on the PL tuning
 # seasons; applied per league where the held-out test gains in most seasons.
 BLEND_WEIGHT = 0.4
-FIRST_TRAIN, FIRST_TEST = 2015, 2020
+# FotMob has xG from 2020-21 (D-079): train from there, hold out 2023-24 onwards.
+FIRST_TRAIN, FIRST_TEST = 2020, 2023
 # Rolling calibration (D-036) is fitted on walk-forward predictions from this season on.
 CAL_FIRST = FIRST_TRAIN + 1
 FEATURE_WORDS = {
@@ -124,26 +125,10 @@ def absence_seasons(league, season: int) -> list[tuple[int, list[dict], list[dic
     return seasons
 
 
-def absences_by_match(league, scored: list[dict], seasons: list, absn: dict) -> dict[str, dict]:
-    """Understat match id → that match's absences / line-ups entry (joined by the FotMob
-    fixture list: team names and date)."""
-    out = {}
-    idx = {(a["home_team"], a["away_team"], a["kickoff"][:10]): a for a in absn.values()}
-    for s, *_ in seasons:
-        fm = fotmob.league_matches(f"{s}/{s + 1}", league.fotmob_id)
-        us = [m for m in scored if m["season"] == s]
-        nm = _name_map(
-            fm,
-            [
-                {"datetime": m["kickoff"], "h": {"title": m["home"]}, "a": {"title": m["away"]}}
-                for m in us
-            ],
-        )
-        for m in us:
-            a = idx.get((nm.get(m["home"]), nm.get(m["away"]), m["kickoff"][:10]))
-            if a:
-                out[m["id"]] = a
-    return out
+def absences_by_match(scored: list[dict], absn: dict) -> dict[str, dict]:
+    """Match id → that match's absences / line-ups entry (both keyed by FotMob match id)."""
+    ids = {m["id"] for m in scored}
+    return {str(k): v for k, v in absn.items() if str(k) in ids}
 
 
 def team_news_test(
@@ -212,89 +197,19 @@ def _pct(x: float) -> float:
     return round(100 * x, 1)
 
 
-PROXY_FIELDS = (
-    "us_xg",
-    "us_xga",
-    "us_npxg",
-    "us_npxga",
-    "ppda",
-    "deep_completions",
-    "deep_allowed",
-)
-
-
-def fill_from_fotmob(hist: list[dict], season: int, league, names: dict[str, str]) -> int:
-    """D-078: an unplayed Understat fixture whose FotMob rows carry proxy stand-ins (built
-    by build_season) becomes a played match, its rows shaped like Understat's. Returns the
-    number filled. The real Understat row replaces it on the next build once published."""
-    path = processed_dir(season, league) / "team_matches.json"
-    if not path.exists():
-        return 0
-    rows = [r for r in json.loads(path.read_text()) if r.get("understat_proxy")]
-    if not rows:
-        return 0
-    by_key = {(r["team"], r["kickoff_utc"][:10]): r for r in rows}
-    n = 0
-    for m in hist:
-        if m["season"] != season or m["played"]:
-            continue
-        day = m["kickoff"][:10]
-        fh = by_key.get((names.get(m["home"], m["home"]), day))
-        fa = by_key.get((names.get(m["away"], m["away"]), day))
-        if not fh or not fa or any(k not in fh or k not in fa for k in PROXY_FIELDS):
-            continue
-        m["rows"] = {
-            side: {
-                "source": "fotmob_proxy",
-                "team": m[side],
-                "kickoff": m["kickoff"],
-                "is_home": side == "home",
-                "goals_for": r["goals_for"],
-                "goals_against": r["goals_against"],
-                **{k: r[k] for k in PROXY_FIELDS},
-                "ppda_allowed": r.get("ppda_allowed"),
-            }
-            for side, r in (("home", fh), ("away", fa))
-        }
-        hg, ag = fh["goals_for"], fh["goals_against"]
-        m |= {
-            "played": True,
-            "hg": hg,
-            "ag": ag,
-            "result": "H" if hg > ag else "D" if hg == ag else "A",
-        }
-        n += 1
-    return n
-
-
-def fotmob_result(fm: dict) -> tuple[str, str] | None:
-    """(result, 'h-a') from a FotMob fixture's final score, or None when it is not final."""
-    st = fm.get("status") or {}
-    if not st.get("finished") or st.get("cancelled") or not st.get("scoreStr"):
-        return None
-    hg, ag = (int(x) for x in st["scoreStr"].split("-"))
-    return ("H" if hg > ag else "D" if hg == ag else "A"), f"{hg}-{ag}"
-
-
-def score_from_fotmob(log: dict[str, dict], fm_fix: list[dict]) -> int:
-    """D-077: score logged predictions whose result Understat has not published yet from
-    FotMob's fixture list, matched by team names (the log holds FotMob names). Provisional:
-    no xG, no odds; tagged so the Understat pass replaces it when the season catches up."""
-    done = {(m["home"]["name"], m["away"]["name"]): r for m in fm_fix if (r := fotmob_result(m))}
-    n = 0
-    for e in log.values():
-        if "result" in e or (e["home"], e["away"]) not in done:
-            continue
-        e["result"], e["score"] = done[(e["home"], e["away"])]
-        e["rps"] = P.rps(e["p"], e["result"])
-        e["rps_base"] = P.rps(e.get("p_base", e["p"]), e["result"])
-        if e.get("p_with_news"):
-            e["rps_with_news"] = P.rps(e["p_with_news"], e["result"])
-        if e.get("p_noform"):
-            e["rps_noform"] = P.rps(e["p_noform"], e["result"])
-        e["scored_from"] = "fotmob"
-        n += 1
-    return n
+def migrate_log(log: dict[str, dict], current: list[dict]) -> int:
+    """Re-key entries logged under another provider's match ids (Understat, before D-079) to
+    the FotMob id of the same fixture: same teams, same day. Returns how many moved."""
+    ids = {m["id"] for m in current}
+    by_fixture = {(m["home"], m["away"], m["kickoff"][:10]): m["id"] for m in current}
+    moved = 0
+    for old in [k for k in log if k not in ids]:
+        e = log[old]
+        new = by_fixture.get((e["home"], e["away"], e["kickoff"][:10]))
+        if new and new not in log:
+            log[new] = log.pop(old)
+            moved += 1
+    return moved
 
 
 def main() -> None:
@@ -306,20 +221,8 @@ def main() -> None:
     season = args.season
     now = datetime.now(UTC).replace(tzinfo=None)
 
-    hist = P.load_history(2014, season, league=league.understat)
-    # Understat → FotMob names, so predictions link to the team pages.
+    hist = P.load_history(FIRST_TRAIN, season, league)
     fm_fix = fotmob.league_matches(f"{season}/{season + 1}", league.fotmob_id)
-    names = _name_map(
-        fm_fix,
-        [
-            {"datetime": m["kickoff"], "h": {"title": m["home"]}, "a": {"title": m["away"]}}
-            for m in hist
-            if m["season"] == season
-        ],
-    )
-    # Matches Understat has not published yet enter the season from FotMob (D-078).
-    if n_proxy := fill_from_fotmob(hist, season, league, names):
-        print(f"history: {n_proxy} match(es) of {season} filled from FotMob proxies")
     scored_base, _ = P.walk(hist, PARAMS)
     scored_form, _ = P.walk(hist, FORM_PARAMS)
     # Recent form (D-061): on only where this league's own held-out test says so.
@@ -375,8 +278,8 @@ def main() -> None:
         out = {
             "id": m["id"],
             "kickoff": m["kickoff"],
-            "home": names.get(m["home"], m["home"]),
-            "away": names.get(m["away"], m["away"]),
+            "home": m["home"],
+            "away": m["away"],
             "p": [round(float(v), 4) for v in p],
             "exp_home": round(x["exp_home"], 2),
             "exp_away": round(x["exp_away"], 2),
@@ -422,12 +325,7 @@ def main() -> None:
     # FotMob's matchday numbers decide what "the next round" is (leftover Monday games and
     # rearranged midweek ones must not cut the following matchday short).
     fm_round = {(m["home"]["name"], m["away"]["name"]): m.get("round") for m in fm_fix}
-    rounds = {
-        (m["home"], m["away"]): fm_round.get(
-            (names.get(m["home"], m["home"]), names.get(m["away"], m["away"]))
-        )
-        for m in current
-    }
+    rounds = {(m["home"], m["away"]): fm_round.get((m["home"], m["away"])) for m in current}
     rounds = {k: int(v) for k, v in rounds.items() if str(v or "").isdigit()}
     nxt_ms = P.next_round(current, now, rounds=rounds)
     nxt = [fixture(m) for m in nxt_ms]
@@ -441,7 +339,7 @@ def main() -> None:
     contrib = AB.current_contributions(_players(season - 1), _players(season))
     # Past matches' team news and official line-ups (cached pages), joined to our matches.
     ab_seasons = absence_seasons(league, season)
-    ab_by_id = absences_by_match(league, scored, ab_seasons, AB.history(ab_seasons))
+    ab_by_id = absences_by_match(scored, AB.history(ab_seasons))
     # The adjustment is applied only where its own out-of-sample test shows a gain (D-031):
     # England's two cross-season tests did; Spain's clean test with the frozen weight didn't.
     tn_test = (
@@ -545,7 +443,7 @@ def main() -> None:
     projection = sorted(
         (
             {
-                "team": names.get(t, t),
+                "team": t,
                 "points_now": table[t]["points"],
                 "played": table[t]["played"],
                 **{k: round(v, 3) for k, v in s.items()},
@@ -561,6 +459,8 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     log_path = out_dir / "predictions_log.json"
     log = json.loads(log_path.read_text()) if log_path.exists() else {}
+    if moved := migrate_log(log, current):
+        print(f"record: {moved} logged prediction(s) re-keyed to FotMob match ids")
     made_at = datetime.now(UTC).isoformat()
     for f in nxt:
         if datetime.fromisoformat(f["kickoff"]) > now:
@@ -573,9 +473,7 @@ def main() -> None:
     by_id = {m["id"]: m for m in current}
     for fid, e in log.items():
         m = by_id.get(fid)
-        # A FotMob-scored entry (D-077) is scored again here: Understat adds xG and odds.
-        if m and m["played"] and ("result" not in e or e.get("scored_from") == "fotmob"):
-            e.pop("scored_from", None)
+        if m and m["played"] and "result" not in e:
             e["result"] = m["result"]
             e["score"] = f"{m['hg']}-{m['ag']}"
             e["rps"] = P.rps(e["p"], m["result"])
@@ -587,9 +485,6 @@ def main() -> None:
             for book in ("avg", "closing"):
                 if book in m.get("odds", {}):
                     e[f"{book}_rps"] = P.rps(m["odds"][book], m["result"])
-    # Results Understat has not published yet come from FotMob's fixture list (D-077).
-    if n_fm := score_from_fotmob(log, fm_fix):
-        print(f"record: {n_fm} result(s) scored from FotMob, Understat not caught up")
     # With the official line-ups (D-065): the pre-kickoff chances shifted by the share of
     # each side's usual XI that did not start, from the cached match page. Filled in for
     # every scored prediction that lacks it (the page may be cached after the scoring run).

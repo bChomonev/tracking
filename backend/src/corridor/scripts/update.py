@@ -10,9 +10,10 @@ Meant to run on a schedule (see ops/launchd). Each run:
    UCL. Not yet → exit quietly.
 3. Runs build_season (pl, ucl) → united_profile → predictions → previews → analyse →
    build_site.
-   Before the expensive steps it checks the slow sources actually have the match —
-   Understat's PPDA (PL) and UEFA's tracking (UCL, ~17 h after kickoff) — and otherwise
-   waits for a later run, up to MAX_WAIT, after which it builds with what it has.
+   Before the expensive steps it checks the slow source actually has the match — UEFA's
+   tracking (UCL, ~17 h after kickoff) — and otherwise waits for a later run, up to
+   MAX_WAIT, after which it builds with what it has. (League matches have no slow source
+   since D-079.)
 4. With --publish, starts a background Claude Code session that republishes the page to the
    artifact (only Claude can publish artifacts), and shows a macOS notification.
 State lives in data/site/{season}/update_state.json; logs in data/logs/update.log.
@@ -80,13 +81,10 @@ def pending(finished: dict[str, list[dict]], state: dict, now: datetime) -> list
 
 
 def missing_slow_data(season: int, new: list[tuple]) -> list[dict]:
-    """New matches whose slow source hasn't published yet: Understat PPDA for the PL,
-    UEFA tracking (distance) for the UCL."""
+    """New matches whose slow source hasn't published yet: UEFA tracking (distance) for
+    the UCL. League matches have none (D-079)."""
     out = []
-    for comp, field, sub in (
-        *((k, "ppda", lg.sub) for k, lg in LEAGUE_DEFS.items()),
-        ("ucl", "distance_m", "ucl"),
-    ):
+    for comp, field, sub in (("ucl", "distance_m", "ucl"),):
         ids = {m["id"] for c, m in new if c == comp}
         if not ids:
             continue

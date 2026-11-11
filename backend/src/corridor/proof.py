@@ -5,11 +5,12 @@ season (corridor.best_line) and every team-match of the later season — all tea
 United — is scored: what share of the lines did it reach (best) or sink to (worst)? Then
 we count how those matches ended. Lines never see the matches they are tested on.
 
-Two datasets, never mixed (different providers):
-  fotmob    — all profile metrics; 2024-25 → 2025-26 and 2025-26 → 2026-27 (running data only
-              exists in the last pair, so the share uses the metrics with a line in that pair)
-  understat — 5 core metrics back to 2014-15 (npxG for/against, PPDA, deep completions
-              for/against): a much longer record on fewer metrics.
+Two records from one provider (FotMob, D-079):
+  detailed — all profile metrics; 2024-25 → 2025-26 and 2025-26 → 2026-27 (running data only
+             exists in the last pair, so the share uses the metrics with a line in that pair)
+  core     — 5 core metrics back to 2020-21, the first FotMob season with xG (npxG for/against,
+             passes allowed per defensive action, box touches for/against): a longer record on
+             fewer metrics. The prediction model's line features use the same five.
 
 Caveat (stated on the page): metrics are whole-match totals, so they are partly shaped by
 the scoreline (a team 2-0 up may sit back). This is association, not a controlled
@@ -27,9 +28,9 @@ import numpy as np
 from corridor.best_line import Side, build_line, hits_line
 from corridor.profile import METRICS, STATE_KEYS, derive
 
-# FotMob shares in 10% steps; Understat's 5 metrics give shares 0, .2 … 1, one bin each.
+# Detailed shares in 10% steps; the 5 core metrics give shares 0, .2 … 1, one bin each.
 FOTMOB_BINS = tuple(round(x * 0.1, 1) for x in range(10)) + (1.0001,)
-UNDERSTAT_BINS = (0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0001)
+CORE_BINS = (0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0001)
 THRESHOLD_STEPS = [round(x * 0.05, 2) for x in range(6, 21)]  # 30% … 100%
 MIN_N = 30
 TARGET = {"best": ("W", 0.90), "worst": ("L", 0.85)}
@@ -46,35 +47,48 @@ class CoreMetric:
     direction: int
 
 
-UNDERSTAT_METRICS = (
+CORE_METRICS = (
     CoreMetric("npxg", "Chance quality created (npxG)", +1),
     CoreMetric("npxg_conceded", "Chance quality conceded (npxGA)", -1),
-    CoreMetric("ppda", "Pressing (PPDA)", -1),
-    CoreMetric("deep_completions", "Deep completions", +1),
-    CoreMetric("deep_allowed", "Deep completions allowed", -1),
+    CoreMetric("ppda", "Pressing (passes allowed per defensive action)", -1),
+    CoreMetric("box_touches", "Touches in the opponent's box", +1),
+    CoreMetric("box_touches_conceded", "Touches allowed in own box", -1),
 )
+CORE_KEYS = tuple(m.key for m in CORE_METRICS)
 
 
-def understat_rows(team_matches: list[dict]) -> list[dict]:
-    """Understat team-match records → rows keyed like the profile metrics."""
-    out = []
-    for r in team_matches:
-        gf, ga = r["goals_for"], r["goals_against"]
-        out.append(
-            {
-                "team": r["team"],
-                "kickoff_utc": r["kickoff"],
-                "goals_for": gf,
-                "goals_against": ga,
-                "result": "W" if gf > ga else "D" if gf == ga else "L",
-                "npxg": r["us_npxg"],
-                "npxg_conceded": r["us_npxga"],
-                "ppda": r["ppda"],
-                "deep_completions": r["deep_completions"],
-                "deep_allowed": r["deep_allowed"],
-            }
-        )
-    return out
+def ppda(r: dict) -> float | None:
+    """Opponent passes per tackle, interception or foul: FotMob's nearest thing to
+    Understat's PPDA (r = 0.84 on the 2026-27 PL, D-078)."""
+    actions = sum(r.get(k) or 0 for k in ("tackles", "interceptions", "fouls"))
+    passes = r.get("passes_conceded")
+    return None if passes is None or not actions else passes / actions
+
+
+def core_row(r: dict) -> dict:
+    """A FotMob team-match reduced to the five core metrics, keyed like the profile metrics
+    and shaped for the prediction model (D-079)."""
+    gf, ga = r["goals_for"], r["goals_against"]
+    return {
+        "team": r["team"],
+        "kickoff": r["kickoff_utc"][:19].replace("T", " "),
+        "kickoff_utc": r["kickoff_utc"],
+        "is_home": r["is_home"],
+        "goals_for": gf,
+        "goals_against": ga,
+        "result": "W" if gf > ga else "D" if gf == ga else "L",
+        "xg": r.get("xg"),
+        "xg_conceded": r.get("xg_conceded"),
+        "npxg": r.get("npxg"),
+        "npxg_conceded": r.get("npxg_conceded"),
+        "ppda": ppda(r),
+        "box_touches": r.get("box_touches"),
+        "box_touches_conceded": r.get("box_touches_conceded"),
+    }
+
+
+def core_rows(team_matches: list[dict]) -> list[dict]:
+    return [core_row(r) for r in team_matches if r.get("npxg") is not None]
 
 
 def score(row: dict, line: dict, metrics: Sequence, keys: Sequence[str]) -> tuple[int, int]:

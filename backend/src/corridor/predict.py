@@ -18,6 +18,7 @@ against two baselines: base rates (home/draw/away frequencies) and the bookmaker
 pre-match odds and Pinnacle's closing odds, margin removed).
 """
 
+import json
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -29,8 +30,9 @@ from sklearn.linear_model import LogisticRegression
 
 from corridor import proof
 from corridor.best_line import build_line, hits_line
+from corridor.ingest import fotmob
 from corridor.ingest import odds as odds_src
-from corridor.ingest import understat
+from corridor.leagues import League, processed_dir
 
 OUTCOMES = ("H", "D", "A")
 STATS = ("npxg", "npxga", "gf", "ga", "elite", "danger")
@@ -102,37 +104,62 @@ class Params:
 # ---------------------------------------------------------------------------- data
 
 
-def season_matches(season: int, *, refresh: bool = False, league: str = "EPL") -> list[dict]:
-    """All fixtures of one Understat season (``league`` = Understat slug); played ones carry
-    both teams' stats."""
-    data = understat.league_data(league, season, refresh=refresh)
-    rows = {(r["team"], r["kickoff"]): r for r in understat.team_matches(data)}
+def season_matches(
+    season: int, league: League, *, fixtures: list[dict] | None = None
+) -> list[dict]:
+    """One FotMob season of ``league`` (D-079): every finished match in the processed rows
+    (build_season) with both teams' core stats, plus, when ``fixtures`` (the FotMob fixture
+    list) is given, the matches still to play. Ids are FotMob match ids as strings."""
+    path = processed_dir(season, league) / "team_matches.json"
+    rows = json.loads(path.read_text()) if path.exists() else []
+    sides: dict[str, dict[str, dict]] = defaultdict(dict)
+    for r in rows:
+        if r.get("npxg") is not None:
+            sides[str(r["match_id"])]["home" if r["is_home"] else "away"] = proof.core_row(r)
     out = []
-    for d in data["dates"]:
-        h, a, ko = d["h"]["title"], d["a"]["title"], d["datetime"]
-        m: dict[str, Any] = {"id": d["id"], "season": season, "kickoff": ko, "home": h, "away": a}
-        rh, ra = rows.get((h, ko)), rows.get((a, ko))
-        if d["isResult"] and rh and ra:
-            hg, ag = rh["goals_for"], rh["goals_against"]
-            m |= {
+    for mid, rs in sides.items():
+        if "home" not in rs or "away" not in rs:
+            continue
+        h, a = rs["home"], rs["away"]
+        hg, ag = h["goals_for"], h["goals_against"]
+        out.append(
+            {
+                "id": mid,
+                "season": season,
+                "kickoff": h["kickoff"],
+                "home": h["team"],
+                "away": a["team"],
                 "played": True,
                 "hg": hg,
                 "ag": ag,
                 "result": "H" if hg > ag else "D" if hg == ag else "A",
-                "rows": {"home": rh, "away": ra},
+                "rows": {"home": h, "away": a},
             }
-        else:
-            m["played"] = False
-        out.append(m)
+        )
+    for f in fixtures or []:
+        st = f["status"]
+        if str(f["id"]) in sides or st.get("finished") or st.get("cancelled"):
+            continue
+        out.append(
+            {
+                "id": str(f["id"]),
+                "season": season,
+                "kickoff": st["utcTime"][:19].replace("T", " "),
+                "home": f["home"]["name"],
+                "away": f["away"]["name"],
+                "played": False,
+            }
+        )
     return sorted(out, key=lambda m: m["kickoff"])
 
 
-def load_history(
-    first: int, last: int, *, refresh_last: bool = False, league: str = "EPL"
-) -> list[dict]:
+def load_history(first: int, last: int, league: League) -> list[dict]:
+    """Seasons ``first``..``last`` of ``league``; the last one also carries its fixtures still
+    to play (one FotMob request)."""
     out: list[dict] = []
     for s in range(first, last + 1):
-        out += season_matches(s, refresh=refresh_last and s == last, league=league)
+        fx = fotmob.league_matches(f"{s}/{s + 1}", league.fotmob_id) if s == last else None
+        out += season_matches(s, league, fixtures=fx)
     return out
 
 
@@ -146,21 +173,19 @@ def _core_lines(history: list[dict]) -> dict[int, dict]:
     lines = {}
     for s in sorted(by_season):
         if s - 1 in by_season:
-            prev = proof.understat_rows(by_season[s - 1])
+            prev = by_season[s - 1]
             lines[s] = {
-                side: build_line(
-                    prev, str(s - 1), None, side, proof.UNDERSTAT_METRICS, derived=True
-                )
+                side: build_line(prev, str(s - 1), None, side, proof.CORE_METRICS, derived=True)
                 for side in ("best", "worst")
             }
     return lines
 
 
 def _team_stats(row: dict, lines: dict | None) -> dict[str, float]:
-    r = proof.understat_rows([row])[0]
+    r = row
     out = {
-        "npxg": row["us_npxg"],
-        "npxga": row["us_npxga"],
+        "npxg": row["npxg"],
+        "npxga": row["npxg_conceded"],
         "gf": row["goals_for"],
         "ga": row["goals_against"],
     }
@@ -169,7 +194,7 @@ def _team_stats(row: dict, lines: dict | None) -> dict[str, float]:
             ln = lines[side]["metrics"]
             hits = [
                 hits_line(r[m.key], ln[m.key]["value"], m.direction, side)
-                for m in proof.UNDERSTAT_METRICS
+                for m in proof.CORE_METRICS
                 if m.key in ln
             ]
             hits = [h for h in hits if h is not None]
@@ -687,7 +712,11 @@ def attach_odds(
             continue
         ours = {t for m in ms if m["season"] == s for t in (m["home"], m["away"])}
         names = odds_src.name_map({r["home"] for r in rows} | {r["away"] for r in rows}, ours)
-        idx = {(names[r["home"]], names[r["away"]]): r for r in rows}
+        idx = {
+            (names[r["home"]], names[r["away"]]): r
+            for r in rows
+            if r["home"] in names and r["away"] in names
+        }
         for m in ms:
             if m["season"] != s:
                 continue

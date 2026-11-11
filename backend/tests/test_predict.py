@@ -11,11 +11,12 @@ def _row(team, gf, ga, npxg, npxga):
         "kickoff": "x",
         "goals_for": gf,
         "goals_against": ga,
-        "us_npxg": npxg,
-        "us_npxga": npxga,
+        "result": "W" if gf > ga else "D" if gf == ga else "L",
+        "npxg": npxg,
+        "npxg_conceded": npxga,
         "ppda": 10.0,
-        "deep_completions": 6,
-        "deep_allowed": 6,
+        "box_touches": 20,
+        "box_touches_conceded": 20,
     }
 
 
@@ -276,33 +277,6 @@ def test_continuity_scales_the_summer_carry_only_when_asked():
     assert first_2021(full)["h_continuity"] == 0.5 and first_2021(full)["continuity_diff"] == -0.5
     plain, _ = P.walk(ms, P.Params(half_life=24, adjust=False))
     assert first_2021(plain)["continuity_diff"] == 0.0
-
-
-def test_understat_continuity_shares_last_seasons_minutes_by_who_stayed(monkeypatch):
-    from corridor.ingest import understat as U
-
-    data = {
-        2019: {
-            "players": [
-                {"id": "1", "time": "3000", "team_title": "A"},
-                {"id": "2", "time": "1000", "team_title": "A"},
-                {"id": "3", "time": "2000", "team_title": "A,B"},  # moved mid-season: split
-                {"id": "9", "time": "900", "team_title": "B"},
-            ]
-        },
-        2020: {
-            "players": [
-                {"id": "1", "time": "100", "team_title": "A"},
-                {"id": "3", "time": "100", "team_title": "B"},
-                {"id": "9", "time": "100", "team_title": "C"},
-            ]
-        },
-    }
-    monkeypatch.setattr(U, "league_data", lambda league, s, **kw: data[s])
-    c = U.continuity("EPL", 2020)
-    assert c["A"] == 3000 / 5000  # player 1 stayed; 2 left; 3's half-share went to B
-    assert c["B"] == 1000 / 1900  # player 3 stayed (his half), 9 left
-    assert "C" not in c  # new to the league: no last season here
 
 
 def test_surprise_gain_speeds_up_large_updates_only():

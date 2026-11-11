@@ -44,7 +44,7 @@ def miss_kind(fav: int, home_xg: float | None, away_xg: float | None) -> str | N
 
 def match_xg(m: dict) -> tuple[float | None, float | None]:
     r = m.get("rows") or {}
-    return (r.get("home") or {}).get("us_xg"), (r.get("away") or {}).get("us_xg")
+    return (r.get("home") or {}).get("xg"), (r.get("away") or {}).get("xg")
 
 
 def rows(cal: dict[int, tuple], seasons: Sequence[int], all_scored: list[dict]) -> list[dict]:

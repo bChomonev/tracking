@@ -61,7 +61,16 @@ def season_odds(season_start: int, *, current: bool = False, code: str = "E0") -
 
 
 ALIAS = {
+    # football-data short names → FotMob names (D-079)
     "Man United": "Manchester United",
+    "Brighton": "Brighton & Hove Albion",
+    "Leeds": "Leeds United",
+    "Tottenham": "Tottenham Hotspur",
+    "West Ham": "West Ham United",
+    "Norwich": "Norwich City",
+    "Luton": "Luton Town",
+    "Ipswich": "Ipswich Town",
+    "Hull": "Hull City",
     "Man City": "Manchester City",
     "Nott'm Forest": "Nottingham Forest",
     "Wolves": "Wolverhampton Wanderers",
@@ -81,7 +90,7 @@ ALIAS = {
     "Sp Gijon": "Sporting Gijon",
     "Las Palmas": "Las Palmas",
     "Leganes": "Leganes",
-    "Alaves": "Alaves",
+    "Alaves": "Deportivo Alavés",
     "Cadiz": "Cadiz",
     "Almeria": "Almeria",
     "Malaga": "Malaga",
@@ -98,16 +107,17 @@ ALIAS = {
     # Bundesliga
     "Dortmund": "Borussia Dortmund",
     "M'gladbach": "Borussia M.Gladbach",
-    "FC Koln": "FC Cologne",
     "Hamburg": "Hamburger SV",
-    "Hertha": "Hertha Berlin",
     "RB Leipzig": "RasenBallsport Leipzig",
     "Bielefeld": "Arminia Bielefeld",
+    "FC Koln": "1. FC Köln",
+    "Hertha": "Hertha BSC",
+    "Verona": "Hellas Verona",
 }
 
 
 def name_map(odds_names: set[str], our_names: set[str]) -> dict[str, str]:
-    """football-data short names → our (Understat) names: aliases, exact matches, then a
+    """football-data short names → our (FotMob) names: aliases, exact matches, then a
     close-enough unique similarity match. Doubtful or duplicate matches are left out (those
     matches simply get no benchmark) rather than risk pairing the wrong teams."""
     out: dict[str, str] = {}

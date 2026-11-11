@@ -13,7 +13,7 @@ and publishes an immutable static JSON audit to the edge.
 
 ```bash
 cd backend
-uv run python -m corridor.scripts.build_season    # fetch PL 2026-27 from FotMob + Understat (cached in data/raw)
+uv run python -m corridor.scripts.build_season    # fetch PL 2026-27 from FotMob (cached in data/raw)
 uv run python -m corridor.scripts.build_season --competition ucl  # UCL: FotMob events + UEFA running data
 uv run python -m corridor.scripts.build_season --season 2025  # once per season: last season = best/worst lines
 uv run python -m corridor.scripts.build_season --season 2024  # once: the season before, for the proof

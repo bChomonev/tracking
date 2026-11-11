@@ -1,35 +1,4 @@
-from corridor.scripts.united_profile import _expected_points, _understat_row
-
-
-def _us(team, gf, ga, ppda, deep, deep_allowed):
-    return {
-        "team": team,
-        "kickoff_utc": "2026-09-06 13:00:00",
-        "goals_for": gf,
-        "goals_against": ga,
-        "ppda": ppda,
-        "deep_completions": deep,
-        "deep_allowed": deep_allowed,
-    }
-
-
-def test_understat_join_tells_apart_two_draws_with_the_same_score_and_deep_completions():
-    rec = {
-        "us_rows": [
-            _us("Everton", 2, 2, 13.26, 7, 7),
-            _us("Manchester United", 2, 2, 15.86, 7, 7),
-        ]
-    }
-    fm_row = {
-        "kickoff_utc": "2026-09-06T13:00:00Z",
-        "goals_for": 2,
-        "goals_against": 2,
-        "ppda": 15.86,
-        "deep_completions": 7,
-        "deep_allowed": 7,
-    }
-    assert _understat_row(rec, fm_row)["team"] == "Manchester United"
-    assert _understat_row(rec, fm_row | {"ppda": None}) is None
+from corridor.scripts.united_profile import _expected_points
 
 
 def test_expected_points_average_the_two_histories():
@@ -66,7 +35,7 @@ def test_leagues_keep_their_data_apart():
     assert pl.focus_team == "Manchester United"
 
 
-def test_spanish_odds_names_map_to_understat_names():
+def test_spanish_odds_names_map_to_our_names():
     from corridor.ingest.odds import name_map
 
     ours = {

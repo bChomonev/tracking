@@ -60,7 +60,7 @@ players, they don't need it narrated back to them. They come for the "why".
   "Next up").
 - **Three charts** placed by the pipeline: the lines scorecard, the shot map, the xG race.
   Each gets a one-sentence caption that says what to look at.
-- **End:** one line of attribution — "Data: FotMob and Understat." — then the pipeline adds
+- **End:** one line of attribution — "Data: FotMob." — then the pipeline adds
   "Drafted from data with an AI assistant and edited by me."
 
 ## Example paragraph (tone, not content)
