@@ -14,6 +14,7 @@ import difflib
 import json
 from collections import defaultdict
 
+from corridor import proxy
 from corridor.ingest import fotmob, uefa, understat
 from corridor.ingest.http import DATA_DIR
 from corridor.leagues import LEAGUES, processed_dir
@@ -182,7 +183,30 @@ def main() -> None:
             joined += 1
     print(f"Understat: joined {joined}/{len(team_rows)} team-matches")
 
-    _write(processed_dir(season, league), team_rows, player_rows)
+    # Matches Understat has not published get stand-ins fitted on the ones it has (D-078).
+    # The real join above wins whenever it exists, so a later run replaces them.
+    opp = proxy.opponents(team_rows)
+    pairs = [
+        (u, r, opp[(r["match_id"], r["team"])])
+        for r in team_rows
+        if "us_xpts" in r
+        and (r["match_id"], r["team"]) in opp
+        and (u := us_rows.get((r["team"], r["kickoff_utc"][:10])))
+    ]
+    fits = proxy.fit(pairs)
+    filled = 0
+    for r in team_rows:
+        if "us_xpts" in r or (r["match_id"], r["team"]) not in opp:
+            continue
+        r.update(proxy.apply(r, opp[(r["match_id"], r["team"])], fits))
+        filled += r.get("understat_proxy", False)
+    if filled:
+        print(f"Understat proxy: filled {filled} team-matches from FotMob, fitted on {len(pairs)}")
+    out = processed_dir(season, league)
+    _write(out, team_rows, player_rows)
+    (out / "understat_proxy.json").write_text(
+        json.dumps({"fits": fits, "filled": filled}, indent=1)
+    )
 
 
 if __name__ == "__main__":

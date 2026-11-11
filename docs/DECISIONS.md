@@ -8,6 +8,28 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-078 — Understat stand-ins from FotMob while Understat is down · 2026-11-10 · accepted · revisit
+Understat was still on its error page on the agreed check-in date (D-075, eight days). The
+prediction model's current season stopped on 31 October and the site's pressing and deep-
+completion metrics for the twelve matches since showed the benchmark average (D-004). On the
+176 PL team-matches of 2026-27 that have both sources, FotMob tracks Understat closely:
+npxG r = 0.94 (FotMob about 10% lower), PPDA against opponent passes per tackle,
+interception or foul r = 0.84, deep completions against box touches r = 0.81.
+
+`corridor/proxy.py` fits each Understat field as a straight line on its FotMob quantity,
+per league on that season's matched matches (at least 30 pairs), and `build_season` fills
+the unmatched rows with it, tagged `understat_proxy: true`; the fits go to
+`understat_proxy.json` beside the rows. `predictions` turns an unplayed Understat fixture
+whose FotMob rows carry the stand-ins into a played match (`fill_from_fotmob`), so the
+ratings see every round. The real Understat join wins whenever it exists, so the next build
+after Understat returns replaces every stand-in. No line is ever built on a stand-in row:
+the lines come from past seasons and the current season only places matches on them.
+
+Two consequences, both accepted. The slow-data gate (D-018) is satisfied by a stand-in, so
+the update no longer waits 72 h for Understat; and "why it went wrong" on the Picks record
+reads FotMob-fitted xG for those matches. Revisit: D-079, the FotMob-only model, which
+would retire Understat and this bridge.
+
 ## D-077 — The running record scores from FotMob when Understat is behind · 2026-11-09 · accepted
 The Picks record scored each logged prediction only against the Understat season, so the
 outage from 2 November (D-075) froze it at the 31 October round while eleven finished matches

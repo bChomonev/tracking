@@ -212,6 +212,61 @@ def _pct(x: float) -> float:
     return round(100 * x, 1)
 
 
+PROXY_FIELDS = (
+    "us_xg",
+    "us_xga",
+    "us_npxg",
+    "us_npxga",
+    "ppda",
+    "deep_completions",
+    "deep_allowed",
+)
+
+
+def fill_from_fotmob(hist: list[dict], season: int, league, names: dict[str, str]) -> int:
+    """D-078: an unplayed Understat fixture whose FotMob rows carry proxy stand-ins (built
+    by build_season) becomes a played match, its rows shaped like Understat's. Returns the
+    number filled. The real Understat row replaces it on the next build once published."""
+    path = processed_dir(season, league) / "team_matches.json"
+    if not path.exists():
+        return 0
+    rows = [r for r in json.loads(path.read_text()) if r.get("understat_proxy")]
+    if not rows:
+        return 0
+    by_key = {(r["team"], r["kickoff_utc"][:10]): r for r in rows}
+    n = 0
+    for m in hist:
+        if m["season"] != season or m["played"]:
+            continue
+        day = m["kickoff"][:10]
+        fh = by_key.get((names.get(m["home"], m["home"]), day))
+        fa = by_key.get((names.get(m["away"], m["away"]), day))
+        if not fh or not fa or any(k not in fh or k not in fa for k in PROXY_FIELDS):
+            continue
+        m["rows"] = {
+            side: {
+                "source": "fotmob_proxy",
+                "team": m[side],
+                "kickoff": m["kickoff"],
+                "is_home": side == "home",
+                "goals_for": r["goals_for"],
+                "goals_against": r["goals_against"],
+                **{k: r[k] for k in PROXY_FIELDS},
+                "ppda_allowed": r.get("ppda_allowed"),
+            }
+            for side, r in (("home", fh), ("away", fa))
+        }
+        hg, ag = fh["goals_for"], fh["goals_against"]
+        m |= {
+            "played": True,
+            "hg": hg,
+            "ag": ag,
+            "result": "H" if hg > ag else "D" if hg == ag else "A",
+        }
+        n += 1
+    return n
+
+
 def fotmob_result(fm: dict) -> tuple[str, str] | None:
     """(result, 'h-a') from a FotMob fixture's final score, or None when it is not final."""
     st = fm.get("status") or {}
@@ -252,6 +307,19 @@ def main() -> None:
     now = datetime.now(UTC).replace(tzinfo=None)
 
     hist = P.load_history(2014, season, league=league.understat)
+    # Understat → FotMob names, so predictions link to the team pages.
+    fm_fix = fotmob.league_matches(f"{season}/{season + 1}", league.fotmob_id)
+    names = _name_map(
+        fm_fix,
+        [
+            {"datetime": m["kickoff"], "h": {"title": m["home"]}, "a": {"title": m["away"]}}
+            for m in hist
+            if m["season"] == season
+        ],
+    )
+    # Matches Understat has not published yet enter the season from FotMob (D-078).
+    if n_proxy := fill_from_fotmob(hist, season, league, names):
+        print(f"history: {n_proxy} match(es) of {season} filled from FotMob proxies")
     scored_base, _ = P.walk(hist, PARAMS)
     scored_form, _ = P.walk(hist, FORM_PARAMS)
     # Recent form (D-061): on only where this league's own held-out test says so.
@@ -293,15 +361,6 @@ def main() -> None:
     train = [m for m in scored if m["played"] and m["season"] >= FIRST_TRAIN]
     model = P.Model(params).fit(train)
     goals = P.GoalsModel().fit(train)
-
-    # Understat → FotMob names, so predictions link to the team pages.
-    fm_fix = fotmob.league_matches(f"{season}/{season + 1}", league.fotmob_id)
-    us_dates = [
-        {"datetime": m["kickoff"], "h": {"title": m["home"]}, "a": {"title": m["away"]}}
-        for m in scored
-        if m["season"] == season
-    ]
-    names = _name_map(fm_fix, us_dates)
 
     current = [m for m in scored if m["season"] == season]
     upcoming = [m for m in current if not m["played"]]
