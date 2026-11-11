@@ -8,6 +8,30 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-081 — Model settings re-tuned on FotMob history · 2026-11-11 · accepted
+D-023 froze the ratings' half-life (24 matches), carry-over (1.0) and L2 strength (C = 0.05)
+after tuning on Understat's 2016-17 … 2019-20. Those seasons no longer exist in the history
+(D-079), so the settings were re-tuned with the same protocol on the FotMob seasons that are
+not held out: walk-forward on 2021-22 and 2022-23, trained from 2020-21, the mean RPS of the
+four leagues, over half-life 6…48, carry 0.5…1.0 and C 0.01…100. Best: half-life 10, carry
+1.0, C = 1.0 (anything from 0.3 up is the same to four decimals; the strong regularisation
+was never doing much). Then frozen again.
+
+Scored on the untouched 2023-24 … 2026-27, base features, mean of the four leagues: 0.1964
+against 0.1967 frozen. By league: PL 0.2022 vs 0.2041 (better in 3 of 4 seasons), Serie A
+0.1916 vs 0.1925 (3 of 4), Bundesliga 0.1987 vs 0.1990 (2 of 4), La Liga 0.1931 vs 0.1912
+(worse in 3 of 4). Adopted for all leagues, one shared set as before, because it was chosen
+before the held-out seasons were looked at and is better on average; La Liga's loss is
+stated here rather than patched with a league-specific setting fitted on two seasons.
+
+Downstream switches re-ran on the new ratings with their own held-out tests: form (D-061)
+is now off everywhere (it was on in the PL; with a 10-match level the 2-match "recent minus
+level" adds nothing), the blend (D-068) stays on in the PL only, calibration stays on in
+Spain and Italy. Published backtests, model vs bookmakers: PL 0.2007 vs 0.1963, La Liga
+0.1927 vs 0.1884, Serie A 0.1915 vs 0.1884, Bundesliga 0.1978 vs 0.1934. The shorter
+half-life makes the picks react faster: Liverpool v United (22 Nov) moved from 52/23/25 to
+46/24/30 home/draw/away.
+
 ## D-080 — Shot-quality features: rated, tested, not adopted · 2026-11-11 · accepted (not adopted)
 D-079 left a lead: FotMob has shot-quality fields Understat never had, and without the line
 features FotMob's xG alone predicted worse than Understat's. So post-shot xG (xGOT), big

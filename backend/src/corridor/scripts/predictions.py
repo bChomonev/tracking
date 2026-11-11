@@ -23,10 +23,9 @@ from corridor.ingest.fotmob import BASE
 from corridor.ingest.http import fetch_json
 from corridor.leagues import LEAGUES, processed_dir, site_dir
 
-# Frozen after tuning on Understat's 2016-17 … 2019-20 (D-023) and kept as they were when the
-# history moved to FotMob (D-079). Re-tune only deliberately, never to chase the held-out
-# seasons.
-PARAMS = P.Params(half_life=24.0, carry=1.0, features="xg+goals+lines", C=0.05, adjust=True)
+# Re-tuned on FotMob's 2021-22 and 2022-23 only (D-081; before that D-023's Understat tuning
+# gave 24 / 0.05), then frozen. Re-tune only deliberately, never to chase the held-out seasons.
+PARAMS = P.Params(half_life=10.0, carry=1.0, features="xg+goals+lines", C=1.0, adjust=True)
 # Recent form (D-061): the same ratings over a 2-match half-life, as "recent minus level".
 # Chosen on the tuning seasons like everything else; applied per league only where its
 # held-out test shows a gain in most seasons.
