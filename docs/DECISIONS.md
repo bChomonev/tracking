@@ -8,6 +8,30 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-082 — Goals model for win/draw/loss re-tuned on FotMob: the PL blend stands, nothing else changes · 2026-11-11 · accepted (D-027 1X2 closed)
+D-027 left win/draw/loss open: on Understat the unshrunk goals model beat the logistic model
+on the held-out seasons but not on the tuning ones, and D-068's blend was the compromise.
+D-079/D-081 give a clean protocol neither model has been tuned on: trained from 2020-21,
+tuned on 2021-22 and 2022-23, held out 2023-24 to 2026-27, every league, on the D-081
+ratings (half-life 10, C=1). Grid: weight on the goals model 0…1 in steps of 0.2 × its shrink
+0.7 / 0.85 / 1.0; scoreline shrink 0.5…1.0.
+
+**1X2, mean of the four leagues on the tuning seasons:** every weight above 0 is worse
+(0.2037 at w=0; 0.2042 at the current w=0.4 unshrunk; 0.2076 for the goals model alone;
+shrinking it makes it worse still). Held out the same: logistic 0.1964, blend 0.1971, goals
+model alone 0.2004. **Per league** the picture is the one the pipeline already shows: in the
+PL the blend at w=0.4 is the best on the tuning seasons (0.20084 vs 0.20121, both seasons)
+and better held out (0.2014 vs 0.2022, 3 of 4) — D-068's choice re-made from scratch on
+FotMob; in the Bundesliga, La Liga and Serie A it loses on the tuning seasons and held out.
+The goals model alone is worse everywhere on both. D-027's held-out edge was an artefact of
+the slow, heavily regularised Understat model (half-life 24, C=0.05): with the D-081 ratings
+the logistic model is already sharp. **Nothing changes**: `BLEND_WEIGHT` stays 0.4, the
+per-league self-test keeps the blend on in the PL only, and the 1X2 question is closed.
+
+**Scorelines:** shrink 0.8 edges 0.7 on the tuning seasons by over 2.5 Brier (0.2431 vs
+0.2432, noise) while the exact-score log loss keeps falling to 1.0; held out it is better in
+two leagues and worse in two by under 0.001. `GOALS_SHRINK` stays 0.7.
+
 ## D-081 — Model settings re-tuned on FotMob history · 2026-11-11 · accepted
 D-023 froze the ratings' half-life (24 matches), carry-over (1.0) and L2 strength (C = 0.05)
 after tuning on Understat's 2016-17 … 2019-20. Those seasons no longer exist in the history
@@ -1146,7 +1170,7 @@ at the bottom of the overview. Both now live on `#how`, reachable from a menu on
 shooters, corners and goal lines were tested (frozen team-news test in `absences.TEST`)
 and the data sources and caveats. Team pages and the overview link to the right section.
 
-## D-027 — Scoreline model for goal lines · 2026-10-15 · accepted (1X2: revisit)
+## D-027 — Scoreline model for goal lines · 2026-10-15 · accepted (1X2: closed by D-082)
 Poisson goals per side (scikit-learn PoissonRegressor on the same pre-match ratings:
 own npxG / goals for, opponent npxGA / goals against) with a Dixon–Coles low-score
 correction → a scoreline matrix → most likely scores, over 1.5 / 2.5 / 3.5, both teams to
