@@ -293,3 +293,16 @@ def test_surprise_gain_speeds_up_large_updates_only():
     R0.update("S", big)
     R1.update("S", big)
     assert R1.state["S"]["npxg"] > R0.state["S"]["npxg"] and R1.state["S"]["npxg"] <= 4.0
+
+
+def test_shot_quality_features_are_rated_and_available_but_not_in_the_live_set():
+    # D-080 (tested, not adopted): the stats are rated so the record can switch them on.
+    ms = [_match(i, 2020, "S", "W", 2, 0, 1.5, 0.5) for i in range(4)]
+    for m in ms:
+        for side in ("home", "away"):
+            m["rows"][side] |= {k: 1.0 for k in P.proof.SHOT_KEYS}
+    scored, _ = P.walk(ms, P.Params(half_life=24, adjust=False))
+    x = scored[-1]["x"]
+    assert {"xgot_diff", "big_chances_diff", "shots_on_target_diff", "shot_quality_diff"} <= set(x)
+    assert "xgot_diff" not in P.FEATURE_SETS["xg+goals+lines+form"]
+    assert P.FEATURE_SETS["xg+goals+lines+xgot"][-1] == "xgot_diff"

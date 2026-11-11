@@ -65,6 +65,18 @@ def ppda(r: dict) -> float | None:
     return None if passes is None or not actions else passes / actions
 
 
+SHOT_KEYS = (
+    "xgot",
+    "xgot_conceded",
+    "big_chances",
+    "big_chances_conceded",
+    "shots_on_target",
+    "shots_on_target_conceded",
+    "np_shots",
+    "np_shots_conceded",
+)
+
+
 def core_row(r: dict) -> dict:
     """A FotMob team-match reduced to the five core metrics, keyed like the profile metrics
     and shaped for the prediction model (D-079)."""
@@ -84,6 +96,8 @@ def core_row(r: dict) -> dict:
         "ppda": ppda(r),
         "box_touches": r.get("box_touches"),
         "box_touches_conceded": r.get("box_touches_conceded"),
+        # Shot quality (D-080): post-shot xG, big chances, shots on target, shot volume.
+        **{k: r.get(k) for k in SHOT_KEYS},
     }
 
 

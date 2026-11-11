@@ -8,6 +8,23 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-080 — Shot-quality features: rated, tested, not adopted · 2026-11-11 · accepted (not adopted)
+D-079 left a lead: FotMob has shot-quality fields Understat never had, and without the line
+features FotMob's xG alone predicted worse than Understat's. So post-shot xG (xGOT), big
+chances, shots on target and shot volume are now rated per team like npxG (`STATS`,
+`proof.SHOT_KEYS`) and offered as features: each as a home-minus-away difference of expected
+output (own rating blended with the opponent's conceded rating, like `xg_diff`), plus npxG
+per shot as a quality difference.
+
+Walk-forward on 2023-24 to 2026-27, trained from 2020-21, in every league, on top of the
+base set and the form set: no feature moves pooled RPS by more than 0.0006 in either
+direction, and none is better in more than three of four seasons where it is better at all.
+Putting xGOT in place of npxG in the main chance-quality feature is clearly worse (PL
++0.0019, La Liga +0.0013). The team-level signal in these fields is already in npxG and
+goals; what they add is noise the regularised model shrinks away. Nothing is switched on.
+The ratings and feature sets stay so a later record can test them again (the pattern of
+D-071, D-072).
+
 ## D-079 — FotMob is the only source: Understat retired · 2026-11-11 · accepted
 Understat had been down nine days (D-075, D-078) and everything else on the site already
 came from FotMob. On 10 November the user chose to drop Understat for good. The test first:

@@ -35,7 +35,10 @@ from corridor.ingest import odds as odds_src
 from corridor.leagues import League, processed_dir
 
 OUTCOMES = ("H", "D", "A")
-STATS = ("npxg", "npxga", "gf", "ga", "elite", "danger")
+# Rated per team: chance quality and goals for/against, the two line shares, and the
+# shot-quality stats (D-080): post-shot xG, big chances, shots on target, shot volume.
+STATS = ("npxg", "npxga", "gf", "ga", "elite", "danger", *proof.SHOT_KEYS)
+BASE_FEATS = ("xg_diff", "xg_total", "goal_diff", "elite_diff", "danger_diff")
 FEATURE_SETS: dict[str, tuple[str, ...]] = {
     "xg": ("xg_diff", "xg_total"),
     "xg+goals": ("xg_diff", "xg_total", "goal_diff"),
@@ -43,14 +46,18 @@ FEATURE_SETS: dict[str, tuple[str, ...]] = {
     "xg+goals+lines": ("xg_diff", "xg_total", "goal_diff", "elite_diff", "danger_diff"),
     # Form (task 1 of the trend work): the same ratings over a much shorter half-life, as
     # "recent minus level". Needs Params.form_half_life.
-    "xg+goals+lines+form": (
-        "xg_diff",
-        "xg_total",
-        "goal_diff",
-        "elite_diff",
-        "danger_diff",
-        "form_diff",
-    ),
+    "xg+goals+lines+form": (*BASE_FEATS, "form_diff"),
+    # Shot quality (D-080), each on its own and together, with and without form.
+    **{
+        f"xg+goals+lines+{k}": (*BASE_FEATS, f"{k}_diff")
+        for k in ("xgot", "big_chances", "shots_on_target", "shot_quality")
+    },
+    **{
+        f"xg+goals+lines+form+{k}": (*BASE_FEATS, "form_diff", f"{k}_diff")
+        for k in ("xgot", "big_chances", "shots_on_target", "shot_quality")
+    },
+    "xg+goals+lines+shots": (*BASE_FEATS, "xgot_diff", "big_chances_diff"),
+    "xg+goals+lines+form+shots": (*BASE_FEATS, "form_diff", "xgot_diff", "big_chances_diff"),
     "xg+goals+lines+form2": (
         "xg_diff",
         "xg_total",
@@ -188,6 +195,7 @@ def _team_stats(row: dict, lines: dict | None) -> dict[str, float]:
         "npxga": row["npxg_conceded"],
         "gf": row["goals_for"],
         "ga": row["goals_against"],
+        **{k: row.get(k) for k in proof.SHOT_KEYS},
     }
     for side, key in (("best", "elite"), ("worst", "danger")):
         if lines:
@@ -205,6 +213,10 @@ def _team_stats(row: dict, lines: dict | None) -> dict[str, float]:
 
 
 # ---------------------------------------------------------------------------- ratings
+
+
+def _per_shot(xg: float, shots: float) -> float:
+    return xg / shots if shots else 0.0
 
 
 class Ratings:
@@ -244,10 +256,10 @@ class Ratings:
     def update(self, team: str, x: dict[str, float | None]) -> None:
         s = self.state.get(team)
         if s is None:
-            self.state[team] = {k: (x[k] if x[k] is not None else 0.0) for k in STATS}
+            self.state[team] = {k: (x.get(k) if x.get(k) is not None else 0.0) for k in STATS}
             return
         for k in STATS:
-            if x[k] is not None:
+            if x.get(k) is not None:
                 step = self.alpha
                 if self.surprise_gain and k in ("npxg", "npxga", "gf", "ga"):
                     step *= 1 + self.surprise_gain * min(abs(x[k] - s[k]), 3.0)
@@ -277,6 +289,19 @@ class Ratings:
             "goal_diff": (h["gf"] - h["ga"]) - (a["gf"] - a["ga"]),
             "elite_diff": h["elite"] - a["elite"],
             "danger_diff": h["danger"] - a["danger"],
+            # Shot quality (D-080): each side's expected output on a stat is the mean of what
+            # it makes and what the opponent allows, like xg_diff.
+            **{
+                f"{k}_diff": (h[k] + a[f"{k}_conceded"]) / 2 - (a[k] + h[f"{k}_conceded"]) / 2
+                for k in ("xgot", "big_chances", "shots_on_target")
+            },
+            "shot_quality_diff": (
+                _per_shot(h["npxg"], h["np_shots"]) - _per_shot(a["npxg"], a["np_shots"])
+            )
+            - (
+                _per_shot(h["npxga"], h["np_shots_conceded"])
+                - _per_shot(a["npxga"], a["np_shots_conceded"])
+            ),
             "exp_home": xh,
             "exp_away": xa,
             **{f"h_{k}": h[k] for k in ("npxg", "npxga", "gf", "ga")},
@@ -337,7 +362,7 @@ class WindowRatings(Ratings):
     def update(self, team: str, x: dict[str, float | None]) -> None:
         h = self.hist.setdefault(team, {k: [] for k in STATS})
         for k in STATS:
-            if x[k] is not None:
+            if x.get(k) is not None:
                 h[k] = (h[k] + [float(x[k])])[-self.window :]
         self.state[team] = {k: float(np.mean(v)) if v else 0.0 for k, v in h.items()}
 
