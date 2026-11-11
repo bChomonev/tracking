@@ -1663,6 +1663,7 @@ ${detailOf(m)}      </details>`;
   let howDone = null;
   const renderCompare = () => {
     const lgs = Object.entries(SITE.leagues);
+    $("cmp-title").textContent = `Same method, ${({2: "two", 3: "three", 4: "four"})[lgs.length] ?? lgs.length} leagues`;
     $("cmp-sub").textContent = `The method is the same everywhere; the numbers are measured separately on each league's own matches. Prediction settings were chosen on Premier League seasons and applied to ${lgs.filter(([k]) => k !== "pl").map(([, l]) => l.competition).join(", ")} unchanged — a clean test of whether the method travels.`;
     const v = (f) => lgs.map(([, lg]) => { try { const x = f(lg); return x == null ? "—" : x; } catch { return "—"; } });
     const last = (b) => b[b.length - 1];
@@ -1706,14 +1707,15 @@ ${detailOf(m)}      </details>`;
       const seasons = `${US.pairs[0].tested_on}–${US.pairs[US.pairs.length - 1].tested_on}`;
       $("proof-sub").textContent = `Each season's lines are built from the season before and tested on every ${LN} team-match of the next, never on the games they came from. Long record: ${US.team_matches.toLocaleString()} team-matches, ${seasons}, on the 6 core metrics FotMob has for every season since 2020-21: chance quality, box touches and big chances, each for and against. Detailed record: ${FM.team_matches} team-matches since 2025-26 on all FotMob metrics.`;
       const chart = (el, S, word, colour, title) => {
-        const rows = S.bins.map((b, i) => ({ k: Math.round(b.from * 5 + (i ? 0.5 : 0)), ...b }));
+        const nL = S.bins.length - 1; // one bin per share value: bin i = i lines of nL
+        const rows = S.bins.map((b, i) => ({ k: i, ...b }));
         $(el).innerHTML = `<figcaption>${title}<small>${word === "won" ? `Baseline: ${pctTxt(US.baseline.W)} of all team-matches are wins.` : `Baseline: ${pctTxt(US.baseline.L)} are defeats.`}</small></figcaption>` +
-          rows.map((b) => { const v = b[word === "won" ? "W" : "L"]; return `<div class="pbar"><small>${b.k} of 5</small><div class="track"><span style="width:${(v || 0) * 100}%;background:var(--${colour})"></span></div><b>${pctTxt(v)}</b></div><div class="pbar"><span></span><small>${b.n.toLocaleString()} matches</small><span></span></div>`; }).join("");
+          rows.map((b) => { const v = b[word === "won" ? "W" : "L"]; return `<div class="pbar"><small>${b.k} of ${nL}</small><div class="track"><span style="width:${(v || 0) * 100}%;background:var(--${colour})"></span></div><b>${pctTxt(v)}</b></div><div class="pbar"><span></span><small>${b.n.toLocaleString()} matches</small><span></span></div>`; }).join("");
       };
       chart("proof-best", US.best, "won", "good", "Elite lines reached → share won");
       chart("proof-worst", US.worst, "lost", "bad", "Worst lines hit → share lost");
       const uw = US.weighted.walk_forward.best, fw = FM.weighted.walk_forward.best;
-      if (uw) $("proof-weighting").textContent = `Weighting the lines by impact predicts better than counting them equally. With weights learned only from earlier seasons, the chance that a random win scores higher than a random non-win rose from ${uw.auc_equal.toFixed(2)} to ${uw.auc_weighted.toFixed(2)} over ${uw.n.toLocaleString()} later team-matches (0.5 = coin flip)${fw ? `, and from ${fw.auc_equal.toFixed(2)} to ${fw.auc_weighted.toFixed(2)} on this season's ${fw.n} on all FotMob metrics` : ""}. That's why matches are scored by weighted lines (elite and danger scores).`;
+      if (uw) $("proof-weighting").textContent = `Weighting the lines by impact predicts better than counting them equally. With weights learned only from earlier seasons, the chance that a random win scores higher than a random non-win rose from ${uw.auc_equal.toFixed(3)} to ${uw.auc_weighted.toFixed(3)} over ${uw.n.toLocaleString()} later team-matches (0.5 = coin flip)${fw ? `, and from ${fw.auc_equal.toFixed(3)} to ${fw.auc_weighted.toFixed(3)} on this season's ${fw.n} on all FotMob metrics` : ""}. That's why matches are scored by weighted lines (elite and danger scores).`;
       const plBy = Object.fromEntries(FT.metrics.map((m) => [m.key, m]));
       const keys = FT.metrics.filter((m) => m.impact).sort((a, b) => b.impact.impact - a.impact.impact).map((m) => m.key);
       $("proof-metrics-note").textContent = `For each line: how often teams won when they reached the elite line vs when they didn't, and how often they lost at the worst line vs when they didn't. A big gap means the line separates wins from defeats.`;
