@@ -472,7 +472,7 @@ def _pct(x: float | None) -> int | None:
 
 
 def _placement(label: str, x: dict) -> dict:
-    """Where one match sits on the long (5 core lines) record."""
+    """Where one match sits on the long (6 core lines) record."""
     out: dict[str, Any] = {"match": label}
     for side, res, word in (("best", "W", "won"), ("worst", "L", "lost")):
         core = x.get(f"{side}_core")
@@ -601,8 +601,8 @@ def _proof_facts(profile: dict, labels: list[str]) -> dict | None:
             "proof of cause."
         ),
         "long_record": {
-            "source": "FotMob since 2020-21, 5 core metrics: npxG for/against, passes allowed "
-            "per defensive action, box touches for/against",
+            "source": "FotMob since 2020-21, 6 core metrics: npxG for/against, box touches "
+            "for/against, big chances for/against",
             "team_matches": core["team_matches"],
             "seasons_tested": (
                 f"{core['pairs'][0]['tested_on']} to {core['pairs'][-1]['tested_on']}"

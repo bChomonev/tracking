@@ -34,7 +34,7 @@ def proof_record(season: int, league: League = LEAGUES["pl"]) -> dict:
         if (p := processed_dir(y, league) / "team_matches.json").exists()
     ]
     fm = proof.evaluate(proof.fotmob_seasons(fot), proof.FOTMOB_METRICS, proof.FOTMOB_BINS)
-    # The core record (D-079): the five core metrics since 2020-21, FotMob's first xG season.
+    # The core record (D-079, D-084): the six core metrics since 2020-21, FotMob's first xG season.
     core_seasons = [
         (_label(y), proof.core_rows(json.loads(p.read_text())))
         for y in range(2020, season + 1)

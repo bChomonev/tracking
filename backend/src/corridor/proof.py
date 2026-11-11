@@ -8,9 +8,10 @@ we count how those matches ended. Lines never see the matches they are tested on
 Two records from one provider (FotMob, D-079):
   detailed — all profile metrics; 2024-25 → 2025-26 and 2025-26 → 2026-27 (running data only
              exists in the last pair, so the share uses the metrics with a line in that pair)
-  core     — 5 core metrics back to 2020-21, the first FotMob season with xG (npxG for/against,
-             passes allowed per defensive action, box touches for/against): a longer record on
-             fewer metrics. The prediction model's line features use the same five.
+  core     — 6 core metrics back to 2020-21, the first FotMob season with xG (npxG for/against,
+             box touches for/against, big chances for/against): a longer record on fewer
+             metrics. The prediction model's line features use the same six. Pressing was the
+             fifth until D-084: FotMob's proxy barely separated wins from losses.
 
 Caveat (stated on the page): metrics are whole-match totals, so they are partly shaped by
 the scoreline (a team 2-0 up may sit back). This is association, not a controlled
@@ -28,9 +29,9 @@ import numpy as np
 from corridor.best_line import Side, build_line, hits_line
 from corridor.profile import METRICS, STATE_KEYS, derive
 
-# Detailed shares in 10% steps; the 5 core metrics give shares 0, .2 … 1, one bin each.
+# Detailed shares in 10% steps; the 6 core metrics give shares 0, 1/6 … 1, one bin each.
 FOTMOB_BINS = tuple(round(x * 0.1, 1) for x in range(10)) + (1.0001,)
-CORE_BINS = (0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0001)
+CORE_BINS = (0.0, 0.08, 0.25, 0.42, 0.58, 0.75, 0.92, 1.0001)
 THRESHOLD_STEPS = [round(x * 0.05, 2) for x in range(6, 21)]  # 30% … 100%
 MIN_N = 30
 TARGET = {"best": ("W", 0.90), "worst": ("L", 0.85)}
@@ -50,9 +51,10 @@ class CoreMetric:
 CORE_METRICS = (
     CoreMetric("npxg", "Chance quality created (npxG)", +1),
     CoreMetric("npxg_conceded", "Chance quality conceded (npxGA)", -1),
-    CoreMetric("ppda", "Pressing (passes allowed per defensive action)", -1),
     CoreMetric("box_touches", "Touches in the opponent's box", +1),
     CoreMetric("box_touches_conceded", "Touches allowed in own box", -1),
+    CoreMetric("big_chances", "Big chances created", +1),
+    CoreMetric("big_chances_conceded", "Big chances conceded", -1),
 )
 CORE_KEYS = tuple(m.key for m in CORE_METRICS)
 
@@ -78,8 +80,8 @@ SHOT_KEYS = (
 
 
 def core_row(r: dict) -> dict:
-    """A FotMob team-match reduced to the five core metrics, keyed like the profile metrics
-    and shaped for the prediction model (D-079)."""
+    """A FotMob team-match reduced to the core metrics (plus pressing), keyed like the
+    profile metrics and shaped for the prediction model (D-079)."""
     gf, ga = r["goals_for"], r["goals_against"]
     return {
         "team": r["team"],

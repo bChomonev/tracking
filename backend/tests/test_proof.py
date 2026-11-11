@@ -42,7 +42,7 @@ def test_win_rate_rises_with_lines_reached_and_npxg_has_lift():
     seasons = [(str(y), _season(y, n_teams=12, rounds=30)) for y in range(4)]
     out = proof.evaluate(seasons, proof.CORE_METRICS, proof.CORE_BINS)
     lift = {m["key"]: m["lift"] for m in out["best"]["by_metric"]}
-    assert lift["npxg"] > 0.15 and abs(lift["ppda"]) < 0.1  # ppda is pure noise here
+    assert lift["npxg"] > 0.15 and abs(lift["box_touches"]) < 0.1  # box touches: pure noise here
     rates = [b["W"] for b in out["best"]["bins"] if b["n"] >= 30]
     assert rates[-1] > rates[0]
 
@@ -59,12 +59,12 @@ def test_place_finds_the_bin():
 
 
 def test_weighted_beats_equal_when_one_metric_is_noise():
-    # ppda is pure noise in the synthetic league: weighting by lift should push it down and
-    # rank wins better out of sample than counting all lines equally.
+    # box touches are pure noise in the synthetic league: weighting by lift should push them
+    # down and rank wins better out of sample than counting all lines equally.
     seasons = [(str(y), _season(y, n_teams=12, rounds=30)) for y in range(5)]
     out = proof.evaluate(seasons, proof.CORE_METRICS, proof.CORE_BINS)
     w = out["weighted"]["weights"]["best"]
-    assert w["npxg"] > w["ppda"]
+    assert w["npxg"] > w["box_touches"]
     wf = out["weighted"]["walk_forward"]["best"]
     assert wf["tested_seasons"] == ["2", "3", "4"]
     assert wf["auc_weighted"] >= wf["auc_equal"] - 0.01
@@ -120,9 +120,9 @@ def test_impact_tiers():
 
 def test_style_metrics_get_tested_but_stay_out_of_the_share(monkeypatch):
     assert {"pass_accuracy_pct", "opp_half_pass_pct", "long_ball_pct"} <= proof.STYLE
-    monkeypatch.setattr(proof, "SHARE_EXCLUDED", {"ppda"})
+    monkeypatch.setattr(proof, "SHARE_EXCLUDED", {"box_touches"})
     seasons = [("A", _season(1)), ("B", _season(2))]
     out = proof.evaluate(seasons, proof.CORE_METRICS, proof.CORE_BINS)
-    assert "ppda" not in out["pairs"][0]["metrics"] and "npxg" in out["pairs"][0]["metrics"]
-    assert "ppda" in {m["key"] for m in out["best"]["by_metric"]}  # still gets an impact
-    assert "ppda" not in out["weighted"]["weights"]["best"]
+    assert "box_touches" not in out["pairs"][0]["metrics"] and "npxg" in out["pairs"][0]["metrics"]
+    assert "box_touches" in {m["key"] for m in out["best"]["by_metric"]}  # still gets an impact
+    assert "box_touches" not in out["weighted"]["weights"]["best"]

@@ -8,6 +8,41 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-084 — Core lines: pressing out, big chances in · 2026-11-11 · accepted
+The user asked whether the elite and worst lines are right. The method (D-019, D-020) is;
+the result on the FotMob record was not: across the four leagues (15,280 team-matches since
+2020-21) reaching all five core elite lines won 71% of 458 matches against the 90% target,
+and sinking to all five worst lines lost 77% of 707 against 85%. The Understat record had
+met the loss target. The cause is one line: FotMob's pressing proxy (opponent passes per
+defensive action) barely separates anything — reaching its elite line lifts the win rate by
+1 point where chance quality created lifts it by 38 — so a side can hit everything that
+matters and still show four of five. Stricter lines (p75 of the elite wins) do not fix it:
+they get the PL to 100% on eight matches.
+
+**Chosen:** pressing leaves the core set; big chances created and conceded join it (FotMob
+has them for every season; a big chance is judged on the opportunity, not on whether it
+went in). Six core lines: npxG for/against, box touches for/against, big chances
+for/against. All leagues, out of sample, lines from the season before:
+
+| core set | all elite lines → won | all worst lines → lost | walk-forward AUC win / loss |
+|---|---|---|---|
+| five with pressing | 71% of 458 | 77% of 707 | 0.655 / 0.667 |
+| six, big chances for pressing | 83% of 509 | 81% of 709 | 0.731 / 0.735 |
+
+PL alone 78% → 85% and 81% → 82%; the Bundesliga reaches 88% / 83%. Post-shot xG would
+have given 96% but partly contains the result (a goal has high xGOT by definition), the
+D-020 reason finishing stays out of the proof; it was not considered. Chance quality plus
+big chances alone (four lines) scores the same (84% / 81%, AUC 0.744 / 0.750); box touches
+stay because they carry the territorial side of the story and cost nothing.
+
+**The prediction model uses the same lines** (`elite_diff`, `danger_diff`), so the swap
+went through the D-081 protocol first: tuning seasons 0.2034 vs 0.2037 (better), held out
+0.1963 vs 0.1964 (PL +0.0004, La Liga −0.0005, Serie A −0.0002, Bundesliga −0.0002).
+Chosen on the tuning seasons; frozen settings unchanged. With the new lines La Liga's own form test flipped on (D-061 bar), the other per-league switches are as in D-081. Published backtests, model vs bookmakers: PL 0.2008 vs 0.1963, La Liga 0.1920 vs 0.1884, Serie A 0.1913 vs 0.1884, Bundesliga 0.1974 vs 0.1934. On the page: all six elite lines → won PL 85%, La Liga 81%, Serie A 79%, Bundesliga 88%; all six worst lines → lost 82 / 78 / 79 / 83%. `proof.CORE_METRICS`, `CORE_BINS`
+(shares in sixths), the page copy, the analyst's source line and the tests follow;
+`core_row` keeps the pressing key for the detailed record and the profile. The 90% win
+target is still not met with median lines and the page keeps saying so.
+
 ## D-083 — One model for all four leagues: level on the tuning seasons, not adopted · 2026-11-11 · accepted (not adopted)
 The last structural idea left after D-082: each league's logistic model fits its five
 coefficients on about 1,100 matches before the first held-out season, so one model fitted on
