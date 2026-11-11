@@ -8,6 +8,29 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-083 — One model for all four leagues: level on the tuning seasons, not adopted · 2026-11-11 · accepted (not adopted)
+The last structural idea left after D-082: each league's logistic model fits its five
+coefficients on about 1,100 matches before the first held-out season, so one model fitted on
+all four leagues at once (with a league intercept for home advantage and draw rate, and
+without) was tried on the D-081 ratings, same protocol (trained from 2020-21, tuned on
+2021-22 and 2022-23, held out 2023-24 to 2026-27).
+
+**Tuning seasons, mean of the four leagues:** 0.2037 per league vs 0.2037 pooled with
+intercepts vs 0.2038 pooled without — level, at every C from 0.1 to 10. Per league it only
+moves the error around: PL +0.0014 worse, Bundesliga −0.0014 better, Spain and Italy within
+0.0003. **Held out:** 0.1964 vs 0.1960; PL −0.0019 (3 of 4 seasons), Bundesliga −0.0012
+(4 of 4), La Liga +0.0004 (worse in 3 of 4), Serie A +0.0011 (worse in 3 of 4). A held-out
+gain with nothing on the tuning seasons is the D-027 trap again, and the leagues do not
+want one model: fitted separately, the line features carry +0.49 / +0.41 log-odds in the
+PL and nothing in Italy or Germany; goal difference matters in Serie A (+0.41) and not in
+the Bundesliga. Pooling trades Spain and Italy's fit for England's. **Not adopted.**
+
+This closes the feature and structure backlog on the current data: form, rest, continuity,
+absences by quality, shot quality, surprise gain, the goals model and pooling have all been
+tried on the FotMob protocol. What is left (official line-ups, D-065; player-level
+ratings) needs either a machine awake before kickoff or weeks of work, and the user has
+chosen to do neither for now. The site improves through what it says.
+
 ## D-082 — Goals model for win/draw/loss re-tuned on FotMob: the PL blend stands, nothing else changes · 2026-11-11 · accepted (D-027 1X2 closed)
 D-027 left win/draw/loss open: on Understat the unshrunk goals model beat the logistic model
 on the held-out seasons but not on the tuning ones, and D-068's blend was the compromise.
