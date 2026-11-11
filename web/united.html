@@ -442,9 +442,10 @@ th[aria-sort="ascending"]::after { content: " ▴"; }
 .pos { font: 600 .72rem/1 var(--body); color: var(--muted); letter-spacing: .06em; }
 /* Players table: the row under the pointer stands out without losing the cells' shading
    (an overlay, not a background), with a red edge by the name. */
-#players tbody tr:hover td, #players tbody tr:focus-within td { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--ink) 9%, transparent); }
+/* Every table: the row under the pointer is tinted, so a wide, scrolled table still reads row by row. */
+tbody tr:hover td, tbody tr:focus-within td { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--ink) 9%, transparent); }
 #players tbody tr:hover td.l, #players tbody tr:focus-within td.l { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--ink) 9%, transparent), inset 3px 0 0 var(--red); font-weight: 600; }
-@media (hover: none) { #players tbody tr:hover td { box-shadow: none; } #players tbody tr:hover td.l { box-shadow: none; font-weight: 400; } }
+@media (hover: none) { tbody tr:hover td { box-shadow: none; } #players tbody tr:hover td.l { box-shadow: none; font-weight: 400; } }
 /* Analyst */
 .analyst { display: grid; gap: 18px; max-width: 80ch; }
 .analyst .lede, .fold .lede { font: 600 clamp(1.35rem, 3vw, 1.7rem)/1.25 var(--display); margin: 0; text-wrap: balance; }
