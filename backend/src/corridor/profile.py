@@ -15,6 +15,7 @@ from corridor.ingest.fotmob import STATES
 
 MIN_STATE_MINUTES = 20.0  # a match counts for a state only if it spent this long in it
 MIN_STATE_SHOTS = 3  # per-shot quality needs at least this many shots in the state
+MIN_BOX_TOUCHES = 10  # chance quality per box touch needs this many touches in the match
 
 
 @dataclass(frozen=True)
@@ -437,6 +438,20 @@ METRICS: tuple[ProfileMetric, ...] = (
         0,
     ),
     ProfileMetric(
+        "npxg_per_box_touch_conceded",
+        "npxGA per 10 opp. touches in our box",
+        "defence",
+        -1,
+        "",
+        (
+            "How costly each opponent visit to the team's penalty area was: expected goals "
+            "allowed (without penalties) for every 10 touches the opponent had there. Only "
+            "matches with 10+ such touches count. Lower is better: a high number means "
+            "the opponent got clear chances whenever they got in."
+        ),
+        2,
+    ),
+    ProfileMetric(
         "shot_distance_conceded_m",
         "Distance of shots conceded",
         "defence",
@@ -515,6 +530,10 @@ def derive(r: dict) -> dict:
     d["npxg_per_shot"] = r["npxg"] / r["shots"] if r.get("shots") else None
     d["npxg_per_shot_conceded"] = (
         r["npxg_conceded"] / r["shots_conceded"] if r.get("shots_conceded") else None
+    )
+    box, npxga = r.get("box_touches_conceded"), r.get("npxg_conceded")
+    d["npxg_per_box_touch_conceded"] = (
+        10 * npxga / box if box and box >= MIN_BOX_TOUCHES and npxga is not None else None
     )
     d["finishing_delta"] = (
         r["xgot"] - r["xg"] if r.get("xgot") is not None and r.get("xg") is not None else None

@@ -8,6 +8,24 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-085 — A defence line for how costly each opponent visit to the box is · 2026-11-13 · accepted
+The user found Gradient Sports cards ranking United 19th of 20 for "positional mistakes" and
+asked whether positioning data could help. Graded and tracking data are sold to clubs only.
+A trial on FotMob's per-player on-ball locations (its heatmap file, all 100 PL matches of
+2026-27) found that shape proxies built from them (gap between defence and midfield, team
+length, share of opponent actions through the middle) had no link to chances conceded
+(correlations between -0.02 and +0.03), so that data is **not adopted**. The one finding
+that matched Gradient needed nothing new: opponents reach United's box less often than they
+reach most teams', yet United concede the fourth-most xG.
+
+**Chosen:** a new defence metric, `npxg_per_box_touch_conceded` (`profile.derive`):
+non-penalty xG allowed per 10 opponent touches in the team's box, from numbers already
+stored. A match counts only with 10+ such touches (`MIN_BOX_TOUCHES`). It gets the usual
+rank, lines and impact test, for every league. It is a page and column line, not a core
+line and not a model input. United 2026-27 after ten games: 0.75 in a typical match against
+a league average of 0.53, 19th of 20. It is a ratio of two existing lines, so it restates
+them; it does not say *why* the visits are costly (set pieces are included).
+
 ## D-084 — Core lines: pressing out, big chances in · 2026-11-11 · accepted
 The user asked whether the elite and worst lines are right. The method (D-019, D-020) is;
 the result on the FotMob record was not: across the four leagues (15,280 team-matches since

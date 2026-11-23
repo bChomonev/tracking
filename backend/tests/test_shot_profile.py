@@ -49,6 +49,14 @@ def test_derive_shot_rates_and_empty_shot_map():
     assert d["blocked_shot_pct"] == 50 and d["shot_distance_conceded_m"] is None
 
 
+def test_derive_chance_quality_per_opponent_box_touch():
+    d = derive({"result": "L", "npxg_conceded": 1.5, "box_touches_conceded": 30})
+    assert d["npxg_per_box_touch_conceded"] == pytest.approx(0.5)  # per 10 touches
+    few = derive({"result": "W", "npxg_conceded": 0.6, "box_touches_conceded": 9})
+    assert few["npxg_per_box_touch_conceded"] is None  # under 10 touches: too few to rate
+    assert derive({"result": "D"})["npxg_per_box_touch_conceded"] is None
+
+
 def test_critic_fallback_drops_only_interpretations_and_player_notes():
     analysis = {
         "findings": [{"interpretation": "a"}, {"interpretation": "b"}],
