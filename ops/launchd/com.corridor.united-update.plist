@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Runs the United page update twice a day (local time). Install: ops/launchd/install.sh
-     Missed runs (Mac asleep) fire once on wake. Logs: data/logs/update.log -->
+     Missed runs (Mac asleep) fire once on wake. Logs: data/logs/update.log
+     caffeinate -i keeps the Mac awake while the job runs: with the lid closed the job fires
+     in a ~15 s maintenance wake and the Mac would otherwise sleep mid-run (D-086). -->
 <plist version="1.0">
 <dict>
   <key>Label</key><string>com.corridor.united-update</string>
   <key>ProgramArguments</key>
   <array>
+    <string>/usr/bin/caffeinate</string><string>-i</string>
     <string>__UV__</string><string>run</string><string>python</string>
     <string>-m</string><string>corridor.scripts.update</string><string>--publish</string>
   </array>

@@ -8,6 +8,20 @@ Format: **D-NNN — Title** · date · status (`accepted` / `revisit` / `superse
 
 ---
 
+## D-086 — The scheduled publish session runs without a shell · 2026-11-28 · accepted
+Scheduled publishes stopped landing: the live page stayed on a hand-published version from
+23 to 26 November. The background Claude session reached for Bash to inspect the 14 MB page
+and waited on an approval prompt nobody was there to answer.
+
+**Chosen:** `update.publish` starts the session with `--disallowedTools Bash`, and the prompt
+tells it to use Read with offset/limit.
+
+Runs also failed or took hours because, with the lid closed, launchd fires the job inside a
+~15-second maintenance wake and the Mac sleeps again mid-run (28 November: one run died on a
+dropped connection, the next took 3.5 hours in 2-second slices). The launchd job now runs
+under `caffeinate -i` so the Mac stays awake until the job ends. An expired Claude login
+still stops the publish and is not addressed.
+
 ## D-085 — A defence line for how costly each opponent visit to the box is · 2026-11-13 · accepted
 The user found Gradient Sports cards ranking United 19th of 20 for "positional mistakes" and
 asked whether positioning data could help. Graded and tracking data are sold to clubs only.
